@@ -1,0 +1,1376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>NanoBands</title>
+<meta name="description" content="NanoBands: read a NanoVNA SWR sweep against the US band plan. Drop in a photo of the screen or an .s1p file and see which band segments your antenna is ready for.">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="theme-color" content="#12151a">
+<!-- Link previews. Crawlers do not resolve relative URLs here, so these are
+     absolute and name the live address. -->
+<link rel="canonical" href="https://www.w7yfr.com/nanobands/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="W7YFR">
+<meta property="og:title" content="NanoBands">
+<meta property="og:description" content="Read a NanoVNA SWR sweep against the US band plan. Drop in a photo of the screen or an .s1p file and see which band segments your antenna is ready for.">
+<meta property="og:url" content="https://www.w7yfr.com/nanobands/">
+<meta property="og:image" content="https://www.w7yfr.com/nanobands/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="NanoBands: an SWR curve with the stretches under 3:1 shaded green.">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{
+  /* The palette is cwt's and w7yfr.com's, so the site reads as one. */
+  --bg:#12151a;--panel:#1a1f27;--panel2:#222937;--line:#2e3644;--text:#e6eaf0;--muted:#97a3b6;--faint:#66708a;
+  --accent:#6aa9ff;--warn:#f2cc60;--ok:#3fb950;--bad:#f85149;--data:#58a6ff;--phone:#e3a33b;--cw:#bc8cff;--all:#39c5bb;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+/* Scrollbars as cwt draws them. Room for the page's bar is kept on both edges
+   whether or not there is one, so the page stays centered and does not shift
+   when it grows past the window. Thin and quiet everywhere: the color is
+   inherited, so it is set once here; the width is not, so every element takes it. */
+html{scrollbar-gutter:stable both-edges;scrollbar-color:color-mix(in srgb, var(--faint) 45%, transparent) transparent}
+*{scrollbar-width:thin}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+/* The name, drawn in the same block letters as the callsign and a size up,
+   the way cwt draws CWT. The callsign steps back to gray so the blue means
+   this app, and turns blue again on hover as the way home. */
+header h1{margin:0;color:var(--accent)}
+header h1 .art{display:block;white-space:pre;font-family:var(--mono);font-size:calc(34px / 6);line-height:1;font-weight:400;letter-spacing:0}
+header .div{width:1px;align-self:stretch;background:var(--line)}
+#clearAll{margin-left:auto}
+@media (max-width:600px){header .div{display:none}}
+header .sub{color:var(--muted);font-size:13px}
+/* The callsign, drawn: the same six rows w7yfr.com and cwt show, sized to a
+   26px row the way cwt's landing page sizes it, and linking home. */
+.callsign{display:block;color:var(--faint);text-decoration:none;flex:none}
+.callsign:hover,.callsign:focus-visible{color:var(--accent)}
+.callsign .art{display:block;white-space:pre;font-family:var(--mono);font-size:calc(26px / 6);line-height:1;font-weight:400;letter-spacing:0}
+.colophon{padding:16px 20px 24px;text-align:center;font-size:11px;color:var(--faint)}
+.colophon a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.colophon a:hover,.colophon a:focus-visible{color:var(--accent)}
+.wrap{display:flex;gap:16px;padding:16px;align-items:flex-start}
+aside{width:330px;flex:none;display:flex;flex-direction:column;gap:12px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;font-weight:600;display:flex;gap:8px;align-items:center}
+.card h2 b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#000;font-size:11px}
+.row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
+.row label{color:var(--muted);font-size:12px;min-width:84px}
+input[type=number],select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 7px;width:90px;font:inherit}
+select{width:auto}
+input[type=range]{flex:1}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font:inherit;cursor:pointer}
+button:hover{border-color:#4a5260}
+button.primary{background:var(--accent);color:#111;border-color:var(--accent);font-weight:600}
+button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
+.hint{color:var(--muted);font-size:12px;margin:6px 0 0}
+.warn{color:var(--warn);font-size:12px}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);cursor:pointer;font-size:13px}
+.drop.over{border-color:var(--accent);color:var(--accent)}
+.refs{font-size:12px;color:var(--muted)}
+.refs span{display:inline-flex;gap:4px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;margin:2px}
+.refs span i{cursor:pointer;font-style:normal;color:var(--bad)}
+#photoWrap{position:relative}
+#photo{display:block;border-radius:8px;touch-action:none;cursor:crosshair;max-width:100%}
+#chart{display:block;width:100%;height:460px;touch-action:none;cursor:crosshair}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.chips button{padding:3px 9px;font-size:12px;border-radius:12px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{color:var(--muted);font-weight:600;font-size:12px}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.bar{position:relative;height:10px;border-radius:3px;background:rgba(248,81,73,.55);min-width:120px;overflow:hidden}
+.bar span{position:absolute;top:0;bottom:0;background:var(--ok)}
+.bar.na{background:#3a404a}
+.pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;font-weight:600}
+.pill.ok{background:rgba(63,185,80,.18);color:var(--ok)}.pill.part{background:rgba(242,204,96,.16);color:var(--warn)}.pill.no{background:rgba(248,81,73,.16);color:var(--bad)}
+.empty{color:var(--muted);padding:30px;text-align:center}
+.pts td button{padding:0 6px;font-size:12px}
+.hidden{display:none!important}
+@media (max-width:900px){.wrap{flex-direction:column}aside{width:100%;position:static;max-height:none}}
+</style>
+</head>
+<body>
+<header>
+  <a class="callsign" href="https://www.w7yfr.com" aria-label="W7YFR — back to w7yfr.com"><span class="art" aria-hidden="true">██╗    ██╗███████╗██╗   ██╗███████╗██████╗ 
+██║    ██║╚════██║╚██╗ ██╔╝██╔════╝██╔══██╗
+██║ █╗ ██║    ██╔╝ ╚████╔╝ █████╗  ██████╔╝
+██║███╗██║   ██╔╝   ╚██╔╝  ██╔══╝  ██╔══██╗
+╚███╔███╔╝   ██║     ██║   ██║     ██║  ██║
+ ╚══╝╚══╝    ╚═╝     ╚═╝   ╚═╝     ╚═╝  ╚═╝</span></a>
+  <span class="div"></span>
+  <h1><span class="art" role="img" aria-label="NanoBands">███╗   ██╗ █████╗ ███╗   ██╗ ██████╗ ██████╗  █████╗ ███╗   ██╗██████╗ ███████╗
+████╗  ██║██╔══██╗████╗  ██║██╔═══██╗██╔══██╗██╔══██╗████╗  ██║██╔══██╗██╔════╝
+██╔██╗ ██║███████║██╔██╗ ██║██║   ██║██████╔╝███████║██╔██╗ ██║██║  ██║███████╗
+██║╚██╗██║██╔══██║██║╚██╗██║██║   ██║██╔══██╗██╔══██║██║╚██╗██║██║  ██║╚════██║
+██║ ╚████║██║  ██║██║ ╚████║╚██████╔╝██████╔╝██║  ██║██║ ╚████║██████╔╝███████║
+╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚══════╝</span></h1><span class="sub">Read a NanoVNA SWR sweep against the US band plan</span>
+  <button id="clearAll" class="hidden" title="Clear the file and start over">Clear</button>
+</header>
+<div class="wrap">
+<aside>
+  <div class="card">
+    <h2><b>1</b> Load</h2>
+    <div class="drop" id="drop">Drop / paste a photo of the SWR screen<br>or a Touchstone <code>.s1p</code> file<br><u>browse…</u></div>
+    <input type="file" id="file" accept="image/*,.s1p,.s2p,.txt" class="hidden">
+    <p class="hint">An .s1p export (NanoVNA-Saver, or the NanoVNA's own SD-card save) skips calibration and tracing and gives exact data.</p>
+  </div>
+
+  <div class="card" id="calCard">
+    <h2><b>2</b> Calibrate</h2>
+    <p class="hint" style="margin-top:0">When a photo loads, the plot grid is found and the photo is squared up on it. If it looks off, <b>Edit corners</b> (above the photo) shows the 4 yellow-ringed handles; drag them onto the grid's corners (a magnifier appears while dragging), then <b>Straighten</b> again.</p>
+    <p class="hint hidden" id="gridNote"></p>
+    <p class="hint hidden" id="ocrNote"></p>
+    <div class="row"><label>Sweep start</label><input type="number" id="fStart" step="any" placeholder="MHz"> MHz</div>
+    <div class="row"><label>Sweep stop</label><input type="number" id="fStop" step="any" placeholder="MHz"> MHz</div>
+    <div class="row"><label>SWR at top</label><input type="number" id="swrTop" step="any" value="5"></div>
+    <div class="row"><label>SWR at bottom</label><input type="number" id="swrBot" step="any" value="1"></div>
+    <div class="row"><button id="gridBtn">Detect grid</button><button id="refBtn">+ Frequency reference</button></div>
+    <div class="refs" id="refs"></div>
+    <p class="hint">Don't know start/stop? Click a point whose frequency you know (a marker, or a VNA grid line), enter the MHz, and repeat once more. Start/stop are solved from the two.</p>
+  </div>
+
+  <div class="card" id="traceCard">
+    <h2><b>3</b> Trace</h2>
+    <div class="row"><button id="traceBtn">Auto-trace curve</button><button id="penBtn">✎ Pen fix</button><button id="clearBtn">Erase trace</button></div>
+    <div class="row"><label>Color sensitivity</label><input type="range" id="sens" min="20" max="140" value="70"></div>
+    <p class="hint">Auto-trace follows the yellow line and ignores on-screen text. If it strays, turn on Pen fix and drag along the real curve to redraw that stretch. (You can also trace by hand from scratch with the pen.)</p>
+    <p class="warn hidden" id="retraceHint">Corners moved — click Auto-trace again to re-fit.</p>
+  </div>
+
+  <div class="card">
+    <h2><b>4</b> Analyze</h2>
+    <div class="row"><label>Max SWR</label><input type="number" id="thr" step="0.1" value="3"></div>
+    <div class="row"><label>License</label><select id="cls"><option value="E">Amateur Extra</option><option value="A">Advanced</option><option value="G" selected>General</option><option value="T">Technician</option></select></div>
+    <div class="row"><label>Mode</label><select id="mode"><option value="any">Any mode</option><option value="phone">Phone (SSB/AM/FM)</option><option value="cw">CW</option><option value="data">RTTY / digital</option></select></div>
+    <p class="hint">CW is legal anywhere you have privileges. The CW/data sub-bands (blue) are the parts where phone isn't allowed.</p>
+    <div class="row"><label>Dip/peak min.</label><input type="number" id="prom" step="0.05" value="0.2"> SWR</div>
+    <p class="hint">Dips and peaks smaller than this are ignored. Click the chart to pin your own marker; click it again to remove it. Drag across the chart to zoom, double-click to reset.</p>
+  </div>
+
+  <div class="card">
+    <h2>Export</h2>
+    <div class="row"><button id="expPhoto">Photo + overlay PNG</button><button id="expChart">Chart PNG</button><button id="expCsv">CSV</button></div>
+  </div>
+</aside>
+
+<main>
+  <div class="card" id="photoCard">
+    <h2>Photo <span style="flex:1"></span><button id="straightBtn" class="hidden" style="text-transform:none;letter-spacing:0;font-size:12px;padding:3px 10px">Straighten</button></h2>
+    <div id="photoWrap"><canvas id="photo"></canvas></div>
+    <div class="empty" id="photoEmpty">Load a photo to begin.</div>
+  </div>
+  <div class="card">
+    <h2>SWR vs. frequency <span id="resNote" style="text-transform:none;letter-spacing:0;font-weight:400"></span></h2>
+    <div class="chips" id="chips"></div>
+    <canvas id="chart"></canvas>
+    <div class="legend">
+      <span><b>bands</b> row: <i style="background:var(--ok);margin-left:4px"></i>usable (licensed, SWR ≤ max) <i style="background:rgba(248,81,73,.7);margin-left:6px"></i>licensed, SWR too high</span>
+      <span><b>≤3:1</b> row: start–end MHz of each stretch where SWR stays under the max</span>
+      <span><i style="background:var(--data)"></i>CW / RTTY / data</span>
+      <span><i style="background:var(--phone)"></i>Phone / image</span>
+      <span><i style="background:var(--cw)"></i>CW only</span>
+      <span><i style="background:var(--all)"></i>All modes / 60 m channel</span>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Band segments you can use</h2>
+    <div id="bandTable"><div class="empty">No data yet.</div></div>
+    <p class="hint">US privileges per 47 CFR §97.301/305, checked against the ARRL frequency-allocations chart. 60 m is four 2.8 kHz channels plus the 5351.5–5366.5 kHz segment (USB/CW/data). Power limits and new rule changes aren't modeled, so check the current ARRL chart before you transmit.</p>
+  </div>
+  <div class="card">
+    <h2>Key points</h2>
+    <div id="ptTable"><div class="empty">No data yet.</div></div>
+  </div>
+</main>
+</div>
+<footer class="colophon">
+  © <span id="year"></span> <a href="https://www.qrz.com/db/W7YFR" target="_blank" rel="noreferrer">W7YFR</a> ·
+  <a href="https://github.com/W7YFR/nanobands" target="_blank" rel="noreferrer">v<span id="version"></span></a>
+</footer>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const APP_VERSION = '1.0.0';
+$('#version').textContent = APP_VERSION;
+$('#year').textContent = new Date().getFullYear();
+
+/* ---------------- Band plan (US, MHz) ---------------- */
+const GAE = s => ({E:s, A:s, G:s, T:[]});
+const ALL = s => ({E:s, A:s, G:s, T:s});
+// 60 m: four 2.8 kHz USB channels (ARRL lists dial freqs 5330.5/5346.5/5371.5/5403.5 kHz; centers are +1.5 kHz)
+// plus the 5351.5–5366.5 kHz segment.
+const CH60 = [5.332, 5.348, 5.373, 5.405].map(c => [c - 0.0014, c + 0.0014, 'chan'])
+  .concat([[5.3515, 5.3665, 'chan']]).sort((a, b) => a[0] - b[0]);
+const BANDS = [
+  {name:'2200m', lo:0.1357, hi:0.1378, priv:GAE([[0.1357,0.1378,'all']])},
+  {name:'630m', lo:0.472, hi:0.479, priv:GAE([[0.472,0.479,'all']])},
+  {name:'160m', lo:1.8, hi:2.0, priv:GAE([[1.8,2.0,'all']])},
+  {name:'80m', lo:3.5, hi:4.0, priv:{
+    E:[[3.5,3.6,'data'],[3.6,4.0,'phone']],
+    A:[[3.525,3.6,'data'],[3.7,4.0,'phone']],
+    G:[[3.525,3.6,'data'],[3.8,4.0,'phone']],
+    T:[[3.525,3.6,'cw']]}},
+  {name:'60m', lo:5.3305, hi:5.4064, priv:GAE(CH60)},
+  {name:'40m', lo:7.0, hi:7.3, priv:{
+    E:[[7.0,7.125,'data'],[7.125,7.3,'phone']],
+    A:[[7.025,7.125,'data'],[7.125,7.3,'phone']],
+    G:[[7.025,7.125,'data'],[7.175,7.3,'phone']],
+    T:[[7.025,7.125,'cw']]}},
+  {name:'30m', lo:10.1, hi:10.15, priv:GAE([[10.1,10.15,'data']])},
+  {name:'20m', lo:14.0, hi:14.35, priv:{
+    E:[[14.0,14.15,'data'],[14.15,14.35,'phone']],
+    A:[[14.025,14.15,'data'],[14.175,14.35,'phone']],
+    G:[[14.025,14.15,'data'],[14.225,14.35,'phone']],
+    T:[]}},
+  {name:'17m', lo:18.068, hi:18.168, priv:GAE([[18.068,18.11,'data'],[18.11,18.168,'phone']])},
+  {name:'15m', lo:21.0, hi:21.45, priv:{
+    E:[[21.0,21.2,'data'],[21.2,21.45,'phone']],
+    A:[[21.025,21.2,'data'],[21.225,21.45,'phone']],
+    G:[[21.025,21.2,'data'],[21.275,21.45,'phone']],
+    T:[[21.025,21.2,'cw']]}},
+  {name:'12m', lo:24.89, hi:24.99, priv:GAE([[24.89,24.93,'data'],[24.93,24.99,'phone']])},
+  {name:'10m', lo:28.0, hi:29.7, priv:{
+    E:[[28.0,28.3,'data'],[28.3,29.7,'phone']],
+    A:[[28.0,28.3,'data'],[28.3,29.7,'phone']],
+    G:[[28.0,28.3,'data'],[28.3,29.7,'phone']],
+    T:[[28.0,28.3,'data'],[28.3,28.5,'phone']]}},
+  {name:'6m', lo:50, hi:54, priv:ALL([[50,50.1,'cw'],[50.1,54,'all']])},
+  {name:'2m', lo:144, hi:148, priv:ALL([[144,144.1,'cw'],[144.1,148,'all']])},
+  {name:'1.25m', lo:222, hi:225, priv:ALL([[222,225,'all']])},
+  {name:'70cm', lo:420, hi:450, priv:ALL([[420,450,'all']])},
+  {name:'33cm', lo:902, hi:928, priv:ALL([[902,928,'all']])},
+  {name:'23cm', lo:1240, hi:1300, priv:ALL([[1240,1300,'all']])},
+];
+const MODES = {
+  data:{label:'CW/RTTY/data', color:'#58a6ff', modes:['cw','data']},
+  phone:{label:'Phone/image', color:'#e3a33b', modes:['cw','phone']},
+  cw:{label:'CW only', color:'#bc8cff', modes:['cw']},
+  all:{label:'All modes', color:'#39c5bb', modes:['cw','phone','data']},
+  chan:{label:'Channel', color:'#39c5bb', modes:['cw','phone','data']},
+};
+const MODE_NAMES = {any:'any', phone:'phone', cw:'CW', data:'RTTY/digital'};
+const segsFor = (b, s) => b.priv[s.cls].filter(g => s.mode === 'any' || MODES[g[2]].modes.includes(s.mode));
+const OK = '#3fb950', BAD = '#f85149', TRACE = '#4dd0ff';
+
+/* ---------------- State ---------------- */
+const state = {
+  src:null, pix:null, iw:0, ih:0,      // working copy of the photo
+  corners:null,                         // TL, TR, BR, BL in image px
+  refs:[],                              // [{u, f}]
+  trace:null,                           // {N, v:Float32Array|null, f, s, auto, edited}
+  source:null,                          // 'image' | 's1p'
+  manual:[],                            // pinned frequencies
+  mode:'idle',                          // 'idle' | 'pen' | 'ref'
+  view:null,                            // [lo, hi] chart zoom
+  an:null,                              // analysis result
+  k:1,                                  // css px per image px
+};
+
+function S(){
+  return {
+    start:parseFloat($('#fStart').value), stop:parseFloat($('#fStop').value),
+    top:parseFloat($('#swrTop').value) || 5, bot:parseFloat($('#swrBot').value) || 1,
+    thr:parseFloat($('#thr').value) || 3, cls:$('#cls').value, mode:$('#mode').value,
+    prom:Math.max(0.01, parseFloat($('#prom').value) || 0.2), sens:+$('#sens').value,
+  };
+}
+const calOK = s => isFinite(s.start) && isFinite(s.stop) && s.stop > s.start;
+
+/* ---------------- Homography (unit square <-> photo quad) ---------------- */
+function squareToQuad(q){
+  const [[x0,y0],[x1,y1],[x2,y2],[x3,y3]] = q;
+  const dx1 = x1-x2, dx2 = x3-x2, dy1 = y1-y2, dy2 = y3-y2;
+  const sx = x0-x1+x2-x3, sy = y0-y1+y2-y3;
+  let g = 0, h = 0;
+  if (Math.abs(sx) > 1e-9 || Math.abs(sy) > 1e-9){
+    const den = dx1*dy2 - dx2*dy1;
+    g = (sx*dy2 - dx2*sy)/den; h = (dx1*sy - sx*dy1)/den;
+  }
+  return [x1-x0+g*x1, x3-x0+h*x3, x0, y1-y0+g*y1, y3-y0+h*y3, y0, g, h, 1];
+}
+function inv3(m){
+  const [a,b,c,d,e,f,g,h,i] = m;
+  const A = e*i-f*h, B = -(d*i-f*g), C = d*h-e*g;
+  const det = a*A + b*B + c*C;
+  return [A/det, -(b*i-c*h)/det, (b*f-c*e)/det, B/det, (a*i-c*g)/det, -(a*f-c*d)/det, C/det, -(a*h-b*g)/det, (a*e-b*d)/det];
+}
+const apply = (m, x, y) => { const w = m[6]*x + m[7]*y + m[8]; return [(m[0]*x + m[1]*y + m[2])/w, (m[3]*x + m[4]*y + m[5])/w]; };
+let H = null, Hi = null;
+function updateH(){ if (state.corners){ H = squareToQuad(state.corners); Hi = inv3(H); } }
+const fwd = (u, v) => apply(H, u, v);
+const back = (x, y) => apply(Hi, x, y);
+
+/* ---------------- Loading ---------------- */
+function loadImageEl(url){
+  return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+}
+function setImage(im, saved){
+  const sc = Math.min(1, 4000/Math.max(im.naturalWidth, im.naturalHeight));
+  const w = Math.round(im.naturalWidth*sc), h = Math.round(im.naturalHeight*sc);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', {willReadFrequently:true}); x.drawImage(im, 0, 0, w, h);
+  Object.assign(state, {src:c, iw:w, ih:h, pix:x.getImageData(0, 0, w, h).data,
+    corners:[[w*.1,h*.1],[w*.9,h*.1],[w*.9,h*.9],[w*.1,h*.9]],
+    trace:null, refs:[], manual:[], source:'image', view:null, mode:'idle', straight:false, rect:null});
+  syncStraightBtn();
+  ['#fStart','#fStop'].forEach(s => $(s).disabled = false);
+  $('#calCard').classList.remove('hidden'); $('#traceCard').classList.remove('hidden'); $('#photoCard').classList.remove('hidden');
+  updateH(); syncModeButtons(); layoutPhoto();
+  state.sweepTyped = false;
+  if (saved){ applySnapshot(saved); return; }
+  refresh();
+  if (detectGrid()){
+    autoTrace();
+    state.straight = true; buildRect(); syncStraightBtn(); layoutPhoto(); refresh();
+  }
+  readSweepFromPhoto();
+}
+
+/* ---------------- Find the plot grid's outer border ---------------- */
+// Grid lines are long, straight and bluish-white. Vote for near-horizontal and near-vertical lines
+// (each allowed its own small tilt, since photos are skewed), keep the outermost strong ones, refine
+// them at full resolution and intersect them to get the 4 corners.
+function gridNote(html){ const el = $('#gridNote'); el.innerHTML = html; el.classList.toggle('hidden', !html); }
+function detectGrid(){
+  const {iw, ih, pix} = state;
+  const isGrid = (x, y) => {
+    if (x < 0 || y < 0 || x >= iw || y >= ih) return false;
+    const i = ((y|0)*iw + (x|0))*4, r = pix[i], g = pix[i+1], b = pix[i+2];
+    return b > 150 && b >= r && b >= g - 5 && Math.min(r, g) > 100;
+  };
+  const sc = Math.min(1, 1000/iw), w = Math.round(iw*sc), h = Math.round(ih*sc);
+  const pts = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (isGrid(x/sc, y/sc)) pts.push(x, y);
+  const T = []; for (let a = -4; a <= 4.001; a += 0.25) T.push(Math.tan(a*Math.PI/180));
+
+  // horizontal: y = off + x*t     vertical: x = off + y*t   (low-res coordinates)
+  const vote = horiz => {
+    const L = horiz ? h : w, pad = Math.ceil(0.08*Math.max(w, h)), N = L + 2*pad;
+    const acc = new Float32Array(T.length*N);
+    for (let k = 0; k < pts.length; k += 2){
+      const p = horiz ? pts[k+1] : pts[k], q = horiz ? pts[k] : pts[k+1];
+      for (let j = 0; j < T.length; j++){ const o = Math.round(p - q*T[j]) + pad; if (o >= 0 && o < N) acc[j*N + o]++; }
+    }
+    const best = new Float32Array(N), bestJ = new Int32Array(N);
+    for (let o = 0; o < N; o++) for (let j = 0; j < T.length; j++) if (acc[j*N + o] > best[o]){ best[o] = acc[j*N + o]; bestJ[o] = j; }
+    let max = 0; for (const v of best) max = Math.max(max, v);
+    const peaks = [];
+    for (let o = 0; o < N; o++){
+      if (best[o] < 0.45*max) continue;
+      let top = true;
+      for (let d = -5; d <= 5 && top; d++){ const oo = o + d; if (d && oo >= 0 && oo < N && (best[oo] > best[o] || (d < 0 && best[oo] === best[o]))) top = false; }
+      if (top) peaks.push({off:(o - pad)/sc, t:T[bestJ[o]]});   // to full-res: off scales, slope doesn't
+    }
+    return peaks;
+  };
+  // refine a line at full resolution: centroid of grid pixels near the predicted line, then a robust fit.
+  // Also measure its thickness: a grid line is thin everywhere, a row of text has tall strokes.
+  const refine = (ln, horiz) => {
+    const along = horiz ? iw : ih, xs = [], ys = [], thick = [];
+    const on = (q, p) => horiz ? isGrid(q, p) : isGrid(p, q);
+    for (let q = 0; q < along; q += 3){
+      const p0 = ln.off + q*ln.t; let sum = 0, n = 0;
+      for (let d = -8; d <= 8; d++){ const p = Math.round(p0 + d); if (on(q, p)){ sum += p; n++; } }
+      if (!n) continue;
+      xs.push(q); ys.push(sum/n);
+      const c = Math.round(sum/n); let a = c, b = c;
+      while (c - a < 80 && (on(q, a - 1) || on(q, a - 2))) a--;
+      while (b - c < 80 && (on(q, b + 1) || on(q, b + 2))) b++;
+      thick.push(b - a + 1);
+    }
+    thick.sort((a, b) => a - b);
+    const t75 = thick.length ? thick[Math.floor(thick.length*0.75)] : Infinity;
+    let m = ln.t, b = ln.off;
+    for (let pass = 0; pass < 3; pass++){
+      let n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+      for (let i = 0; i < xs.length; i++){
+        if (pass && Math.abs(ys[i] - (b + m*xs[i])) > 2.5) continue;
+        n++; sx += xs[i]; sy += ys[i]; sxx += xs[i]*xs[i]; sxy += xs[i]*ys[i];
+      }
+      if (n < 10) break;
+      m = (n*sxy - sx*sy)/(n*sxx - sx*sx); b = (sy - m*sx)/n;
+    }
+    return {off:b, t:m, thick:t75, n:xs.length};
+  };
+  const H_ = vote(true), V_ = vote(false);
+  if (H_.length < 2 || V_.length < 2){ gridNote("Couldn't find the grid automatically, so drag the corners into place."); return false; }
+  const at = (ln, q) => ln.off + q*ln.t, maxThick = Math.max(14, iw*0.005);
+  const keep = (lines, horiz) => {
+    const r = lines.map(l => refine(l, horiz)), most = Math.max(...r.map(l => l.n));
+    return r.filter(l => l.thick <= maxThick && l.n >= most*0.4).sort((a, b) => at(a, horiz ? iw/2 : ih/2) - at(b, horiz ? iw/2 : ih/2));
+  };
+  const Hs = keep(H_, true), Vs = keep(V_, false);
+  if (Hs.length < 2 || Vs.length < 2){ gridNote("Couldn't find the grid automatically, so drag the corners into place."); return false; }
+  const top = Hs[0], bot = Hs[Hs.length-1], lft = Vs[0], rgt = Vs[Vs.length-1];
+  const meet = (hl, vl) => { const x = (vl.off + vl.t*hl.off)/(1 - vl.t*hl.t); return [x, hl.off + hl.t*x]; };
+  const c = [meet(top, lft), meet(top, rgt), meet(bot, rgt), meet(bot, lft)];
+  const area = Math.abs((c[1][0] - c[0][0])*(c[3][1] - c[0][1]));
+  if (!c.flat().every(isFinite) || area < 0.12*iw*ih){ gridNote("Couldn't find the grid automatically, so drag the corners into place."); return false; }
+  state.corners = c; updateH();
+  gridNote(`✓ Grid found (${Hs.length} horizontal, ${Vs.length} vertical lines). Photo straightened; <b>Edit corners</b> to adjust.`);
+  return true;
+}
+
+/* ---------------- Read START/STOP (or CENTER/SPAN) off the photo with OCR ---------------- */
+let ocrJob = 0;
+function loadScript(src, integrity){
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.integrity = integrity; s.crossOrigin = 'anonymous';
+    s.onload = res; s.onerror = rej; document.head.appendChild(s);
+  });
+}
+function ocrNote(html){ const el = $('#ocrNote'); el.innerHTML = html; el.classList.toggle('hidden', !html); }
+// Black-on-white copy keeping only bright text (white or yellow); the bluish grid is suppressed by ignoring blue.
+function ocrCanvas(){
+  const sc = Math.min(1, 2000/state.iw), w = Math.round(state.iw*sc), h = Math.round(state.ih*sc);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); x.drawImage(state.src, 0, 0, w, h);
+  const im = x.getImageData(0, 0, w, h), d = im.data;
+  for (let i = 0; i < d.length; i += 4){ const v = (d[i] + d[i+1])/2 > 185 ? 0 : 255; d[i] = d[i+1] = d[i+2] = v; }
+  x.putImageData(im, 0, 0);
+  state.ocrScale = sc;
+  return c;
+}
+// The NanoVNA font draws 0 with a slash, which OCR reads as 8, 6, 9 or B. A genuine 8/6/9/B has a
+// crossbar row that is solid ink from wall to wall; a slashed 0 never does. Check each such symbol
+// against the full-resolution photo and turn it back into 0 when there's no crossbar.
+function fixSlashedZeros(data){
+  if (!data.lines || !data.lines.length) return data.text;
+  const sc = 1/state.ocrScale, {iw, ih, pix} = state;
+  const ink = (x, y) => { const i = (y*iw + x)*4; return (pix[i] + pix[i+1])/2 > 200; };
+  const isZero = b => {
+    const x0 = Math.round(b.x0*sc), x1 = Math.round(b.x1*sc), w = x1 - x0;
+    if (w < 4 || b.y1 - b.y0 < 8 || x1 >= iw || Math.round(b.y1*sc) >= ih) return false;
+    // OCR boxes can take in a nearby grid line, so fit the box to the glyph: the longest run of rows with ink
+    let top = 0, bot = -1, start = -1;
+    for (let y = Math.round(b.y0*sc); y <= Math.round(b.y1*sc) + 1; y++){
+      let any = false;
+      if (y <= Math.round(b.y1*sc)) for (let x = x0; x <= x1 && !any; x++) any = ink(x, y);
+      if (any){ if (start < 0) start = y; }
+      else if (start >= 0){ if (y - start > bot - top) { top = start; bot = y - 1; } start = -1; }
+    }
+    const h = bot - top;
+    if (h < 8) return false;
+    for (let y = Math.round(top + h*0.3); y <= top + h*0.7; y++){
+      let bg = 0, n = 0;
+      for (let x = Math.round(x0 + w*0.3); x <= x0 + w*0.7; x++){ n++; if (!ink(x, y)) bg++; }
+      if (bg <= n*0.06) return false;   // solid crossbar: a genuine 8/6/9/B
+    }
+    return true;
+  };
+  return data.lines.map(l => l.words.map(w => w.symbols.map(s => '869B'.includes(s.text) && isZero(s.bbox) ? '0' : s.text).join('')).join(' ')).join('\n');
+}
+const cleanFreq = raw => parseFloat(raw.toUpperCase().replace(/[\s,]/g, '').replace(/[OQD@Ø]/g, '0').replace(/B/g, '8'));
+function parseSweepText(text){
+  const t = text.toUpperCase().replace(/\n/g, ' ');
+  const mult = u => ({K:1e-3, M:1, G:1e3}[u] ?? 1);    // unit letter often garbled; NanoVNA shows MHz
+  const grab = key => {
+    const m = t.match(new RegExp(key + '\\W*([0-9OQDB@Ø][0-9OQDB@Ø.,\\s]*?)\\s*([KMG])?\\s*H'));
+    return m ? {f:cleanFreq(m[1])*mult(m[2]), raw:m[1].trim()} : null;
+  };
+  let a = grab('START'), b = grab('STOP');
+  if (a && b && b.f > a.f) return {start:a.f, stop:b.f, raw:`START ${a.raw} / STOP ${b.raw}`};
+  const c = grab('CENTER'), s = grab('SPAN');
+  if (c && s && s.f > 0) return {start:c.f - s.f/2, stop:c.f + s.f/2, raw:`CENTER ${c.raw} / SPAN ${s.raw}`};
+  return null;
+}
+async function readSweepFromPhoto(){
+  const job = ++ocrJob;
+  ocrNote('Looking for START/STOP text in the photo…');
+  try {
+    if (!window.Tesseract) await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
+      'sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F');
+    const worker = await Tesseract.createWorker('eng');
+    await worker.setParameters({tessedit_pageseg_mode:'11'});   // sparse text scattered around the screen
+    const {data} = await worker.recognize(ocrCanvas());
+    await worker.terminate();
+    if (job !== ocrJob) return;
+    state.ocrText = fixSlashedZeros(data);
+    const r = parseSweepText(state.ocrText);
+    if (!r){ ocrNote('No START/STOP text found in the photo, so enter the sweep below.'); return; }
+    const fmt = f => +f.toFixed(6);
+    if (state.sweepTyped){
+      ocrNote(`Photo says ${fmt(r.start)}–${fmt(r.stop)} MHz. <a href="#" id="ocrUse">Use it</a>`);
+      $('#ocrUse').onclick = e => { e.preventDefault(); applySweep(r); };
+    } else applySweep(r);
+  } catch (e){
+    if (job === ocrJob) ocrNote("Couldn't run text recognition (offline?), so enter the sweep below.");
+  }
+}
+function applySweep(r){
+  $('#fStart').value = +r.start.toFixed(6); $('#fStop').value = +r.stop.toFixed(6);
+  state.view = null; state.sweepTyped = false;
+  ocrNote(`✓ Read from photo: <b>${+r.start.toFixed(6)}–${+r.stop.toFixed(6)} MHz</b>. Check it against the screen (OCR saw “${r.raw}”).`);
+  refresh();
+}
+function parseTouchstone(text){
+  let unit = 1e9, fmt = 'MA';
+  const f = [], s = [];
+  for (let line of text.split(/\r?\n/)){
+    line = line.replace(/!.*/, '').trim();
+    if (!line) continue;
+    if (line[0] === '#'){
+      const t = line.slice(1).trim().toUpperCase().split(/\s+/);
+      for (const w of t){
+        if (w === 'HZ') unit = 1; else if (w === 'KHZ') unit = 1e3; else if (w === 'MHZ') unit = 1e6; else if (w === 'GHZ') unit = 1e9;
+        else if (w === 'MA' || w === 'DB' || w === 'RI') fmt = w;
+      }
+      continue;
+    }
+    const n = line.split(/[\s,]+/).map(Number);
+    if (n.length < 3 || n.some(isNaN)) continue;
+    const g = fmt === 'RI' ? Math.hypot(n[1], n[2]) : fmt === 'DB' ? Math.pow(10, n[1]/20) : Math.abs(n[1]);
+    f.push(n[0]*unit/1e6);
+    s.push(g >= 0.999 ? 999 : (1 + g)/(1 - g));
+  }
+  return {f, s};
+}
+function setTouchstone(text){
+  const {f, s} = parseTouchstone(text);
+  if (f.length < 2){ alert("Couldn't find S11 data in that file."); return; }
+  Object.assign(state, {source:'s1p', trace:{N:f.length, v:null, f:Float64Array.from(f), s:Float64Array.from(s), auto:false, edited:false},
+    src:null, pix:null, corners:null, refs:[], manual:[], view:null, mode:'idle'});
+  $('#fStart').value = +f[0].toFixed(4); $('#fStop').value = +f[f.length-1].toFixed(4);
+  ['#fStart','#fStop'].forEach(sel => $(sel).disabled = true);
+  $('#calCard').classList.add('hidden'); $('#traceCard').classList.add('hidden'); $('#photoCard').classList.add('hidden');
+  refresh();
+}
+function showFileName(name){
+  drop.innerHTML = '<b class="fname"></b><br><u>choose another…</u>';
+  drop.querySelector('.fname').textContent = name;
+}
+const isTouchstone = name => /\.(s1p|s2p|txt)$/i.test(name);
+function handleFile(file){
+  if (!file) return;
+  const name = file.name || 'pasted image';
+  showFileName(name);
+  // A new file starts a new session: keep the file, forget what was done to the last one.
+  saveFile(file, name);
+  if (isTouchstone(name)){ file.text().then(t => setTouchstone(t)); return; }
+  const url = URL.createObjectURL(file);
+  loadImageEl(url).then(im => setImage(im)).catch(() => alert("Couldn't read that image."));
+}
+
+/* ---------------- Saved session ---------------- */
+// The last file, and everything done to it, live in IndexedDB so a refresh
+// picks up where you left off. The file can be a multi-megabyte photo, which is
+// too big for localStorage. Every access is guarded: in a private window or
+// with site data blocked, the page works and simply forgets.
+const store = (() => {
+  let db;
+  const open = () => db ??= new Promise((res, rej) => {
+    const r = indexedDB.open('nanobands', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  const run = async (mode, fn) => {
+    const t = (await open()).transaction('kv', mode), req = fn(t.objectStore('kv'));
+    return new Promise((res, rej) => { t.oncomplete = () => res(req.result); t.onerror = () => rej(t.error); });
+  };
+  return {
+    get: k => run('readonly', s => s.get(k)).catch(() => undefined),
+    set: (k, v) => run('readwrite', s => s.put(v, k)).catch(() => {}),
+    del: k => run('readwrite', s => s.delete(k)).catch(() => {}),
+  };
+})();
+const SAVED_FIELDS = ['#fStart', '#fStop', '#swrTop', '#swrBot', '#sens'];
+let restoring = false, saveTimer;
+function saveFile(file, name){
+  store.del('session');
+  store.set('file', {blob:file, name});
+}
+function snapshot(){
+  const t = state.trace, plain = html => html.includes('<a') ? '' : html;   // a note with a live link is not restorable
+  return {
+    fields:Object.fromEntries(SAVED_FIELDS.map(f => [f, $(f).value])),
+    corners:state.corners, refs:state.refs, manual:state.manual, view:state.view,
+    straight:!!state.straight, sweepTyped:!!state.sweepTyped,
+    trace:t && t.v ? {N:t.N, v:t.v.slice(), auto:t.auto, edited:t.edited} : null,
+    notes:{ocr:plain($('#ocrNote').innerHTML), grid:plain($('#gridNote').innerHTML)},
+  };
+}
+function applySnapshot(sv){
+  for (const [f, v] of Object.entries(sv.fields || {})) if (!$(f).disabled) $(f).value = v;
+  if (state.source === 'image'){
+    if (sv.corners){ state.corners = sv.corners; updateH(); }
+    if (sv.trace) state.trace = {N:sv.trace.N, v:Float32Array.from(sv.trace.v), f:new Float64Array(sv.trace.N), s:new Float64Array(sv.trace.N), auto:sv.trace.auto, edited:sv.trace.edited};
+    else if (sv.corners) autoTrace();
+    if (sv.straight){ state.straight = true; buildRect(); syncStraightBtn(); layoutPhoto(); }
+    ocrNote(sv.notes?.ocr || ''); gridNote(sv.notes?.grid || '');
+  }
+  Object.assign(state, {refs:sv.refs || [], manual:sv.manual || [], view:sv.view || null, sweepTyped:!!sv.sweepTyped});
+  refresh();
+}
+function scheduleSave(){
+  if (restoring || !state.source) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { if (state.source) store.set('session', snapshot()); }, 400);
+}
+async function restoreSession(){
+  const f = await store.get('file');
+  if (!f) return;
+  const sv = await store.get('session');
+  restoring = true;
+  try {
+    showFileName(f.name);
+    if (isTouchstone(f.name)){ setTouchstone(await f.blob.text()); if (sv) applySnapshot(sv); }
+    else setImage(await loadImageEl(URL.createObjectURL(f.blob)), sv || null);
+  } catch (e) {
+    clearAll();
+  } finally {
+    restoring = false;
+    refresh();
+  }
+}
+function clearAll(){
+  ocrJob++;   // a reading still in flight lands nowhere
+  clearTimeout(saveTimer);
+  Object.assign(state, {src:null, pix:null, iw:0, ih:0, corners:null, refs:[], trace:null, source:null, manual:[],
+    mode:'idle', view:null, an:null, straight:false, rect:null, sweepTyped:false});
+  H = Hi = null; dragCorner = -1; hover = null;
+  ['#fStart', '#fStop'].forEach(f => { $(f).value = ''; $(f).disabled = false; });
+  $('#swrTop').value = 5; $('#swrBot').value = 1; $('#sens').value = 70;
+  ocrNote(''); gridNote(''); $('#retraceHint').classList.add('hidden');
+  ['#calCard', '#traceCard', '#photoCard'].forEach(c => $(c).classList.remove('hidden'));
+  drop.innerHTML = DROP_HTML; fileIn.value = '';
+  syncModeButtons(); syncStraightBtn();
+  store.del('file'); store.del('session');
+  refresh();
+}
+
+/* ---------------- Auto trace ---------------- */
+function autoTrace(){
+  if (!state.pix) return;
+  const {iw, ih, pix} = state, sens = S().sens, c = state.corners;
+  const d = (a, b) => Math.hypot(a[0]-b[0], a[1]-b[1]);
+  const N = Math.max(300, Math.min(2400, Math.round((d(c[0],c[1]) + d(c[3],c[2]))/2)));
+  const M = Math.max(200, Math.min(1800, Math.round((d(c[0],c[3]) + d(c[1],c[2]))/2)));
+  const isYellow = (x, y) => {
+    if (x < 0 || y < 0 || x >= iw || y >= ih) return false;
+    const i = ((y|0)*iw + (x|0))*4, r = pix[i], g = pix[i+1], b = pix[i+2], m = Math.min(r, g);
+    return m > 100 && m - b > sens && Math.abs(r - g) < 90;
+  };
+  // 1. per column, collect vertical runs of yellow (candidates)
+  const cand = new Array(N);
+  for (let i = 0; i < N; i++){
+    const u = (i + .5)/N, runs = [];
+    let a = -1, last = -10;
+    for (let j = 0; j < M; j++){
+      const [x, y] = fwd(u, (j + .5)/M);
+      if (isYellow(x, y)){
+        if (a < 0 || j - last > 3){ if (a >= 0) runs.push([a, last]); a = j; }
+        last = j;
+      }
+    }
+    if (a >= 0) runs.push([a, last]);
+    cand[i] = runs;
+  }
+  // Drop text-like candidates: along a row, text flips yellow/dark many times within a short
+  // span, while the curve crosses any row only once or twice nearby.
+  const TW = Math.max(16, Math.round(N*0.035));
+  for (let i = 0; i < N; i++){
+    cand[i] = cand[i].filter(([a, b]) => {
+      const v = ((a + b)/2 + .5)/M;
+      let flips = 0, prev = null;
+      for (let d = -TW; d <= TW; d++){
+        const ii = i + d; if (ii < 0 || ii >= N) continue;
+        const [x, y] = fwd((ii + .5)/N, v), yel = isYellow(x, y);
+        if (prev !== null && yel !== prev) flips++;
+        prev = yel;
+      }
+      return flips <= 6;
+    });
+  }
+  // 2. dynamic programming: pick one run per column so the path is as continuous as possible.
+  //    The path may skip columns (where the curve is hidden by grid lines) at a small cost per
+  //    column, so it never has to detour through on-screen text that happens to fill the gap.
+  const K = Math.max(8, Math.round(N*0.04)), SKIP = 5;
+  const cost = new Array(N), from = new Array(N);
+  let bestEnd = Infinity, endI = -1, endK = -1;
+  for (let i = 0; i < N; i++){
+    const R = cand[i]; if (!R.length) continue;
+    cost[i] = new Float64Array(R.length); from[i] = new Array(R.length);
+    for (let k = 0; k < R.length; k++){
+      const ck = (R[k][0] + R[k][1])/2;
+      let best = SKIP*i, bj = -1, bq = -1;            // start the path here
+      for (let j = Math.max(0, i - K); j < i; j++){
+        if (!cost[j]) continue;
+        const P = cand[j], pc = cost[j], sk = SKIP*(i - j - 1);
+        for (let q = 0; q < P.length; q++){
+          const gap = Math.max(0, R[k][0] - P[q][1], P[q][0] - R[k][1]);
+          const val = pc[q] + sk + gap + 0.03*Math.abs(ck - (P[q][0] + P[q][1])/2);
+          if (val < best){ best = val; bj = j; bq = q; }
+        }
+      }
+      cost[i][k] = best; from[i][k] = [bj, bq];
+      const end = best + SKIP*(N - 1 - i);
+      if (end < bestEnd){ bestEnd = end; endI = i; endK = k; }
+    }
+  }
+  const v = new Float32Array(N).fill(NaN);
+  for (let i = endI, k = endK; i >= 0; ){
+    const r = cand[i][k]; v[i] = ((r[0] + r[1])/2 + .5)/M;
+    [i, k] = from[i][k];
+  }
+  // 3. fill short gaps, light median filter
+  let lastI = -1;
+  for (let i = 0; i < N; i++){
+    if (isNaN(v[i])) continue;
+    if (lastI >= 0 && i - lastI > 1 && i - lastI <= K + 1)
+      for (let j = lastI + 1; j < i; j++) v[j] = v[lastI] + (v[i] - v[lastI])*(j - lastI)/(i - lastI);
+    lastI = i;
+  }
+  const out = Float32Array.from(v);
+  for (let i = 1; i < N - 1; i++){
+    const t = [v[i-1], v[i], v[i+1]];
+    if (!t.some(isNaN)) out[i] = t.sort((a, b) => a - b)[1];
+  }
+  state.trace = {N, v:out, f:new Float64Array(N), s:new Float64Array(N), auto:true, edited:false};
+  $('#retraceHint').classList.add('hidden');
+  refresh();
+}
+function recompute(){
+  const t = state.trace, s = S();
+  if (!t || !t.v) return;
+  for (let i = 0; i < t.N; i++){
+    t.f[i] = calOK(s) ? s.start + (i + .5)/t.N*(s.stop - s.start) : NaN;
+    t.s[i] = isNaN(t.v[i]) ? NaN : s.top + t.v[i]*(s.bot - s.top);
+  }
+}
+
+/* ---------------- Analysis ---------------- */
+function analyze(){
+  const t = state.trace, s = S();
+  if (!t || !calOK(s)) return null;
+  const {f, s:w} = t, n = t.N, T = s.thr;
+  const crossings = [], usable = [];
+  let open = null, pf = null, ps = null;
+  for (let i = 0; i < n; i++){
+    if (isNaN(w[i]) || isNaN(f[i])){ if (open !== null){ usable.push([open, pf]); open = null; } pf = null; continue; }
+    const ok = w[i] <= T;
+    if (pf === null){ if (ok) open = f[i]; }
+    else if (ok !== (ps <= T)){
+      const fx = pf + (T - ps)*(f[i] - pf)/(w[i] - ps);
+      crossings.push({f:fx, dir:ok ? 'down' : 'up'});
+      if (ok) open = fx; else { usable.push([open, fx]); open = null; }
+    }
+    pf = f[i]; ps = w[i];
+  }
+  if (open !== null) usable.push([open, pf]);
+
+  // dips & peaks: zig-zag with hysteresis = min prominence
+  const ext = [], h = s.prom;
+  const idx = []; for (let i = 0; i < n; i++) if (!isNaN(w[i])) idx.push(i);
+  if (idx.length > 2){
+    let maxI = idx[0], minI = idx[0], trend = 0;
+    for (const i of idx.slice(1)){
+      const x = w[i];
+      if (trend === 0){
+        if (x > w[maxI]) maxI = i; if (x < w[minI]) minI = i;
+        if (w[maxI] - x >= h){ ext.push({i:maxI, type:'peak'}); trend = -1; minI = i; }
+        else if (x - w[minI] >= h){ ext.push({i:minI, type:'dip'}); trend = 1; maxI = i; }
+      } else if (trend === 1){
+        if (x > w[maxI]) maxI = i;
+        else if (w[maxI] - x >= h){ ext.push({i:maxI, type:'peak'}); trend = -1; minI = i; }
+      } else {
+        if (x < w[minI]) minI = i;
+        else if (x - w[minI] >= h){ ext.push({i:minI, type:'dip'}); trend = 1; maxI = i; }
+      }
+    }
+  }
+  const edge = Math.max(2, Math.round(n*0.006));
+  const extrema = ext.filter(e => e.i > idx[0] + edge && e.i < idx[idx.length-1] - edge).map(e => {
+    // flat-topped (clipped) peaks: report the middle of the plateau
+    let a = e.i, b = e.i;
+    while (a > 0 && Math.abs(w[a-1] - w[e.i]) < 1e-6) a--;
+    while (b < n-1 && Math.abs(w[b+1] - w[e.i]) < 1e-6) b++;
+    const i = Math.round((a + b)/2);
+    return {f:f[i], s:w[e.i], type:e.type, clipped:e.type === 'peak' && w[e.i] >= s.top - 0.03};
+  });
+  return {crossings, usable, extrema, fmin:f[idx[0]], fmax:f[idx[idx.length-1]]};
+}
+function swrAt(fq){
+  const t = state.trace; if (!t) return NaN;
+  const {f, s} = t; let lo = 0, hi = t.N - 1;
+  if (fq < f[0] || fq > f[hi]) return NaN;
+  while (hi - lo > 1){ const m = (lo + hi) >> 1; if (f[m] <= fq) lo = m; else hi = m; }
+  return s[lo] + (s[hi] - s[lo])*(fq - f[lo])/((f[hi] - f[lo]) || 1);
+}
+function segUsable(seg, an){
+  const [lo, hi] = seg, parts = [];
+  for (const [a, b] of an.usable){ const x = Math.max(lo, a), y = Math.min(hi, b); if (y > x) parts.push([x, y]); }
+  const measured = Math.max(0, Math.min(hi, an.fmax) - Math.max(lo, an.fmin));
+  const len = parts.reduce((t, [a, b]) => t + b - a, 0);
+  return {parts, frac:len/(hi - lo), measured:measured/(hi - lo)};
+}
+function bandsInRange(lo, hi){ return BANDS.filter(b => b.hi > lo && b.lo < hi); }
+
+/* ---------------- Formatting ---------------- */
+const fmtF = f => f >= 100 ? f.toFixed(2) : f >= 1 ? f.toFixed(3) : f.toFixed(4);
+function niceStep(x){ const p = Math.pow(10, Math.floor(Math.log10(x))), m = x/p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10)*p; }
+
+/* ---------------- Photo view ---------------- */
+const photo = $('#photo'), pctx = photo.getContext('2d');
+let hover = null, dragCorner = -1, penLast = null;
+
+// "Straighten" shows a perspective-corrected copy of the photo with the grid squared up. Tracing
+// always samples the original photo through the homography, so this is purely a display choice.
+function buildRect(){
+  const c = state.corners, d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]), MX = 0.07, MY = 0.12;
+  let pw = (d(c[0], c[1]) + d(c[3], c[2]))/2, ph = (d(c[0], c[3]) + d(c[1], c[2]))/2;
+  const sc = Math.min(1, 3000/(pw*(1 + 2*MX))); pw *= sc; ph *= sc;
+  const W = Math.round(pw*(1 + 2*MX)), H_ = Math.round(ph*(1 + 2*MY)), mx = pw*MX, my = ph*MY;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H_;
+  const cx = cv.getContext('2d'), im = cx.createImageData(W, H_), o = im.data, {iw, ih, pix} = state;
+  for (let y = 0; y < H_; y++){
+    const v = (y + .5 - my)/ph;
+    for (let x = 0; x < W; x++){
+      const [sx, sy] = fwd((x + .5 - mx)/pw, v), k = (y*W + x)*4;
+      const x0 = Math.floor(sx - .5), y0 = Math.floor(sy - .5), fx = sx - .5 - x0, fy = sy - .5 - y0;
+      o[k+3] = 255;
+      if (!(x0 >= 0 && y0 >= 0 && x0 < iw - 1 && y0 < ih - 1)) continue;
+      const i00 = (y0*iw + x0)*4, i01 = i00 + iw*4;
+      for (let ch = 0; ch < 3; ch++)
+        o[k+ch] = (pix[i00+ch]*(1 - fx) + pix[i00+4+ch]*fx)*(1 - fy) + (pix[i01+ch]*(1 - fx) + pix[i01+4+ch]*fx)*fy;
+    }
+  }
+  cx.putImageData(im, 0, 0);
+  state.rect = {cv, W, H:H_, mx, my, pw, ph};
+}
+const straightOn = () => !!(state.straight && state.rect);
+const view = () => straightOn() ? {src:state.rect.cv, w:state.rect.W, h:state.rect.H} : {src:state.src, w:state.iw, h:state.ih};
+const vf = (u, v) => { if (!straightOn()) return fwd(u, v); const r = state.rect; return [r.mx + u*r.pw, r.my + v*r.ph]; };
+const vb = (x, y) => { if (!straightOn()) return back(x, y); const r = state.rect; return [(x - r.mx)/r.pw, (y - r.my)/r.ph]; };
+function syncStraightBtn(){
+  const b = $('#straightBtn'); b.textContent = state.straight ? 'Edit corners' : 'Straighten';
+}
+function layoutPhoto(){
+  if (!state.src) return;
+  const vw = view(), W = $('#photoWrap').clientWidth, maxH = window.innerHeight*0.72;
+  state.k = Math.min(W/vw.w, maxH/vw.h);
+  photo.style.width = vw.w*state.k + 'px'; photo.style.height = vw.h*state.k + 'px';
+  const dpr = window.devicePixelRatio || 1;
+  photo.width = Math.round(vw.w*state.k*dpr); photo.height = Math.round(vw.h*state.k*dpr);
+}
+function quad(ctx, u0, u1, v0, v1){
+  ctx.beginPath();
+  [[u0,v0],[u1,v0],[u1,v1],[u0,v1]].forEach(([u, v], j) => { const [x, y] = vf(u, v); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.closePath();
+}
+function lineUV(ctx, u0, v0, u1, v1){ const a = vf(u0, v0), b = vf(u1, v1); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); }
+function label(ctx, txt, x, y, U, color, align = 'center', bg = 'rgba(13,17,23,.82)'){
+  ctx.font = `600 ${12*U}px -apple-system,Segoe UI,sans-serif`;
+  const w = ctx.measureText(txt).width, pad = 3*U, hgt = 16*U;
+  const x0 = align === 'center' ? x - w/2 : align === 'right' ? x - w : x;
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.roundRect(x0 - pad, y - hgt/2, w + 2*pad, hgt, 3*U); ctx.fill();
+  ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(txt, x0, y + .5*U);
+}
+// Draws in image-pixel coordinates; U = image px per css px (so overlays look the same on screen and in export)
+function drawPhoto(ctx, U, forExport){
+  ctx.drawImage(view().src, 0, 0);
+  if (!state.corners) return;
+  const s = S(), an = state.an, cal = calOK(s), uOf = f => (f - s.start)/(s.stop - s.start);
+  const vT = (s.thr - s.top)/(s.bot - s.top);
+  // band plan
+  if (cal){
+    for (const b of bandsInRange(s.start, s.stop)){
+      for (const seg of segsFor(b, s)){
+        const u0 = Math.max(0, uOf(seg[0])), u1 = Math.min(1, uOf(seg[1]));
+        if (u1 <= u0) continue;
+        const minW = 1.5*U/((vf(1, 0)[0] - vf(0, 0)[0]) || 1);
+        const ua = (u0 + u1)/2 - Math.max(u1 - u0, minW)/2, ub = (u0 + u1)/2 + Math.max(u1 - u0, minW)/2;
+        if (an){
+          ctx.fillStyle = 'rgba(248,81,73,.22)'; quad(ctx, ua, ub, 0, 1); ctx.fill();
+          ctx.fillStyle = 'rgba(63,185,80,.38)';
+          for (const [a, c] of segUsable(seg, an).parts){
+            const pa = Math.max(0, uOf(a)), pb = Math.min(1, uOf(c));
+            const w = Math.max(pb - pa, minW); quad(ctx, (pa+pb)/2 - w/2, (pa+pb)/2 + w/2, 0, 1); ctx.fill();
+          }
+        } else {
+          ctx.fillStyle = MODES[seg[2]].color + '40'; quad(ctx, ua, ub, 0, 1); ctx.fill();
+        }
+      }
+      const um = Math.min(1, Math.max(0, uOf((b.lo + b.hi)/2)));
+      const [x, y] = vf(um, 0);
+      label(ctx, b.name, x, y - 12*U, U, segsFor(b, s).length ? '#e6edf3' : '#8b949e');
+    }
+    // frequency ticks for checking calibration against the VNA's own grid
+    const step = niceStep((s.stop - s.start)/10);
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1*U; ctx.setLineDash([3*U, 4*U]);
+    for (let f = Math.ceil(s.start/step)*step; f <= s.stop + 1e-9; f += step){
+      lineUV(ctx, uOf(f), 0, uOf(f), 1); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    for (let f = Math.ceil(s.start/step)*step; f <= s.stop + 1e-9; f += step){
+      const [x, y] = vf(uOf(f), 1); label(ctx, +f.toFixed(6) + '', x, y + 12*U, U, '#c9d1d9');
+    }
+  }
+  // threshold line
+  if (vT > 0 && vT < 1){
+    ctx.strokeStyle = BAD; ctx.lineWidth = 1.5*U; ctx.setLineDash([6*U, 4*U]); lineUV(ctx, 0, vT, 1, vT); ctx.stroke(); ctx.setLineDash([]);
+    const [x, y] = vf(1, vT); label(ctx, 'SWR ' + s.thr, x - 6*U, y - 11*U, U, BAD, 'right');
+  }
+  // quad outline
+  ctx.strokeStyle = 'rgba(242,204,96,.7)'; ctx.lineWidth = 1*U; quad(ctx, 0, 1, 0, 1); ctx.stroke();
+  // frequency references
+  for (const r of state.refs){
+    ctx.strokeStyle = '#ff7bd5'; ctx.lineWidth = 1.5*U; lineUV(ctx, r.u, 0, r.u, 1); ctx.stroke();
+    const [x, y] = vf(r.u, 0.5); label(ctx, r.f + ' MHz', x, y, U, '#ff7bd5');
+  }
+  // traced curve
+  const t = state.trace;
+  if (t && t.v){
+    ctx.strokeStyle = TRACE; ctx.lineWidth = 1.6*U; ctx.beginPath();
+    let pen = false;
+    for (let i = 0; i < t.N; i++){
+      if (isNaN(t.v[i])){ pen = false; continue; }
+      const [x, y] = vf((i + .5)/t.N, t.v[i]);
+      pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true;
+    }
+    ctx.stroke();
+  }
+  // key points
+  if (an && cal){
+    const pt = (f, sw) => vf(uOf(f), Math.min(1, Math.max(0, (sw - s.top)/(s.bot - s.top))));
+    for (const c of an.crossings){
+      const [x, y] = pt(c.f, s.thr);
+      ctx.fillStyle = BAD; ctx.beginPath(); ctx.arc(x, y, 4*U, 0, 7); ctx.fill();
+    }
+    for (const e of an.extrema){
+      const [x, y] = pt(e.f, e.s);
+      ctx.fillStyle = e.type === 'dip' ? OK : '#f2cc60'; ctx.beginPath(); ctx.arc(x, y, 4.5*U, 0, 7); ctx.fill();
+      label(ctx, `${fmtF(e.f)} · ${e.clipped ? '≥' + s.top : e.s.toFixed(2)}`, x, y + (e.type === 'dip' ? 16 : -16)*U, U, e.type === 'dip' ? OK : '#f2cc60');
+    }
+    // crossing labels, staggered so neighbours don't overlap
+    const rows = []; ctx.font = `600 ${12*U}px sans-serif`;
+    for (const c of an.crossings){
+      const [x, y] = pt(c.f, s.thr), txt = fmtF(c.f), w = ctx.measureText(txt).width + 10*U;
+      let r = 0; while (rows[r] !== undefined && rows[r] > x - w/2) r++;
+      rows[r] = x + w/2;
+      label(ctx, txt, x, y + (r % 2 ? -1 : 1)*(14 + 16*Math.floor(r/2))*U, U, '#ff9a94');
+    }
+    for (const m of state.manual){
+      const sw = swrAt(m); if (isNaN(sw)) continue;
+      const [x, y] = pt(m, sw);
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 4*U, 0, 7); ctx.fill();
+      label(ctx, `${fmtF(m)} · ${sw.toFixed(2)}`, x, y - 16*U, U, '#fff');
+    }
+  }
+  if (forExport || straightOn()) return;
+  // corner handles
+  state.corners.forEach(([x, y], j) => {
+    ctx.lineWidth = 2*U; ctx.strokeStyle = j === dragCorner ? '#fff' : '#f2cc60';
+    ctx.beginPath(); ctx.arc(x, y, 9*U, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 4*U, y); ctx.lineTo(x + 4*U, y); ctx.moveTo(x, y - 4*U); ctx.lineTo(x, y + 4*U); ctx.stroke();
+  });
+}
+function renderPhoto(){
+  if (!state.src) return;
+  const dpr = window.devicePixelRatio || 1, k = state.k;
+  pctx.setTransform(dpr*k, 0, 0, dpr*k, 0, 0);
+  drawPhoto(pctx, 1/k, false);
+  // magnifier
+  if (hover && (dragCorner >= 0 || state.mode !== 'idle')){
+    pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const R = 64, Z = 4, cw = view().w*k;
+    const hx = hover[0]*k, hy = hover[1]*k;
+    let cx, cy;
+    if (dragCorner >= 0){
+      // fixed per corner so it never jumps mid-drag: top corners look below, bottom corners above
+      cx = hx + (dragCorner === 0 || dragCorner === 3 ? 1.6*R : -1.6*R);
+      cy = hy + (dragCorner <= 1 ? 1.6*R : -1.6*R);
+    } else { cx = hx + (hx > cw - 2.6*R ? -1.6*R : 1.6*R); cy = hy + (hy < 2.6*R ? 1.6*R : -1.6*R); }
+    const sw = 2*R/(k*Z);
+    pctx.save(); pctx.beginPath(); pctx.arc(cx, cy, R, 0, 7); pctx.clip();
+    pctx.fillStyle = '#000'; pctx.fillRect(cx - R, cy - R, 2*R, 2*R);
+    pctx.imageSmoothingEnabled = false;
+    pctx.drawImage(view().src, hover[0] - sw/2, hover[1] - sw/2, sw, sw, cx - R, cy - R, 2*R, 2*R);
+    pctx.strokeStyle = '#ff3b6b'; pctx.lineWidth = 1;
+    pctx.beginPath(); pctx.moveTo(cx - R, cy); pctx.lineTo(cx + R, cy); pctx.moveTo(cx, cy - R); pctx.lineTo(cx, cy + R); pctx.stroke();
+    pctx.restore();
+    pctx.strokeStyle = '#f2cc60'; pctx.lineWidth = 2; pctx.beginPath(); pctx.arc(cx, cy, R, 0, 7); pctx.stroke();
+  }
+}
+function evImg(e){ const r = photo.getBoundingClientRect(); return [(e.clientX - r.left)/state.k, (e.clientY - r.top)/state.k]; }
+function penApply(x, y){
+  if (!state.trace || !state.trace.v){
+    const N = 1200; state.trace = {N, v:new Float32Array(N).fill(NaN), f:new Float64Array(N), s:new Float64Array(N), auto:false, edited:true};
+  }
+  const t = state.trace, [u, v0] = vb(x, y), v = Math.max(0, Math.min(1, v0));
+  const i = Math.floor(u*t.N); if (i < 0 || i >= t.N) { penLast = null; return; }
+  if (penLast){
+    const [i0, w0] = penLast, a = Math.min(i0, i), b = Math.max(i0, i);
+    for (let j = a; j <= b; j++) t.v[j] = i === i0 ? v : w0 + (v - w0)*(j - i0)/(i - i0);
+  } else t.v[i] = v;
+  t.edited = true; penLast = [i, v];
+}
+photo.addEventListener('pointerdown', e => {
+  if (!state.src) return;
+  const [x, y] = evImg(e); hover = [x, y];
+  const hit = straightOn() ? -1 : state.corners.findIndex(([cx, cy]) => Math.hypot(cx - x, cy - y)*state.k < 14);
+  if (hit >= 0){ dragCorner = hit; photo.setPointerCapture(e.pointerId); renderPhoto(); return; }
+  if (state.mode === 'pen'){ penLast = null; penApply(x, y); photo.setPointerCapture(e.pointerId); refresh(); return; }
+  if (state.mode === 'ref'){
+    const [u] = vb(x, y);
+    const val = prompt('Frequency at this point (MHz):');
+    const f = parseFloat(val);
+    if (isFinite(f)){ state.refs.push({u, f}); solveRefs(); }
+    state.mode = 'idle'; syncModeButtons(); refresh();
+  }
+});
+photo.addEventListener('pointermove', e => {
+  if (!state.src) return;
+  const [x, y] = evImg(e); hover = [x, y];
+  if (dragCorner >= 0){ state.corners[dragCorner] = [x, y]; updateH(); if (state.trace && state.trace.v) recompute(); state.an = analyze(); }
+  else if (state.mode === 'pen' && e.buttons & 1 && penLast){ penApply(x, y); refresh(); return; }
+  photo.style.cursor = !straightOn() && state.corners.some(([cx, cy]) => Math.hypot(cx - x, cy - y)*state.k < 14) ? 'grab' : 'crosshair';
+  renderPhoto();
+});
+photo.addEventListener('pointerup', () => {
+  if (dragCorner >= 0){
+    dragCorner = -1;
+    if (state.trace && state.trace.auto && !state.trace.edited) autoTrace();
+    else if (state.trace) $('#retraceHint').classList.remove('hidden');
+    refresh();
+  }
+  penLast = null;
+});
+photo.addEventListener('pointerleave', () => { if (dragCorner < 0){ hover = null; renderPhoto(); } });
+function solveRefs(){
+  const r = state.refs; if (r.length < 2) return;
+  const n = r.length, mu = r.reduce((a, p) => a + p.u, 0)/n, mf = r.reduce((a, p) => a + p.f, 0)/n;
+  let sxy = 0, sxx = 0; for (const p of r){ sxy += (p.u - mu)*(p.f - mf); sxx += (p.u - mu)**2; }
+  if (sxx < 1e-12) return;
+  const b = sxy/sxx, a = mf - b*mu;
+  $('#fStart').value = +a.toFixed(4); $('#fStop').value = +(a + b).toFixed(4);
+}
+
+/* ---------------- Chart view ---------------- */
+const chart = $('#chart'), cctx = chart.getContext('2d');
+let chHover = null, chDrag = null, chGeom = null;
+function viewRange(){
+  const an = state.an; if (!an) return null;
+  return state.view || [an.fmin, an.fmax];
+}
+function renderChart(){
+  const dpr = window.devicePixelRatio || 1, W = chart.clientWidth, Hh = chart.clientHeight;
+  chart.width = W*dpr; chart.height = Hh*dpr;
+  drawChart(cctx, W, Hh, dpr);
+}
+function drawChart(ctx, W, Hh, dpr){
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#1a1f27'; ctx.fillRect(0, 0, W, Hh);
+  const an = state.an, s = S();
+  ctx.font = '13px -apple-system,Segoe UI,sans-serif'; ctx.textBaseline = 'middle';
+  if (!an){
+    ctx.fillStyle = '#8b949e'; ctx.textAlign = 'center';
+    ctx.fillText(state.trace ? 'Enter sweep start/stop frequencies (step 2).' : 'Load data and trace the curve to see the chart.', W/2, Hh/2);
+    chGeom = null; return;
+  }
+  const [lo, hi] = viewRange();
+  const yTop = s.top, yBot = s.bot;
+  const x0 = 46, x1 = W - 14, y0 = 30, y1 = Hh - 86;
+  const X = f => x0 + (f - lo)/(hi - lo)*(x1 - x0), Y = w => y1 - (Math.min(w, yTop) - yBot)/(yTop - yBot)*(y1 - y0);
+  chGeom = {x0, x1, y0, y1, lo, hi, X, Y};
+  const stripY = y1 + 22, stripH = 12;
+
+  // grid
+  ctx.strokeStyle = '#262d37'; ctx.lineWidth = 1; ctx.fillStyle = '#8b949e'; ctx.font = '11px -apple-system,Segoe UI,sans-serif';
+  const ys = (yTop - yBot) > 6 ? 1 : 0.5;
+  ctx.textAlign = 'right';
+  for (let w = Math.ceil(yBot/ys)*ys; w <= yTop + 1e-9; w += ys){
+    ctx.beginPath(); ctx.moveTo(x0, Y(w)); ctx.lineTo(x1, Y(w)); ctx.stroke(); ctx.fillText(w.toFixed(1), x0 - 6, Y(w));
+  }
+  const step = niceStep((hi - lo)/Math.max(4, W/110));
+  ctx.textAlign = 'center';
+  for (let f = Math.ceil(lo/step)*step; f <= hi + 1e-9; f += step){
+    ctx.beginPath(); ctx.moveTo(X(f), y0); ctx.lineTo(X(f), y1); ctx.stroke();
+    ctx.fillText(+f.toFixed(6) + '', X(f), y1 + 10);
+  }
+  ctx.fillText('MHz', x1 - 12, y1 + 10 + 0);
+
+  // band plan: shading in plot + usability strip
+  ctx.save(); ctx.beginPath(); ctx.rect(x0, 0, x1 - x0, Hh); ctx.clip();
+  let lastLbl = -1e9;
+  for (const b of bandsInRange(lo, hi)){
+    const segs = segsFor(b, s), bx0 = X(b.lo), bx1 = X(b.hi);
+    ctx.fillStyle = 'rgba(255,255,255,.035)'; ctx.fillRect(bx0, y0, Math.max(1.5, bx1 - bx0), y1 - y0);
+    for (const seg of segs){
+      const a = X(seg[0]), c = X(seg[1]), w = Math.max(2, c - a), m = (a + c)/2;
+      ctx.fillStyle = MODES[seg[2]].color + '24'; ctx.fillRect(m - w/2, y0, w, y1 - y0);
+      ctx.fillStyle = MODES[seg[2]].color; ctx.fillRect(m - w/2, y0, w, 3);
+      const u = segUsable(seg, an);
+      ctx.fillStyle = u.measured < 0.999 ? '#3a404a' : 'rgba(248,81,73,.7)'; ctx.fillRect(m - w/2, stripY, w, stripH);
+      ctx.fillStyle = OK;
+      for (const [p, q] of u.parts){ const pw = Math.max(1.5, X(q) - X(p)); ctx.fillRect((X(p) + X(q))/2 - pw/2, stripY, pw, stripH); }
+    }
+    const lx = (bx0 + bx1)/2;
+    ctx.font = '600 11px -apple-system,Segoe UI,sans-serif'; ctx.textAlign = 'center';
+    const lw = ctx.measureText(b.name).width;
+    if (lx - lw/2 > lastLbl + 4){ ctx.fillStyle = segs.length ? '#e6edf3' : '#6e7681'; ctx.fillText(b.name, lx, y0 - 12); lastLbl = lx + lw/2; }
+  }
+  ctx.restore();
+  ctx.fillStyle = '#8b949e'; ctx.font = '11px -apple-system,Segoe UI,sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText('bands', x0 - 6, stripY + stripH/2);
+
+  // threshold
+  ctx.strokeStyle = BAD; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(x0, Y(s.thr)); ctx.lineTo(x1, Y(s.thr)); ctx.stroke(); ctx.setLineDash([]);
+
+  // curve: yellow above threshold, green at/below
+  const t = state.trace;
+  ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
+  const path = new Path2D(); let pen = false;
+  for (let i = 0; i < t.N; i++){
+    if (isNaN(t.s[i]) || isNaN(t.f[i])){ pen = false; continue; }
+    if (t.f[i] < lo - (hi - lo)*.02 || t.f[i] > hi + (hi - lo)*.02){ pen = false; continue; }
+    pen ? path.lineTo(X(t.f[i]), Y(t.s[i])) : path.moveTo(X(t.f[i]), Y(t.s[i])); pen = true;
+  }
+  ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.strokeStyle = '#e3c84a'; ctx.stroke(path);
+  ctx.beginPath(); ctx.rect(x0, Y(s.thr), x1 - x0, y1 - Y(s.thr) + 2); ctx.clip();
+  ctx.strokeStyle = OK; ctx.stroke(path);
+  ctx.restore();
+
+  const inView = f => f >= lo && f <= hi;
+  const tag = (txt, x, y, color) => {
+    ctx.font = '600 11px -apple-system,Segoe UI,sans-serif';
+    const w = ctx.measureText(txt).width; x = Math.min(Math.max(x, x0 + w/2 + 4), x1 - w/2 - 4);
+    ctx.fillStyle = 'rgba(26,31,39,.85)'; ctx.fillRect(x - w/2 - 3, y - 8, w + 6, 16);
+    ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.fillText(txt, x, y);
+  };
+  // extrema
+  for (const e of an.extrema){
+    if (!inView(e.f)) continue;
+    const x = X(e.f), y = Y(e.s), col = e.type === 'dip' ? OK : '#f2cc60';
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
+    const val = e.clipped ? '≥' + s.top : e.s.toFixed(2);
+    if (e.type === 'dip') tag(`${fmtF(e.f)} · ${val}`, x, Math.min(y + 14, y1 - 8), col);
+    else tag(`${fmtF(e.f)} · ${val}`, x, Math.max(y - 13, y0 + 12), col);
+  }
+  // crossings: dots on the threshold line
+  ctx.fillStyle = BAD;
+  for (const c of an.crossings) if (inView(c.f)){ ctx.beginPath(); ctx.arc(X(c.f), Y(s.thr), 3.5, 0, 7); ctx.fill(); }
+  // windows where SWR <= max: a bracket per window with its start–end, staggered into two rows
+  const rows = [];
+  ctx.font = '600 11px -apple-system,Segoe UI,sans-serif';
+  for (const [a, b] of an.usable){
+    if (b < lo || a > hi) continue;
+    const xa = X(Math.max(a, lo)), xb = X(Math.min(b, hi)), txt = `${fmtF(a)}–${fmtF(b)}`, w = ctx.measureText(txt).width + 10;
+    const cx = (xa + xb)/2, left = Math.min(xa, cx - w/2), right = Math.max(xb, cx + w/2);
+    let r = 0; while (r < 1 && rows[r] !== undefined && rows[r] > left) r++;
+    rows[r] = right;
+    const by = stripY + stripH + 10 + r*20;
+    ctx.strokeStyle = OK; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(xa, by - 4); ctx.lineTo(xa, by); ctx.lineTo(xb, by); ctx.lineTo(xb, by - 4); ctx.stroke();
+    tag(txt, cx, by + 10, OK);
+  }
+  ctx.fillStyle = '#8b949e'; ctx.font = '11px -apple-system,Segoe UI,sans-serif'; ctx.textAlign = 'right';
+  ctx.fillText(`≤${s.thr}:1`, x0 - 6, stripY + stripH + 20);
+  // manual markers
+  for (const m of state.manual){
+    if (!inView(m)) continue;
+    const w = swrAt(m); if (isNaN(w)) continue;
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(X(m), Y(w), 4, 0, 7); ctx.fill();
+    tag(`${fmtF(m)} · ${w.toFixed(2)}`, X(m), Math.max(Y(w) - 14, y0 + 12), '#fff');
+  }
+  // drag-zoom selection
+  if (chDrag && Math.abs(chDrag.x1 - chDrag.x0) > 4){
+    ctx.fillStyle = 'rgba(242,204,96,.12)'; ctx.fillRect(Math.min(chDrag.x0, chDrag.x1), y0, Math.abs(chDrag.x1 - chDrag.x0), y1 - y0);
+  }
+  // hover readout
+  if (chHover && !chDrag && chHover[0] >= x0 && chHover[0] <= x1){
+    const f = lo + (chHover[0] - x0)/(x1 - x0)*(hi - lo), w = swrAt(f);
+    ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.moveTo(chHover[0], y0); ctx.lineTo(chHover[0], y1); ctx.stroke();
+    const band = BANDS.find(b => f >= b.lo && f <= b.hi);
+    tag(`${fmtF(f)} MHz · SWR ${isNaN(w) ? '—' : w.toFixed(2)}${band ? ' · ' + band.name : ''}`, chHover[0], y0 + 10, '#e6edf3');
+  }
+}
+const chX = e => e.clientX - chart.getBoundingClientRect().left;
+const chF = x => chGeom.lo + (x - chGeom.x0)/(chGeom.x1 - chGeom.x0)*(chGeom.hi - chGeom.lo);
+chart.addEventListener('pointerdown', e => { if (!chGeom) return; chDrag = {x0:chX(e), x1:chX(e)}; chart.setPointerCapture(e.pointerId); });
+chart.addEventListener('pointermove', e => {
+  chHover = [chX(e), e.clientY - chart.getBoundingClientRect().top];
+  if (chDrag) chDrag.x1 = chX(e);
+  renderChart();
+});
+chart.addEventListener('pointerup', e => {
+  if (!chDrag || !chGeom) return;
+  const {x0, x1} = chDrag; chDrag = null;
+  if (Math.abs(x1 - x0) > 6){
+    const a = chF(Math.min(x0, x1)), b = chF(Math.max(x0, x1));
+    state.view = [a, b];
+  } else if (x0 >= chGeom.x0 && x0 <= chGeom.x1){
+    const f = chF(x0), tol = 6*(chGeom.hi - chGeom.lo)/(chGeom.x1 - chGeom.x0);
+    const hit = state.manual.findIndex(m => Math.abs(m - f) < tol);
+    if (hit >= 0) state.manual.splice(hit, 1); else if (!isNaN(swrAt(f))) state.manual.push(f);
+  }
+  refresh();
+});
+chart.addEventListener('pointerleave', () => { chHover = null; renderChart(); });
+chart.addEventListener('dblclick', () => { state.view = null; refresh(); });
+
+/* ---------------- Tables & chips ---------------- */
+function renderChips(){
+  const an = state.an, el = $('#chips'); el.innerHTML = '';
+  if (!an) return;
+  const mk = (txt, view) => {
+    const b = document.createElement('button'); b.textContent = txt;
+    const cur = state.view;
+    if ((!view && !cur) || (view && cur && Math.abs(view[0] - cur[0]) < 1e-9 && Math.abs(view[1] - cur[1]) < 1e-9)) b.classList.add('on');
+    b.onclick = () => { state.view = view; refresh(); };
+    el.appendChild(b);
+  };
+  mk('Full sweep', null);
+  for (const b of bandsInRange(an.fmin, an.fmax)){
+    const pad = Math.max((b.hi - b.lo)*0.35, 0.02);
+    mk(b.name, [Math.max(an.fmin, b.lo - pad), Math.min(an.fmax, b.hi + pad)]);
+  }
+}
+function renderTables(){
+  const an = state.an, s = S();
+  if (!an){ $('#bandTable').innerHTML = $('#ptTable').innerHTML = '<div class="empty">No data yet.</div>'; $('#resNote').textContent = ''; return; }
+  const t = state.trace;
+  const res = (an.fmax - an.fmin)/t.N*1000;
+  $('#resNote').textContent = state.source === 'image' ? `· traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point` : `· ${t.N} points from file`;
+  let h = '<table><tr><th>Band</th><th>Segment</th><th>Range (MHz)</th><th>Usable at SWR ≤ ' + s.thr + '</th><th style="width:22%"></th></tr>';
+  const bands = bandsInRange(an.fmin, an.fmax);
+  if (!bands.length) h += '<tr><td colspan="5" class="empty">No amateur bands inside this sweep.</td></tr>';
+  for (const b of bands){
+    const segs = segsFor(b, s);
+    if (!segs.length){
+      const why = b.priv[s.cls].length ? `No ${MODE_NAMES[s.mode]} privileges here for this license class` : 'No privileges for this license class';
+      h += `<tr><td><b>${b.name}</b></td><td colspan="4" style="color:var(--muted)">${why}</td></tr>`; continue;
+    }
+    const tot = segs.map(g => segUsable(g, an));
+    const avg = tot.reduce((a, u, j) => a + u.frac*(segs[j][1] - segs[j][0]), 0)/segs.reduce((a, g) => a + g[1] - g[0], 0);
+    const pill = avg > 0.995 ? '<span class="pill ok">all usable</span>' : avg > 0.005 ? '<span class="pill part">partial</span>' : '<span class="pill no">none</span>';
+    const meas = Math.min(...tot.map(u => u.measured));
+    const is60 = b.name === '60m', f60 = g => g[1] - g[0] < 0.005 ? ((g[0] + g[1])/2).toFixed(4) : `${g[0].toFixed(4)}–${g[1].toFixed(4)}`;
+    const ok60 = segs.filter((g, j) => tot[j].frac > 0.995);
+    const showSegs = is60 ? [[segs[0][0], segs[segs.length-1][1], 'chan']] : segs;
+    showSegs.forEach((g, j) => {
+      const u = is60 ? {parts:segs.flatMap(c => segUsable(c, an).parts), frac:avg, measured:meas} : tot[j];
+      const parts = is60 ? (ok60.length ? ok60.map(f60).join(', ') : '—') : u.parts.length ? u.parts.map(([a, c]) => `${fmtF(a)}–${fmtF(c)}`).join(', ') : '—';
+      const bar = u.measured < 0.999 ? `<div class="bar na" title="Partly outside the sweep"></div>` :
+        is60 ? `<div class="bar na">${segs.map((c, i) => `<span style="left:${(c[0] - g[0])/(g[1] - g[0])*100}%;width:${Math.max(1.5, (c[1] - c[0])/(g[1] - g[0])*100)}%;background:${tot[i].frac > 0.995 ? OK : BAD}"></span>`).join('')}</div>` :
+        `<div class="bar">${u.parts.map(([a, c]) => `<span style="left:${(a - g[0])/(g[1] - g[0])*100}%;width:${Math.max(1, (c - a)/(g[1] - g[0])*100)}%"></span>`).join('')}</div>`;
+      const label = is60 ? `4 channels + 1 segment (${ok60.length}/${segs.length} usable)` : MODES[g[2]].label;
+      h += `<tr>${j === 0 ? `<td rowspan="${showSegs.length}"><b>${b.name}</b><br>${pill}</td>` : ''}<td><span style="color:${MODES[g[2]].color}">■</span> ${label}</td>
+        <td class="num">${is60 ? `${g[0].toFixed(4)}–${g[1].toFixed(4)}` : `${fmtF(g[0])}–${fmtF(g[1])}`}</td><td class="num">${parts}${u.measured < 0.999 ? ' <span class="warn">(partly outside sweep)</span>' : ''}</td><td>${bar}</td></tr>`;
+    });
+  }
+  $('#bandTable').innerHTML = h + '</table>';
+
+  const pts = [
+    ...an.crossings.map(c => ({f:c.f, s:s.thr, kind:c.dir === 'down' ? `Drops below ${s.thr}` : `Rises above ${s.thr}`, col:'#ff9a94'})),
+    ...an.extrema.map(e => ({f:e.f, s:e.s, kind:e.type === 'dip' ? 'Dip (best match)' : 'Peak', col:e.type === 'dip' ? OK : '#f2cc60', clipped:e.clipped})),
+    ...state.manual.map(m => ({f:m, s:swrAt(m), kind:'Pinned', col:'#fff', manual:true})),
+  ].sort((a, b) => a.f - b.f);
+  let p = '<table class="pts"><tr><th>Frequency (MHz)</th><th>SWR</th><th>Point</th><th>Band</th><th></th></tr>';
+  for (const q of pts){
+    const band = BANDS.find(b => q.f >= b.lo && q.f <= b.hi);
+    p += `<tr><td class="num">${fmtF(q.f)}</td><td class="num">${q.clipped ? '≥ ' + s.top : q.s.toFixed(2)}</td><td style="color:${q.col}">${q.kind}</td><td>${band ? band.name : ''}</td>
+      <td>${q.manual ? `<button data-del="${q.f}">remove</button>` : ''}</td></tr>`;
+  }
+  $('#ptTable').innerHTML = p + '</table>';
+  $('#ptTable').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { state.manual = state.manual.filter(m => m !== +b.dataset.del); refresh(); });
+}
+function renderRefs(){
+  $('#refs').innerHTML = state.refs.map((r, j) => `<span>${r.f} MHz <i data-j="${j}">×</i></span>`).join('') +
+    (state.refs.length === 1 ? ' <span style="border:none;background:none">add one more…</span>' : '');
+  $('#refs').querySelectorAll('i').forEach(el => el.onclick = () => { state.refs.splice(+el.dataset.j, 1); solveRefs(); refresh(); });
+}
+
+/* ---------------- Glue ---------------- */
+function refresh(){
+  recompute();
+  state.an = analyze();
+  $('#photoEmpty').classList.toggle('hidden', !!state.src);
+  photo.classList.toggle('hidden', !state.src);
+  $('#straightBtn').classList.toggle('hidden', !state.src);
+  $('#clearAll').classList.toggle('hidden', !state.source);
+  $('#traceBtn').classList.toggle('primary', state.source === 'image' && !(state.trace && state.trace.v));
+  renderPhoto(); renderChart(); renderChips(); renderTables(); renderRefs();
+  // Preferences outlive a file: they survive Clear and apply to the next one.
+  try { localStorage.setItem('swrfit', JSON.stringify({cls:$('#cls').value, thr:$('#thr').value, mode:$('#mode').value, prom:$('#prom').value})); } catch (e) {}
+  scheduleSave();
+}
+function syncModeButtons(){
+  $('#penBtn').classList.toggle('on', state.mode === 'pen');
+  $('#refBtn').classList.toggle('on', state.mode === 'ref');
+}
+$('#straightBtn').onclick = () => {
+  if (!state.corners) return;
+  state.straight = !state.straight;
+  if (state.straight) buildRect();
+  dragCorner = -1; hover = null; syncStraightBtn(); layoutPhoto(); refresh();
+};
+$('#gridBtn').onclick = () => {
+  if (!state.src) return;
+  const found = detectGrid();
+  if (found && state.straight){ buildRect(); layoutPhoto(); }
+  if (found){ if (!state.trace || (state.trace.auto && !state.trace.edited)) autoTrace(); else { $('#retraceHint').classList.remove('hidden'); refresh(); } }
+  else refresh();
+};
+$('#refBtn').onclick = () => { if (!state.src) return; state.mode = state.mode === 'ref' ? 'idle' : 'ref'; syncModeButtons(); };
+$('#penBtn').onclick = () => { if (!state.src) return; state.mode = state.mode === 'pen' ? 'idle' : 'pen'; syncModeButtons(); };
+$('#traceBtn').onclick = autoTrace;
+$('#clearBtn').onclick = () => { if (state.source === 'image'){ state.trace = null; refresh(); } };
+let sensTimer;
+$('#sens').oninput = () => { clearTimeout(sensTimer); sensTimer = setTimeout(() => { if (state.trace && state.trace.auto && !state.trace.edited) autoTrace(); }, 150); };
+['#fStart','#fStop','#swrTop','#swrBot','#thr','#cls','#mode','#prom'].forEach(sel => $(sel).addEventListener('input', () => {
+  if (sel === '#fStart' || sel === '#fStop'){ state.view = null; state.sweepTyped = true; }
+  refresh();
+}));
+
+const drop = $('#drop'), fileIn = $('#file'), DROP_HTML = drop.innerHTML;
+$('#clearAll').onclick = clearAll;
+window.addEventListener('pagehide', () => { if (state.source && !restoring){ clearTimeout(saveTimer); store.set('session', snapshot()); } });
+drop.onclick = () => fileIn.click();
+fileIn.onchange = () => handleFile(fileIn.files[0]);
+['dragenter','dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+document.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+document.addEventListener('paste', e => { const it = [...e.clipboardData.items].find(i => i.type.startsWith('image/')); if (it) handleFile(it.getAsFile()); });
+window.addEventListener('resize', () => { layoutPhoto(); refresh(); });
+
+function download(name, url){ const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }
+$('#expPhoto').onclick = () => {
+  if (!state.src) return;
+  const c = document.createElement('canvas'); c.width = view().w; c.height = view().h;
+  drawPhoto(c.getContext('2d'), 1/state.k, true);
+  download('swr-overlay.png', c.toDataURL('image/png'));
+};
+$('#expChart').onclick = () => {
+  const W = chart.clientWidth, Hh = chart.clientHeight, c = document.createElement('canvas');
+  c.width = W*2; c.height = Hh*2; const saved = chHover; chHover = null;
+  drawChart(c.getContext('2d'), W, Hh, 2); chHover = saved;
+  download('swr-chart.png', c.toDataURL('image/png'));
+};
+$('#expCsv').onclick = () => {
+  const t = state.trace; if (!t) return;
+  let csv = 'freq_mhz,swr\n';
+  for (let i = 0; i < t.N; i++) if (!isNaN(t.s[i]) && !isNaN(t.f[i])) csv += `${t.f[i].toFixed(6)},${t.s[i].toFixed(3)}\n`;
+  download('swr-trace.csv', URL.createObjectURL(new Blob([csv], {type:'text/csv'})));
+};
+
+try { const p = JSON.parse(localStorage.getItem('swrfit') || '{}'); if (p.cls) $('#cls').value = p.cls; if (p.thr) $('#thr').value = p.thr; if (p.mode) $('#mode').value = p.mode; if (p.prom) $('#prom').value = p.prom; } catch (e) {}
+refresh();
+restoreSession();
+</script>
+</body>
+</html>

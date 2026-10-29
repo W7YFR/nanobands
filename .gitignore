@@ -1,0 +1,20 @@
+# Editor / OS cruft
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Claude Code. Personal settings and notes stay personal.
+.claude/
+CLAUDE.local.md
+
+# Local scratch: test photos, sweeps and exports made while working on it.
+# The page needs none of them.
+*.jpg
+*.jpeg
+*.heic
+*.s1p
+*.s2p
+*.csv
+swr-overlay*.png
+swr-chart*.png

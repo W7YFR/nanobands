@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="NanoBands">
+  <!-- NB, drawn the way the CWT icon draws CW: stroked paths rather than text,
+       so it is the same mark on every machine; flat caps and bevelled joins;
+       light blue on the dark ground and corner radius w7yfr.com uses. -->
+  <rect width="48" height="48" rx="9" fill="#12151a"/>
+  <g
+    fill="none"
+    stroke="#6aa9ff"
+    stroke-width="5"
+    stroke-linecap="butt"
+    stroke-linejoin="miter"
+    stroke-miterlimit="1.4"
+  >
+    <!-- N -->
+    <path d="M 8.5 35 L 8.5 13 L 19.5 35 L 19.5 13"/>
+    <!-- B: the stem, then the two bowls, the lower one a little wider. -->
+    <path d="M 28.5 13 L 28.5 35"/>
+    <path d="M 28.5 15.5 H 33.5 A 4.25 4.25 0 0 1 33.5 24 H 28.5"/>
+    <path d="M 28.5 24 H 34.5 A 4.25 4.25 0 0 1 34.5 32.5 H 28.5"/>
+  </g>
+</svg>
