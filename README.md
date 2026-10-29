@@ -54,17 +54,27 @@ loaded from a CDN the first time a photo is opened and pinned to one version
 with a subresource integrity hash. Without a network it still works; you type
 the frequencies.
 
-## Serving it locally
+## Working on it
 
-Any static server will do; there is nothing to compile.
+There is nothing to compile. `make` lists the helpers:
 
 ```
-python3 -m http.server 8000
+make serve       # the site at localhost:8000
+make serve:lan   # only the site's files, on your LAN, for a phone
+make icons       # rebuild the .ico and PNG icons from favicon.svg
+make bump:dry    # what this branch would release
+make pr          # bump, push, and open the pull request
+make release     # after merging: tag the version, with its notes
 ```
 
 Opened straight from disk as `file://`, the page works, but the browser refuses
-to read `site.webmanifest` and logs a CORS error for it. Served over http, or
-from GitHub Pages, it does not.
+to read `site.webmanifest` and logs a CORS error for it. Served, it does not.
+
+Branches carry a type prefix, and the prefix sets the version: `feat/` is a
+minor, `fix/` and `chore/` are patches. The version lives in `APP_VERSION` in
+`index.html`; `make bump` moves it and stamps the entry in
+[CHANGELOG.md](CHANGELOG.md). [CLAUDE.md](CLAUDE.md) has the full workflow and
+the changelog rules.
 
 ## License
 

@@ -4,8 +4,12 @@
 .idea/
 *.swp
 
-# Claude Code. Personal settings and notes stay personal.
-.claude/
+# Claude Code. Only the skills named here are shared; everything else in
+# .claude/ is personal.
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/changelog-check/
 CLAUDE.local.md
 
 # Local scratch: test photos, sweeps and exports made while working on it.
