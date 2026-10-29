@@ -47,6 +47,9 @@ header h1{margin:0;color:var(--accent)}
 header h1 .art{display:block;white-space:pre;font-family:var(--mono);font-size:calc(34px / 6);line-height:1;font-weight:400;letter-spacing:0}
 header .div{width:1px;align-self:stretch;background:var(--line)}
 #clearAll{margin-left:auto}
+/* A collapsed photo keeps its header row and its Expand button, nothing else. */
+#photoCard.collapsed h2{margin-bottom:0}
+#photoCard.collapsed #photoWrap,#photoCard.collapsed #photoEmpty{display:none}
 @media (max-width:600px){header .div{display:none}}
 header .sub{color:var(--muted);font-size:13px}
 /* The callsign, drawn: the same six rows w7yfr.com and cwt show, sized to a
@@ -167,7 +170,7 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 
 <main>
   <div class="card" id="photoCard">
-    <h2>Photo <span style="flex:1"></span><button id="straightBtn" class="hidden" style="text-transform:none;letter-spacing:0;font-size:12px;padding:3px 10px">Straighten</button></h2>
+    <h2>Photo <span style="flex:1"></span><button id="straightBtn" class="hidden" style="text-transform:none;letter-spacing:0;font-size:12px;padding:3px 10px">Straighten</button><button id="collapseBtn" class="hidden" style="text-transform:none;letter-spacing:0;font-size:12px;padding:3px 10px">Collapse</button></h2>
     <div id="photoWrap"><canvas id="photo"></canvas></div>
     <div class="empty" id="photoEmpty">Load a photo to begin.</div>
   </div>
@@ -324,7 +327,7 @@ function setImage(im, saved){
   const x = c.getContext('2d', {willReadFrequently:true}); x.drawImage(im, 0, 0, w, h);
   Object.assign(state, {src:c, iw:w, ih:h, pix:x.getImageData(0, 0, w, h).data,
     corners:[[w*.1,h*.1],[w*.9,h*.1],[w*.9,h*.9],[w*.1,h*.9]],
-    trace:null, refs:[], manual:[], source:'image', view:null, mode:'idle', straight:false, rect:null});
+    trace:null, refs:[], manual:[], source:'image', view:null, mode:'idle', straight:false, rect:null, photoCollapsed:false});
   syncStraightBtn();
   ['#fStart','#fStop'].forEach(s => $(s).disabled = false);
   $('#calCard').classList.remove('hidden'); $('#traceCard').classList.remove('hidden'); $('#photoCard').classList.remove('hidden');
@@ -598,7 +601,7 @@ function snapshot(){
   return {
     fields:Object.fromEntries(SAVED_FIELDS.map(f => [f, $(f).value])),
     corners:state.corners, refs:state.refs, manual:state.manual, view:state.view,
-    straight:!!state.straight, sweepTyped:!!state.sweepTyped,
+    straight:!!state.straight, sweepTyped:!!state.sweepTyped, collapsed:!!state.photoCollapsed,
     trace:t && t.v ? {N:t.N, v:t.v.slice(), auto:t.auto, edited:t.edited} : null,
     notes:{ocr:plain($('#ocrNote').innerHTML), grid:plain($('#gridNote').innerHTML)},
   };
@@ -610,6 +613,7 @@ function applySnapshot(sv){
     if (sv.trace) state.trace = {N:sv.trace.N, v:Float32Array.from(sv.trace.v), f:new Float64Array(sv.trace.N), s:new Float64Array(sv.trace.N), auto:sv.trace.auto, edited:sv.trace.edited};
     else if (sv.corners) autoTrace();
     if (sv.straight){ state.straight = true; buildRect(); syncStraightBtn(); layoutPhoto(); }
+    state.photoCollapsed = !!sv.collapsed;
     ocrNote(sv.notes?.ocr || ''); gridNote(sv.notes?.grid || '');
   }
   Object.assign(state, {refs:sv.refs || [], manual:sv.manual || [], view:sv.view || null, sweepTyped:!!sv.sweepTyped});
@@ -640,7 +644,7 @@ function clearAll(){
   ocrJob++;   // a reading still in flight lands nowhere
   clearTimeout(saveTimer);
   Object.assign(state, {src:null, pix:null, iw:0, ih:0, corners:null, refs:[], trace:null, source:null, manual:[],
-    mode:'idle', view:null, an:null, straight:false, rect:null, sweepTyped:false});
+    mode:'idle', view:null, an:null, straight:false, rect:null, sweepTyped:false, photoCollapsed:false});
   H = Hi = null; dragCorner = -1; hover = null;
   ['#fStart', '#fStop'].forEach(f => { $(f).value = ''; $(f).disabled = false; });
   $('#swrTop').value = 5; $('#swrBot').value = 1; $('#sens').value = 70;
@@ -826,6 +830,9 @@ function niceStep(x){ const p = Math.pow(10, Math.floor(Math.log10(x))), m = x/p
 /* ---------------- Photo view ---------------- */
 const photo = $('#photo'), pctx = photo.getContext('2d');
 let hover = null, dragCorner = -1, penLast = null;
+// The frequency under the cursor, in either view. Both draw a dot on the curve
+// there, so moving across one shows the same point in the other.
+let hoverF = null;
 
 // "Straighten" shows a perspective-corrected copy of the photo with the grid squared up. Tracing
 // always samples the original photo through the homography, so this is purely a display choice.
@@ -969,6 +976,16 @@ function drawPhoto(ctx, U, forExport){
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 4*U, 0, 7); ctx.fill();
       label(ctx, `${fmtF(m)} · ${sw.toFixed(2)}`, x, y - 16*U, U, '#fff');
     }
+    if (!forExport && hoverF !== null){
+      const u = uOf(hoverF), sw = swrAt(hoverF);
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1*U; lineUV(ctx, u, 0, u, 1); ctx.stroke();
+      if (!isNaN(sw)){
+        const [x, y] = pt(hoverF, sw);
+        ctx.fillStyle = sw <= s.thr ? OK : '#e3c84a'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2*U;
+        ctx.beginPath(); ctx.arc(x, y, 6*U, 0, 7); ctx.fill(); ctx.stroke();
+        label(ctx, `${fmtF(hoverF)} MHz · SWR ${sw >= s.top ? '≥' + s.top : sw.toFixed(2)}`, x, y - 20*U, U, '#e6edf3');
+      }
+    }
   }
   if (forExport || straightOn()) return;
   // corner handles
@@ -979,7 +996,7 @@ function drawPhoto(ctx, U, forExport){
   });
 }
 function renderPhoto(){
-  if (!state.src) return;
+  if (!state.src || state.photoCollapsed) return;
   const dpr = window.devicePixelRatio || 1, k = state.k;
   pctx.setTransform(dpr*k, 0, 0, dpr*k, 0, 0);
   drawPhoto(pctx, 1/k, false);
@@ -999,6 +1016,24 @@ function renderPhoto(){
     pctx.fillStyle = '#000'; pctx.fillRect(cx - R, cy - R, 2*R, 2*R);
     pctx.imageSmoothingEnabled = false;
     pctx.drawImage(view().src, hover[0] - sw/2, hover[1] - sw/2, sw, sw, cx - R, cy - R, 2*R, 2*R);
+    // The trace too, at the same zoom, so Pen fix shows the line it is correcting
+    // and the stroke going down as it is drawn.
+    const t = state.trace;
+    if (t && t.v){
+      const m = k*Z;
+      pctx.save();
+      pctx.setTransform(dpr*m, 0, 0, dpr*m, dpr*(cx - hover[0]*m), dpr*(cy - hover[1]*m));
+      pctx.strokeStyle = TRACE; pctx.lineWidth = 2/m; pctx.lineJoin = 'round';
+      pctx.beginPath();
+      let pen = false;
+      for (let i = 0; i < t.N; i++){
+        if (isNaN(t.v[i])){ pen = false; continue; }
+        const [x, y] = vf((i + .5)/t.N, t.v[i]);
+        pen ? pctx.lineTo(x, y) : pctx.moveTo(x, y); pen = true;
+      }
+      pctx.stroke();
+      pctx.restore();
+    }
     pctx.strokeStyle = '#ff3b6b'; pctx.lineWidth = 1;
     pctx.beginPath(); pctx.moveTo(cx - R, cy); pctx.lineTo(cx + R, cy); pctx.moveTo(cx, cy - R); pctx.lineTo(cx, cy + R); pctx.stroke();
     pctx.restore();
@@ -1038,7 +1073,12 @@ photo.addEventListener('pointermove', e => {
   if (dragCorner >= 0){ state.corners[dragCorner] = [x, y]; updateH(); if (state.trace && state.trace.v) recompute(); state.an = analyze(); }
   else if (state.mode === 'pen' && e.buttons & 1 && penLast){ penApply(x, y); refresh(); return; }
   photo.style.cursor = !straightOn() && state.corners.some(([cx, cy]) => Math.hypot(cx - x, cy - y)*state.k < 14) ? 'grab' : 'crosshair';
-  renderPhoto();
+  const s = S();
+  if (dragCorner < 0 && calOK(s) && state.trace){
+    const [u] = vb(x, y);
+    hoverF = u >= 0 && u <= 1 ? s.start + u*(s.stop - s.start) : null;
+  } else hoverF = null;
+  renderPhoto(); renderChart();
 });
 photo.addEventListener('pointerup', () => {
   if (dragCorner >= 0){
@@ -1049,7 +1089,7 @@ photo.addEventListener('pointerup', () => {
   }
   penLast = null;
 });
-photo.addEventListener('pointerleave', () => { if (dragCorner < 0){ hover = null; renderPhoto(); } });
+photo.addEventListener('pointerleave', () => { if (dragCorner < 0){ hover = null; hoverF = null; renderPhoto(); renderChart(); } });
 function solveRefs(){
   const r = state.refs; if (r.length < 2) return;
   const n = r.length, mu = r.reduce((a, p) => a + p.u, 0)/n, mf = r.reduce((a, p) => a + p.f, 0)/n;
@@ -1061,7 +1101,7 @@ function solveRefs(){
 
 /* ---------------- Chart view ---------------- */
 const chart = $('#chart'), cctx = chart.getContext('2d');
-let chHover = null, chDrag = null, chGeom = null;
+let chDrag = null, chGeom = null;
 function viewRange(){
   const an = state.an; if (!an) return null;
   return state.view || [an.fmin, an.fmax];
@@ -1084,7 +1124,10 @@ function drawChart(ctx, W, Hh, dpr){
   const [lo, hi] = viewRange();
   const yTop = s.top, yBot = s.bot;
   const x0 = 46, x1 = W - 14, y0 = 30, y1 = Hh - 86;
-  const X = f => x0 + (f - lo)/(hi - lo)*(x1 - x0), Y = w => y1 - (Math.min(w, yTop) - yBot)/(yTop - yBot)*(y1 - y0);
+  // The SWR scale stops short of the plot's edges, so a dip at the bottom or a
+  // peak at the top still has room for its label without covering its dot.
+  const py0 = y0 + 24, py1 = y1 - 22;
+  const X = f => x0 + (f - lo)/(hi - lo)*(x1 - x0), Y = w => py1 - (Math.min(w, yTop) - yBot)/(yTop - yBot)*(py1 - py0);
   chGeom = {x0, x1, y0, y1, lo, hi, X, Y};
   const stripY = y1 + 22, stripH = 12;
 
@@ -1191,21 +1234,28 @@ function drawChart(ctx, W, Hh, dpr){
   if (chDrag && Math.abs(chDrag.x1 - chDrag.x0) > 4){
     ctx.fillStyle = 'rgba(242,204,96,.12)'; ctx.fillRect(Math.min(chDrag.x0, chDrag.x1), y0, Math.abs(chDrag.x1 - chDrag.x0), y1 - y0);
   }
-  // hover readout
-  if (chHover && !chDrag && chHover[0] >= x0 && chHover[0] <= x1){
-    const f = lo + (chHover[0] - x0)/(x1 - x0)*(hi - lo), w = swrAt(f);
-    ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.beginPath(); ctx.moveTo(chHover[0], y0); ctx.lineTo(chHover[0], y1); ctx.stroke();
+  // hover: a line, a dot on the curve, and the readout
+  if (hoverF !== null && !chDrag && hoverF >= lo && hoverF <= hi){
+    const f = hoverF, x = X(f), w = swrAt(f);
+    ctx.strokeStyle = 'rgba(255,255,255,.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+    if (!isNaN(w)){
+      ctx.fillStyle = w <= s.thr ? OK : '#e3c84a'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, Y(w), 5.5, 0, 7); ctx.fill(); ctx.stroke();
+    }
     const band = BANDS.find(b => f >= b.lo && f <= b.hi);
-    tag(`${fmtF(f)} MHz · SWR ${isNaN(w) ? '—' : w.toFixed(2)}${band ? ' · ' + band.name : ''}`, chHover[0], y0 + 10, '#e6edf3');
+    // Rides with the dot, above it, or below it where above would leave the plot.
+    const ly = isNaN(w) ? y0 + 10 : Y(w) - 18 >= y0 + 10 ? Y(w) - 18 : Math.min(Y(w) + 18, y1 - 10);
+    tag(`${fmtF(f)} MHz · SWR ${isNaN(w) ? '—' : w >= yTop ? '≥' + yTop : w.toFixed(2)}${band ? ' · ' + band.name : ''}`, x, ly, '#e6edf3');
   }
 }
 const chX = e => e.clientX - chart.getBoundingClientRect().left;
 const chF = x => chGeom.lo + (x - chGeom.x0)/(chGeom.x1 - chGeom.x0)*(chGeom.hi - chGeom.lo);
 chart.addEventListener('pointerdown', e => { if (!chGeom) return; chDrag = {x0:chX(e), x1:chX(e)}; chart.setPointerCapture(e.pointerId); });
 chart.addEventListener('pointermove', e => {
-  chHover = [chX(e), e.clientY - chart.getBoundingClientRect().top];
-  if (chDrag) chDrag.x1 = chX(e);
-  renderChart();
+  const x = chX(e);
+  hoverF = chGeom && x >= chGeom.x0 && x <= chGeom.x1 ? chF(x) : null;
+  if (chDrag) chDrag.x1 = x;
+  renderChart(); renderPhoto();
 });
 chart.addEventListener('pointerup', e => {
   if (!chDrag || !chGeom) return;
@@ -1220,7 +1270,7 @@ chart.addEventListener('pointerup', e => {
   }
   refresh();
 });
-chart.addEventListener('pointerleave', () => { chHover = null; renderChart(); });
+chart.addEventListener('pointerleave', () => { hoverF = null; renderChart(); renderPhoto(); });
 chart.addEventListener('dblclick', () => { state.view = null; refresh(); });
 
 /* ---------------- Tables & chips ---------------- */
@@ -1301,7 +1351,10 @@ function refresh(){
   state.an = analyze();
   $('#photoEmpty').classList.toggle('hidden', !!state.src);
   photo.classList.toggle('hidden', !state.src);
-  $('#straightBtn').classList.toggle('hidden', !state.src);
+  $('#straightBtn').classList.toggle('hidden', !state.src || !!state.photoCollapsed);
+  $('#collapseBtn').classList.toggle('hidden', !state.src);
+  $('#photoCard').classList.toggle('collapsed', !!(state.src && state.photoCollapsed));
+  $('#collapseBtn').textContent = state.photoCollapsed ? 'Expand' : 'Collapse';
   $('#clearAll').classList.toggle('hidden', !state.source);
   $('#traceBtn').classList.toggle('primary', state.source === 'image' && !(state.trace && state.trace.v));
   renderPhoto(); renderChart(); renderChips(); renderTables(); renderRefs();
@@ -1326,8 +1379,17 @@ $('#gridBtn').onclick = () => {
   if (found){ if (!state.trace || (state.trace.auto && !state.trace.edited)) autoTrace(); else { $('#retraceHint').classList.remove('hidden'); refresh(); } }
   else refresh();
 };
-$('#refBtn').onclick = () => { if (!state.src) return; state.mode = state.mode === 'ref' ? 'idle' : 'ref'; syncModeButtons(); };
-$('#penBtn').onclick = () => { if (!state.src) return; state.mode = state.mode === 'pen' ? 'idle' : 'pen'; syncModeButtons(); };
+function setCollapsed(c){
+  state.photoCollapsed = c;
+  if (c){ state.mode = 'idle'; syncModeButtons(); dragCorner = -1; hover = null; hoverF = null; }
+  // Shown before it is measured: a collapsed card has no width to size the photo to.
+  else { $('#photoCard').classList.remove('collapsed'); layoutPhoto(); }
+  refresh();
+}
+$('#collapseBtn').onclick = () => setCollapsed(!state.photoCollapsed);
+// Both work on the photo, so they bring it back if it was collapsed.
+$('#refBtn').onclick = () => { if (!state.src) return; if (state.photoCollapsed) setCollapsed(false); state.mode = state.mode === 'ref' ? 'idle' : 'ref'; syncModeButtons(); };
+$('#penBtn').onclick = () => { if (!state.src) return; if (state.photoCollapsed) setCollapsed(false); state.mode = state.mode === 'pen' ? 'idle' : 'pen'; syncModeButtons(); };
 $('#traceBtn').onclick = autoTrace;
 $('#clearBtn').onclick = () => { if (state.source === 'image'){ state.trace = null; refresh(); } };
 let sensTimer;
@@ -1357,8 +1419,8 @@ $('#expPhoto').onclick = () => {
 };
 $('#expChart').onclick = () => {
   const W = chart.clientWidth, Hh = chart.clientHeight, c = document.createElement('canvas');
-  c.width = W*2; c.height = Hh*2; const saved = chHover; chHover = null;
-  drawChart(c.getContext('2d'), W, Hh, 2); chHover = saved;
+  c.width = W*2; c.height = Hh*2; const saved = hoverF; hoverF = null;
+  drawChart(c.getContext('2d'), W, Hh, 2); hoverF = saved;
   download('swr-chart.png', c.toDataURL('image/png'));
 };
 $('#expCsv').onclick = () => {
