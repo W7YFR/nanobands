@@ -3,7 +3,7 @@
  * The drawing lives in favicon.svg and nowhere else. The .ico and the PNG tiles
  * are rasterisations of it, so they are generated rather than drawn: edited by
  * hand they drift from the source and nothing notices. The same script as
- * cwt's, pointed at this repo's root.
+ * cwt's.
  *
  * The .ico carries three sizes and each is rendered from the vector rather
  * than downscaled from the largest, so the small ones get a correctly sampled
@@ -20,7 +20,8 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE = join(ROOT, "favicon.svg");
+const PUBLIC = join(ROOT, "app", "public");
+const SOURCE = join(PUBLIC, "favicon.svg");
 
 /** @param {string} tool */
 function need(tool) {
@@ -51,17 +52,17 @@ try {
     render(SOURCE, size, out);
     return out;
   });
-  execFileSync("magick", [...icoParts, join(ROOT, "favicon.ico")]);
+  execFileSync("magick", [...icoParts, join(PUBLIC, "favicon.ico")]);
 
   const tiles = [
     { size: 180, name: "apple-touch-icon.png" },
     { size: 192, name: "icon-192.png" },
     { size: 512, name: "icon-512.png" },
   ];
-  for (const { size, name } of tiles) render(SOURCE, size, join(ROOT, name));
+  for (const { size, name } of tiles) render(SOURCE, size, join(PUBLIC, name));
 
   console.log("✓ favicon.ico, apple-touch-icon.png, icon-192.png, icon-512.png");
-  console.log("  from favicon.svg — review the diff, it is what users see.");
+  console.log("  from app/public/favicon.svg — review the diff, it is what users see.");
 } finally {
   rmSync(work, { recursive: true, force: true });
 }

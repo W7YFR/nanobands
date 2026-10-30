@@ -1,0 +1,77 @@
+:root{
+  /* The palette is cwt's and w7yfr.com's, so the site reads as one. */
+  --bg:#12151a;--panel:#1a1f27;--panel2:#222937;--line:#2e3644;--text:#e6eaf0;--muted:#97a3b6;--faint:#66708a;
+  --accent:#6aa9ff;--warn:#f2cc60;--ok:#3fb950;--bad:#f85149;--data:#58a6ff;--phone:#e3a33b;--cw:#bc8cff;--all:#39c5bb;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+/* Scrollbars as cwt draws them. Room for the page's bar is kept on both edges
+   whether or not there is one, so the page stays centered and does not shift
+   when it grows past the window. Thin and quiet everywhere: the color is
+   inherited, so it is set once here; the width is not, so every element takes it. */
+html{scrollbar-gutter:stable both-edges;scrollbar-color:color-mix(in srgb, var(--faint) 45%, transparent) transparent}
+*{scrollbar-width:thin}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+/* The name, drawn in the same block letters as the callsign and a size up,
+   the way cwt draws CWT. The callsign steps back to gray so the blue means
+   this app, and turns blue again on hover as the way home. */
+header h1{margin:0;color:var(--accent)}
+header h1 .art{display:block;white-space:pre;font-family:var(--mono);font-size:calc(34px / 6);line-height:1;font-weight:400;letter-spacing:0}
+header .div{width:1px;align-self:stretch;background:var(--line)}
+#clearAll{margin-left:auto}
+/* A collapsed photo keeps its header row and its Expand button, nothing else. */
+#photoCard.collapsed h2{margin-bottom:0}
+#photoCard.collapsed #photoWrap,#photoCard.collapsed #photoEmpty{display:none}
+@media (max-width:600px){header .div{display:none}}
+header .sub{color:var(--muted);font-size:13px}
+/* The callsign, drawn: the same six rows w7yfr.com and cwt show, sized to a
+   26px row the way cwt's landing page sizes it, and linking home. */
+.callsign{display:block;color:var(--faint);text-decoration:none;flex:none}
+.callsign:hover,.callsign:focus-visible{color:var(--accent)}
+.callsign .art{display:block;white-space:pre;font-family:var(--mono);font-size:calc(26px / 6);line-height:1;font-weight:400;letter-spacing:0}
+.colophon{padding:16px 20px 24px;text-align:center;font-size:11px;color:var(--faint)}
+.colophon a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.colophon a:hover,.colophon a:focus-visible{color:var(--accent)}
+.wrap{display:flex;gap:16px;padding:16px;align-items:flex-start}
+aside{width:330px;flex:none;display:flex;flex-direction:column;gap:12px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;font-weight:600;display:flex;gap:8px;align-items:center}
+.card h2 b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#000;font-size:11px}
+.row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
+.row label{color:var(--muted);font-size:12px;min-width:84px}
+input[type=number],select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 7px;width:90px;font:inherit}
+select{width:auto}
+input[type=range]{flex:1}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font:inherit;cursor:pointer}
+button:hover{border-color:#4a5260}
+button.primary{background:var(--accent);color:#111;border-color:var(--accent);font-weight:600}
+button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
+.hint{color:var(--muted);font-size:12px;margin:6px 0 0}
+.warn{color:var(--warn);font-size:12px}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);cursor:pointer;font-size:13px}
+.drop.over{border-color:var(--accent);color:var(--accent)}
+.refs{font-size:12px;color:var(--muted)}
+.refs span{display:inline-flex;gap:4px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;margin:2px}
+.refs span i{cursor:pointer;font-style:normal;color:var(--bad)}
+#photoWrap{position:relative}
+#photo{display:block;border-radius:8px;touch-action:none;cursor:crosshair;max-width:100%}
+#chart{display:block;width:100%;height:460px;touch-action:none;cursor:crosshair}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.chips button{padding:3px 9px;font-size:12px;border-radius:12px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{color:var(--muted);font-weight:600;font-size:12px}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.bar{position:relative;height:10px;border-radius:3px;background:rgba(248,81,73,.55);min-width:120px;overflow:hidden}
+.bar span{position:absolute;top:0;bottom:0;background:var(--ok)}
+.bar.na{background:#3a404a}
+.pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;font-weight:600}
+.pill.ok{background:rgba(63,185,80,.18);color:var(--ok)}.pill.part{background:rgba(242,204,96,.16);color:var(--warn)}.pill.no{background:rgba(248,81,73,.16);color:var(--bad)}
+.empty{color:var(--muted);padding:30px;text-align:center}
+.pts td button{padding:0 6px;font-size:12px}
+.hidden{display:none!important}
+@media (max-width:900px){.wrap{flex-direction:column}aside{width:100%;position:static;max-height:none}}

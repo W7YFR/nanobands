@@ -22,13 +22,12 @@ first.
 
 ## 2. Read the change
 
-- `git diff main...HEAD -- index.html` for what users get, and the icons and
-  images if `--stat` lists them.
-- `git diff main...HEAD --stat` for tooling changes, which go under
-  Development.
+- `git diff main...HEAD -- app/src app/public app/index.html` for what users get.
+- `git diff main...HEAD --stat` for build, CI and tooling changes, which go
+  under Development.
 - `git log --format='%s%n%b' main..HEAD` for intent.
-- Read enough of the changed markup and script to know each control's label
-  and default as the page shows them.
+- Read enough of the changed UI code to know each control's label and default
+  as the app shows them.
 
 ## 3. Check each bullet
 
@@ -38,7 +37,7 @@ For each bullet, answer:
   match the code.
 - **Visible?** A user-facing bullet describes something a user of the site
   can see. A Development bullet describes something a contributor uses: a
-  `make` target or a script. Refactors fail both.
+  `make` target, CI, the dev server. Tests and refactors fail both.
 - **Right group?** Added, Changed, Removed, Fixed or Development.
 - **Brief?** It follows the Brevity rules.
 

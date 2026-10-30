@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["node", "vite/client"],
+
+    /* The same strictness as cwt, with one exception. The tracing, grid and
+       straightening code reads pixels out of typed arrays at computed offsets,
+       millions of times per photo. `noUncheckedIndexedAccess` turns every one
+       of those reads into `number | undefined`, which buys nothing there and
+       buries the arithmetic under assertions. */
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+
+    /* For scripts/*.mjs. They are plain JS so a release needs no build step;
+       checkJs holds their JSDoc types to the same strictness. */
+    "allowJs": true,
+    "checkJs": true,
+
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+
+    "paths": {
+      "@/*": ["./app/src/*"]
+    }
+  },
+  "include": ["app/src", "app/test", "scripts", "vite.config.ts"]
+}

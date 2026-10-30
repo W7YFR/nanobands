@@ -47,7 +47,9 @@ transmit.
 
 ## What it is
 
-One static page, no build step. What is in `index.html` is what gets served.
+A Vite and TypeScript app with no server. The band plan, the parsers, the
+analysis, and the grid finder and tracer are plain modules in `app/src` that
+take data and return data; `app/src/ui/app.ts` draws the page around them.
 
 Reading START and STOP off the screen uses [Tesseract.js](https://tesseract.projectnaptha.com/),
 loaded from a CDN the first time a photo is opened and pinned to one version
@@ -56,25 +58,29 @@ the frequencies.
 
 ## Working on it
 
-There is nothing to compile. `make` lists the helpers:
+`make` lists the helpers:
 
 ```
-make serve       # the site at localhost:8000
-make serve:lan   # only the site's files, on your LAN, for a phone
-make icons       # rebuild the .ico and PNG icons from favicon.svg
-make bump:dry    # what this branch would release
-make pr          # bump, push, and open the pull request
-make release     # after merging: tag the version, with its notes
+make dev           # the app with hot reload at localhost:5174
+make dev:lan       # the same, on your LAN, for a phone
+make test          # the pure tests
+make browsers      # download Chromium for the browser tests (once)
+make test-browser  # the page and the photo pipeline, in Chromium
+make build         # build the site into dist/
+make icons         # rebuild the .ico and PNG icons from app/public/favicon.svg
+make bump:dry      # what this branch would release
+make pr            # bump, push, and open the pull request
+make release       # after merging: tag the version, with its notes
 ```
 
-Opened straight from disk as `file://`, the page works, but the browser refuses
-to read `site.webmanifest` and logs a CORS error for it. Served, it does not.
+The browser tests run against two real photos of a NanoVNA-H4 in
+`app/test/data`.
 
 Branches carry a type prefix, and the prefix sets the version: `feat/` is a
-minor, `fix/` and `chore/` are patches. The version lives in `APP_VERSION` in
-`index.html`; `make bump` moves it and stamps the entry in
-[CHANGELOG.md](CHANGELOG.md). [CLAUDE.md](CLAUDE.md) has the full workflow and
-the changelog rules.
+minor, `fix/` and `chore/` are patches. The version lives in `package.json`;
+`make bump` moves it and stamps the entry in [CHANGELOG.md](CHANGELOG.md). CI
+tests every pull request and deploys the site when it merges.
+[CLAUDE.md](CLAUDE.md) has the full workflow and the changelog rules.
 
 ## License
 
