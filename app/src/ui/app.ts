@@ -916,6 +916,12 @@ const drop = $("#drop"), fileIn = $<HTMLInputElement>("#file"), DROP_HTML = drop
 
 /** Wire the page up and restore the last session. */
 export function start(): void {
+  // The scrollbar's reserved room, for the CSS that takes it out of the
+  // right padding. Kept current across zoom and resize.
+  const measureScrollbar = (): void =>
+    document.documentElement.style.setProperty("--sb", `${window.innerWidth - document.documentElement.clientWidth}px`);
+  measureScrollbar();
+  window.addEventListener("resize", measureScrollbar);
   $("#version").textContent = APP_VERSION;
   $("#year").textContent = String(new Date().getFullYear());
 

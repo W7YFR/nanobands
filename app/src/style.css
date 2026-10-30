@@ -5,14 +5,21 @@
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box}
-/* Scrollbars as cwt draws them. Room for the page's bar is kept on both edges
-   whether or not there is one, so the page stays centered and does not shift
-   when it grows past the window. Thin and quiet everywhere: the color is
-   inherited, so it is set once here; the width is not, so every element takes it. */
-html{scrollbar-gutter:stable both-edges;scrollbar-color:color-mix(in srgb, var(--faint) 45%, transparent) transparent}
+/* Thin, quiet scrollbars, as cwt draws them. Room for the page's bar is kept
+   whether or not there is one, so the page does not shift when it grows past
+   the window. On the right only, unlike cwt: this page is full width rather
+   than centered. The header and .wrap take that room out of their right
+   padding. The color is inherited, so it is set once here; the width is not,
+   so every element takes it. */
+html{scrollbar-gutter:stable;scrollbar-color:color-mix(in srgb, var(--faint) 45%, transparent) transparent}
 *{scrollbar-width:thin}
 html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-header{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+/* The scrollbar's room is kept on the right (see html above), and it comes
+   out of the right padding rather than adding to it, so the right edge
+   matches the left with a scrollbar or without. --sb is that room's width,
+   measured by the page (CSS cannot: with the room reserved, 100vw leaves it
+   out). Overlay scrollbars take no room, and --sb is 0. */
+header{display:flex;align-items:center;gap:16px;padding:14px max(0px, calc(20px - var(--sb, 0px))) 14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 /* The name, drawn in the same block letters as the callsign and a size up,
    the way cwt draws CWT. The callsign steps back to gray so the blue means
    this app, and turns blue again on hover as the way home. */
@@ -33,7 +40,7 @@ header .sub{color:var(--muted);font-size:13px}
 .colophon{padding:16px 20px 24px;text-align:center;font-size:11px;color:var(--faint)}
 .colophon a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 .colophon a:hover,.colophon a:focus-visible{color:var(--accent)}
-.wrap{display:flex;gap:16px;padding:16px;align-items:flex-start}
+.wrap{display:flex;gap:16px;padding:16px max(0px, calc(16px - var(--sb, 0px))) 16px 16px;align-items:flex-start}
 aside{width:330px;flex:none;display:flex;flex-direction:column;gap:12px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
 main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
