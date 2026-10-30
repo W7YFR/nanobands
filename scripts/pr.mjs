@@ -4,9 +4,9 @@
  * there), pushes the branch, and opens the pull request, or updates the one
  * already open. The title is `[TYPE] vX.Y.Z`. The body is the part of the
  * CHANGELOG.md entry that this branch wrote, without the pending lines other
- * branches merged before it. A branch that touches no file the site serves
- * releases no version, so its title comes from the branch name and its entry
- * stays under `## Unreleased` for the next release. The same script as cwt's.
+ * branches merged before it. A branch that touches no build input releases no
+ * version, so its title comes from the branch name and its entry stays under
+ * `## Unreleased` for the next release.
  *
  *   make pr
  *   make pr TITLE="Deploy Gap"   # title for a branch that releases nothing
@@ -82,7 +82,9 @@ function main() {
   if (ships) {
     const bumped = run("git", ["log", "--format=%s", "main..HEAD"]).split("\n").some(isReleaseSubject);
     if (!bumped) run(process.execPath, [VERSION, "--commit", "--branch", branch]);
-    version = run(process.execPath, [VERSION, "--current"]);
+    /** @type {{ version: string }} */
+    const pkg = JSON.parse(readFileSync(`${ROOT}package.json`, "utf8"));
+    version = pkg.version;
     const logged = entry(readFileSync(CHANGELOG, "utf8"), version);
     if (!logged) die(`CHANGELOG.md has no v${version} entry; write it under '## Unreleased' and run make pr again`);
     body = added(base, logged);

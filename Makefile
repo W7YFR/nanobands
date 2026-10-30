@@ -1,13 +1,10 @@
 # nanobands — read a NanoVNA SWR sweep against the US band plan.
 #
-# One static page and its icons, no build. GitHub Pages serves whatever is on
-# main, so merging is deploying. These targets are the helpers around that:
-# serving it locally, rebuilding the icons, and versioning a release the way
-# cwt does.
+# It traces, reads and analyzes, entirely in the browser. Everything under
+# app/src is the product; app/test holds two test tiers and the photos they
+# run against.
 
 .DEFAULT_GOAL := help
-
-PORT ?= 8000
 
 .PHONY: help
 help: ## Show this help
@@ -15,67 +12,108 @@ help: ## Show this help
 		| awk 'BEGIN{FS="## "}{t=$$1; sub(/:[ \t].*$$/,"",t); gsub(/\\/,"",t); \
 			printf "  \033[36m%-14s\033[0m %s\n", t, $$2}'
 
-# Served rather than opened from disk: as a file:// page the browser refuses
-# to read site.webmanifest and logs a CORS error for it.
+node_modules: package.json ## (internal) install JS dependencies
+	npm install
+	@touch node_modules
+
+.PHONY: dev
+dev: node_modules ## Run the app with hot reload at localhost:5174
+	npm run dev
+
+# On the LAN, so another machine or a phone can open it. Plain http: a photo
+# upload needs no secure context. The dev server serves app/, its packages and
+# package.json, and nothing else from the repository (see vite.config.ts).
+.PHONY: dev\:lan
+dev\:lan: node_modules ## Run with hot reload on your LAN, for a phone
+	npm run dev:lan
+
+.PHONY: build
+build: node_modules ## Build the app into dist/
+	npm run build
+
+# Two ways to look at it, and the difference is whether it moves under you.
+# `serve` is a snapshot: dist/ as it was last built, unaffected by edits to the
+# source until you ask for a new one. `dev` is the opposite and `serve:latest`
+# is the bridge — rebuild, then serve the result.
 .PHONY: serve
-serve: ## Serve the site at localhost:8000 (PORT=… to change)
-	@echo "→ http://localhost:$(PORT)/"
-	python3 -m http.server $(PORT) --bind 127.0.0.1
+serve: ## Serve the last build at localhost:4173
+	@test -f dist/index.html || { echo "No build in dist/ — run 'make serve:latest'"; exit 1; }
+	npm run preview
 
-# For a phone on the same Wi-Fi, so a photo of the VNA can go straight in. A
-# photo upload needs no secure context, so plain http is enough. What is served
-# is a folder of links to the site's own files and nothing else: serving the
-# repository itself would hand .git and every scratch file in it to anyone on
-# the network.
-.PHONY: serve\:lan
-serve\:lan: ## Serve only the site's files on your LAN, for a phone
-	@dir=$$(mktemp -d); trap 'rm -rf "$$dir"' EXIT; \
-	for f in $$(node scripts/version.mjs --site); do ln -s "$(CURDIR)/$$f" "$$dir/$$f"; done; \
-	ip=$$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null); \
-	echo "→ http://localhost:$(PORT)/"; \
-	if [ -n "$$ip" ]; then echo "→ http://$$ip:$(PORT)/  (phone, same Wi-Fi)"; fi; \
-	python3 -m http.server $(PORT) --bind 0.0.0.0 --directory "$$dir"
+.PHONY: serve\:latest
+serve\:latest: build ## Build, then serve it at localhost:4173
+	npm run preview
 
-# The drawing lives in favicon.svg and nowhere else; the .ico and PNG tiles are
-# generated from it. Needs librsvg and ImageMagick.
+.PHONY: browsers
+browsers: node_modules ## Download the browser the browser test tier needs (once)
+	npx playwright install chromium
+
+# ---- tests ---------------------------------------------------------------- #
+
+.PHONY: test
+test: node_modules ## The pure test tier
+	npm test
+
+.PHONY: test-browser
+test-browser: node_modules ## The real-Chromium tier, on real photos (needs `make browsers`)
+	npm run test:browser
+
+.PHONY: test-all
+test-all: test test-browser ## Every tier, including the browser one
+
+.PHONY: typecheck
+typecheck: node_modules ## Typecheck without emitting
+	npm run typecheck
+
+# The drawing lives in app/public/favicon.svg and nowhere else. The .ico and
+# the three PNG tiles are rasterisations of it, so they are generated rather
+# than drawn: edited by hand they drift from the source and nothing notices.
+#
+# Not part of `build`: it needs librsvg and ImageMagick, which are not
+# dependencies of the app, and the shape changes about once a year.
 .PHONY: icons
-icons: ## Rebuild the .ico and PNG icons from favicon.svg
+icons: ## Rebuild the .ico and PNG tiles from app/public/favicon.svg
 	node scripts/icons.mjs
 
 # ---- releasing ------------------------------------------------------------ #
 
-# The version moves on a branch, before the pull request. The bump comes from
-# the branch you are standing on: feat/ is a minor, fix/ and chore/ are
-# patches. It sets APP_VERSION in index.html, the one place the version lives.
+# The version moves on a branch, before the pull request, and CI only checks
+# that it moved. Nothing in the pipeline can write to the repository — no token,
+# no deploy key — which is only true because this step is a person's job.
+#
+# The bump comes from the branch you are standing on: feat/ is a minor, fix/
+# and chore/ are patches.
 .PHONY: bump\:dry
 bump\:dry: ## Say what this branch would release, change nothing
-	node scripts/version.mjs --dry-run
+	node scripts/version.mjs --dry-run --branch "$$(git rev-parse --abbrev-ref HEAD)"
 
 .PHONY: bump
 bump: ## Bump the version for this branch and commit it (run before the PR)
-	node scripts/version.mjs --commit
+	node scripts/version.mjs --commit --branch "$$(git rev-parse --abbrev-ref HEAD)"
 
 # Write the branch's entry under `## Unreleased` in CHANGELOG.md first. The
 # bump moves it under the new version, and the lines this branch wrote become
-# the PR body. A branch that touches no file the site serves releases nothing,
-# keeps its entry under Unreleased, and takes its title from the branch name,
-# or TITLE.
+# the PR body. A branch that releases nothing keeps its entry under
+# Unreleased, and takes its title from the branch name, or TITLE.
 .PHONY: pr
 pr: ## Bump, push, and open or update this branch's PR (TITLE="..." for no-release)
 	node scripts/pr.mjs $(if $(TITLE),--title "$(TITLE)")
 
 .PHONY: tag
 tag: ## Tag the current version at HEAD (on main, after merging)
-	@v=$$(node scripts/version.mjs --current); \
+	@v=$$(node -p "require('./package.json').version"); \
 		git tag -a "v$$v" -m "v$$v" && echo "tagged v$$v — \`git push origin v$$v\` when you mean it"
 
 # Pushes the one new tag, not every local tag the way `git push --tags` does.
 # The tag message and the GitHub release notes are the version's CHANGELOG.md
 # entry. `--cleanup=whitespace` keeps its `###` headings, which git strips as
-# comments by default. A merge that changed no site file kept the version, so
-# it gets no tag. Run from a branch, it stops unless that branch's pull request
-# is merged. Run from main, it offers the branch that main's last merge names.
-# It offers the delete only when main contains the branch.
+# comments by default.
+# A merge that changed no build input kept the version, so it gets no tag.
+# Run from a branch, it stops unless that branch's pull request is merged.
+# Run from main, it offers the branch that main's last merge names.
+# It offers the delete only when main contains the branch. `git branch -d`
+# alone is not enough: it also deletes a branch that its upstream contains,
+# and `make pr` sets an upstream.
 .PHONY: release
 release: ## After merging: update main, tag and push its version, delete the branch
 	@set -e; \
@@ -88,7 +126,7 @@ release: ## After merging: update main, tag and push its version, delete the bra
 	fi; \
 	git switch main; \
 	git pull --ff-only; \
-	v=$$(node scripts/version.mjs --current); \
+	v=$$(node -p "require('./package.json').version"); \
 	if git rev-parse -q --verify "refs/tags/v$$v" >/dev/null; then \
 		echo "v$$v is already tagged; main has no new version to release"; \
 	else \
@@ -115,3 +153,9 @@ release: ## After merging: update main, tag and push its version, delete the bra
 			*) git branch -d "$$branch" ;; \
 		esac; \
 	fi
+
+# ---- housekeeping --------------------------------------------------------- #
+
+.PHONY: clean
+clean: ## Remove build output and node_modules
+	rm -rf dist node_modules

@@ -1,0 +1,33 @@
+{
+  "name": "nanobands",
+  "version": "1.1.1",
+  "private": true,
+  "type": "module",
+  "description": "Read a NanoVNA SWR sweep against the US band plan.",
+  "license": "MIT",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "vite",
+    "dev:lan": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --project pure",
+    "test:watch": "vitest --project pure",
+    "test:browser": "vitest run --project browser",
+    "test:all": "vitest run",
+    "bump": "node scripts/version.mjs --commit --branch \"$(git rev-parse --abbrev-ref HEAD)\"",
+    "bump:dry": "node scripts/version.mjs --dry-run --branch \"$(git rev-parse --abbrev-ref HEAD)\""
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "@vitest/browser": "^5.0.5",
+    "@vitest/browser-playwright": "^5.0.5",
+    "playwright": "^1.63.0",
+    "typescript": "^6.0.3",
+    "vite": "^6.4.5",
+    "vitest": "^5.0.5"
+  }
+}

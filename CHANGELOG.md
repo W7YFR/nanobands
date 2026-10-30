@@ -7,12 +7,23 @@ them.
 
 ## Unreleased
 
+## v1.1.1 — 2026-10-30
+
+### Fixed
+
+- The page has the same margin on the left and the right, with or without a scroll bar.
+
 ### Development
 
 - `make serve` serves the site locally, and `make serve:lan` serves only its files to a phone on the same Wi-Fi.
 - `make icons` rebuilds the .ico and PNG icons from `favicon.svg`.
 - `make bump`, `make pr` and `make release` version, open and tag a release from the branch prefix, as in cwt. This file records each release.
 - `CLAUDE.md` holds the workflow, changelog and writing rules, and `/changelog-check` checks a branch's entry against its diff.
+- The site is a Vite and TypeScript app. `make dev` serves it with hot reload, `make dev:lan` serves it to a phone, and `make build` builds it into `dist/`.
+- `make test` runs the pure tests, and `make test-browser` runs the page and the photo pipeline in Chromium against real photos of a NanoVNA-H4.
+- CI tests every pull request, checks its version bump and changelog entry, and deploys the site to GitHub Pages when it merges.
+- The version lives in `package.json`, and `make bump` moves it there.
+- `make serve` now serves the last build, and `make serve:latest` builds first. `make serve:lan` is gone; `make dev:lan` replaces it.
 
 ## v1.1.0 — 2026-10-29
 

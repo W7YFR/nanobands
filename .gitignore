@@ -1,6 +1,22 @@
+# Build output. dist/ is the built site; `npm run build` regenerates it.
+dist/
+
+# Node
+node_modules/
+.vite/
+*.tsbuildinfo
+
+# Vitest's run output: failure screenshots and attachments, written fresh on
+# every run that fails.
+app/.vitest/
+playwright-report/
+test-results/
+app/test/**/__screenshots__/
+
 # Editor / OS cruft
 .DS_Store
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 *.swp
 
@@ -13,7 +29,6 @@
 CLAUDE.local.md
 
 # Local scratch: test photos, sweeps and exports made while working on it.
-# The page needs none of them.
 *.jpg
 *.jpeg
 *.heic
@@ -22,3 +37,7 @@ CLAUDE.local.md
 *.csv
 swr-overlay*.png
 swr-chart*.png
+
+# ...except the photos the browser tier runs against. They are real photos of
+# a NanoVNA-H4 and cannot be regenerated. See app/test/browser/photo.test.ts.
+!app/test/data/*.jpg

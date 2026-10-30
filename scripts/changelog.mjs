@@ -2,8 +2,8 @@
  *
  * A branch writes its entry under `## Unreleased`. `make bump` moves that text
  * under `## vX.Y.Z — YYYY-MM-DD` in the release commit, so the entry merges
- * with the version it describes. `make pr` and `make release` read it back
- * out. The same file as cwt's.
+ * with the version it describes. CI checks that the entry is there, and
+ * `make release` and `make pr` read it back out.
  *
  *   node scripts/changelog.mjs 1.3.0        # print the v1.3.0 entry
  *   node scripts/changelog.mjs --unreleased # print the pending entry
