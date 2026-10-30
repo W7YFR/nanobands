@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.1.1 — 2026-10-30
+
 ### Development
 
 - `make serve` serves the site locally, and `make serve:lan` serves only its files to a phone on the same Wi-Fi.
