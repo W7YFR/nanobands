@@ -605,6 +605,15 @@ function versionAt(rev) {
   try {
     text = git("show", `${rev}:package.json`);
   } catch {
+    /* Before the Vite port (v1.1.1) the site was one index.html, and the
+       version was its `const APP_VERSION`. A base from then has no
+       package.json to read. */
+    try {
+      const m = git("show", `${rev}:index.html`).match(/const APP_VERSION = '(\d+\.\d+\.\d+)';/);
+      if (m?.[1]) return m[1];
+    } catch {
+      // Not that either: fall through to the usual explanation.
+    }
     /* Nearly always a shallow clone: CI checks out depth 1 by default and the
        base commit is simply not in it. Worth saying, because the error git
        gives for a missing object reads like the file is missing. */
