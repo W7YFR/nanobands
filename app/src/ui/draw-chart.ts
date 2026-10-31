@@ -63,12 +63,19 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     ctx.beginPath(); ctx.moveTo(x0, Y(w)); ctx.lineTo(x1, Y(w)); ctx.stroke(); ctx.fillText(w.toFixed(1), x0 - 6, Y(w));
   }
   const step = niceStep((hi - lo) / Math.max(4, W / 110));
+  // The unit sits in the left margin, with "bands" and the threshold under
+  // it, so it never meets a tick's label. A label that would touch the one
+  // before it, or the unit, is left out; its grid line stays.
+  ctx.textAlign = "right"; ctx.fillText("MHz", x0 - 6, y1 + 10);
+  let tickEnd = x0 - 6;
   ctx.textAlign = "center";
   for (let f = Math.ceil(lo / step) * step; f <= hi + 1e-9; f += step) {
     ctx.beginPath(); ctx.moveTo(X(f), y0); ctx.lineTo(X(f), y1); ctx.stroke();
-    ctx.fillText(String(+f.toFixed(6)), X(f), y1 + 10);
+    const txt = String(+f.toFixed(6)), w = ctx.measureText(txt).width;
+    if (X(f) - w / 2 < tickEnd + 6) continue;
+    ctx.fillText(txt, X(f), y1 + 10);
+    tickEnd = X(f) + w / 2;
   }
-  ctx.fillText("MHz", x1 - 12, y1 + 10);
 
   // band plan: shading in the plot, and the usability strip
   ctx.save(); ctx.beginPath(); ctx.rect(x0, 0, x1 - x0, Hh); ctx.clip();
@@ -88,9 +95,10 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
         ctx.fillRect((X(p) + X(q)) / 2 - pw / 2, stripY, pw, stripH);
       }
     }
-    const lx = (bx0 + bx1) / 2;
     ctx.font = "600 11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "center";
     const lw = ctx.measureText(b.name).width;
+    // Over the band, but inside the plot, so a band at the edge keeps its whole name.
+    const lx = Math.min(Math.max((bx0 + bx1) / 2, x0 + lw / 2), x1 - lw / 2);
     if (lx - lw / 2 > lastLbl + 4) { ctx.fillStyle = segs.length ? "#e6edf3" : "#6e7681"; ctx.fillText(b.name, lx, y0 - 12); lastLbl = lx + lw / 2; }
   }
   ctx.restore();
@@ -119,10 +127,24 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   ctx.restore();
 
   const inView = (f: number): boolean => f >= lo && f <= hi;
-  const tag = (txt: string, x: number, y: number, color: string): void => {
+  // Each label drawn, as a box. On a narrow chart a dip's or peak's label
+  // can land on another; it is then left out, and its dot and the Key points
+  // table still show it.
+  const placed: { l: number; r: number; t: number; b: number }[] = [];
+  /** Whether a label at (x, y) would stay clear of every label drawn so far. */
+  const clear = (txt: string, x: number, y: number): boolean => {
     ctx.font = "600 11px -apple-system,Segoe UI,sans-serif";
     const w = ctx.measureText(txt).width;
     x = Math.min(Math.max(x, x0 + w / 2 + 4), x1 - w / 2 - 4);
+    const l = x - w / 2 - 3, r = x + w / 2 + 3;
+    return !placed.some((p) => l < p.r + 4 && r > p.l - 4 && y - 8 < p.b && y + 8 > p.t);
+  };
+  const tag = (txt: string, x: number, y: number, color: string, optional = false): void => {
+    if (optional && !clear(txt, x, y)) return;
+    ctx.font = "600 11px -apple-system,Segoe UI,sans-serif";
+    const w = ctx.measureText(txt).width;
+    x = Math.min(Math.max(x, x0 + w / 2 + 4), x1 - w / 2 - 4);
+    placed.push({ l: x - w / 2 - 3, r: x + w / 2 + 3, t: y - 8, b: y + 8 });
     ctx.fillStyle = "rgba(26,31,39,.85)"; ctx.fillRect(x - w / 2 - 3, y - 8, w + 6, 16);
     ctx.fillStyle = color; ctx.textAlign = "center"; ctx.fillText(txt, x, y);
   };
@@ -132,26 +154,25 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     const x = X(e.f), y = Y(e.s), col = e.type === "dip" ? OK : "#f2cc60";
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
     const val = e.clipped ? "≥" + s.top : e.s.toFixed(2);
-    if (e.type === "dip") tag(`${fmtF(e.f)} · ${val}`, x, Math.min(y + 14, y1 - 8), col);
-    else tag(`${fmtF(e.f)} · ${val}`, x, Math.max(y - 13, y0 + 12), col);
+    if (e.type === "dip") tag(`${fmtF(e.f)} · ${val}`, x, Math.min(y + 14, y1 - 8), col, true);
+    else tag(`${fmtF(e.f)} · ${val}`, x, Math.max(y - 13, y0 + 12), col, true);
   }
   // crossings: dots on the threshold line
   ctx.fillStyle = BAD;
   for (const c of an.crossings) if (inView(c.f)) { ctx.beginPath(); ctx.arc(X(c.f), Y(s.thr), 3.5, 0, 7); ctx.fill(); }
   // stretches where SWR <= max: a bracket each with its start–end, staggered into two rows
-  const rows: number[] = [];
-  ctx.font = "600 11px -apple-system,Segoe UI,sans-serif";
   for (const [a, b] of an.usable) {
     if (b < lo || a > hi) continue;
-    const xa = X(Math.max(a, lo)), xb = X(Math.min(b, hi)), txt = `${fmtF(a)}–${fmtF(b)}`, w = ctx.measureText(txt).width + 10;
-    const cx = (xa + xb) / 2, left = Math.min(xa, cx - w / 2), right = Math.max(xb, cx + w / 2);
-    let r = 0;
-    while (r < 1 && rows[r] !== undefined && rows[r]! > left) r++;
-    rows[r] = right;
-    const by = stripY + stripH + 10 + r * 20;
+    const xa = X(Math.max(a, lo)), xb = X(Math.min(b, hi)), txt = `${fmtF(a)}–${fmtF(b)}`, cx = (xa + xb) / 2;
+    const rowY = (i: number): number => stripY + stripH + 10 + i * 20;
+    // The first row whose text stays clear. With none, the bracket goes on
+    // the first row without its text: on a narrow chart the strip and the
+    // Band segments table still give the range.
+    const r = [0, 1].find((i) => clear(txt, cx, rowY(i) + 10));
+    const by = rowY(r ?? 0);
     ctx.strokeStyle = OK; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(xa, by - 4); ctx.lineTo(xa, by); ctx.lineTo(xb, by); ctx.lineTo(xb, by - 4); ctx.stroke();
-    tag(txt, cx, by + 10, OK);
+    if (r !== undefined) tag(txt, cx, by + 10, OK);
   }
   ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "right";
   ctx.fillText(`≤${s.thr}:1`, x0 - 6, stripY + stripH + 20);

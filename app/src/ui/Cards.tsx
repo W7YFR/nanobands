@@ -162,7 +162,7 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref }: {
       <div className="form">
         <label htmlFor="thr">Max SWR</label>
         <input type="number" id="thr" step="0.1" value={prefs.thr} onChange={(e) => onPref("thr", e.target.value)} />
-        <span />
+        <Help text="Band segments count as usable where the SWR stays under this. 3 suits most built-in tuners; use 2 without a tuner." />
         <label htmlFor="cls">License</label>
         <select id="cls" value={prefs.cls} onChange={(e) => onPref("cls", e.target.value as LicenseClass)}>
           <option value="E">Amateur Extra</option><option value="A">Advanced</option><option value="G">General</option><option value="T">Technician</option>

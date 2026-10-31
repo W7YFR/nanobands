@@ -10,12 +10,18 @@ them.
 ### Changed
 
 - **Load** shows a connected NanoVNA in its own panel, with a green **Connected** status, its calibration and range, and **Sweep** and **Live** side by side. The file drop sits under it, and no longer shows a NanoVNA sweep as an opened file.
-- **Analyze** lines up its fields. **Mode** and **Dip/peak min.** explain themselves under a **?** you hover, and the chart's own **?** says how to pin and zoom.
+- **Analyze** lines up its fields. **Max SWR**, **Mode** and **Dip/peak min.** explain themselves under a **?**, and the chart's own **?** says how to pin and zoom. A tap or a hover opens a **?**.
 
 ### Fixed
 
+- On a phone, the chart and the tables no longer run past the right edge of the screen.
+- The chart's labels no longer overlap. **MHz** sits left of the axis, and on a narrow chart a label with no room is left out.
 - The step numbers count only the steps on the page. With a NanoVNA or an .s1p file, **Analyze** is step 2.
 - Right after a reload, the footer no longer shows at the top of an empty page. It stays at the bottom of the window.
+
+### Development
+
+- `make test-browser` has its own port, so it runs while cwt's browser tests run.
 
 ## v1.3.0 — 2026-10-31
 

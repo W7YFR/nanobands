@@ -71,13 +71,13 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 .form{display:grid;grid-template-columns:84px 1fr 18px;gap:8px;align-items:center}
 .form label{color:var(--muted);font-size:12px}
 .form input,.form select{width:100%}
-/* The "?": its detail shows on hover or focus, over whatever is below it. */
-.help{position:relative;display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:600;cursor:help;text-transform:none;letter-spacing:0}
-.help:hover,.help:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
-.help .tip{display:none;position:absolute;top:calc(100% + 6px);z-index:10;width:240px;padding:8px 10px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);box-shadow:0 6px 18px rgba(0,0,0,.4);color:var(--text);font-size:12px;font-weight:400;line-height:1.45;text-align:left;pointer-events:none}
+/* The "?": its detail shows over whatever is below it, while Help says so. */
+.help{position:relative;display:inline-grid;place-items:center;flex:none;width:18px;height:18px;padding:0;border-radius:50%;background:none;border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:600;line-height:1;cursor:help;text-transform:none;letter-spacing:0}
+.help.shown,.help:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
+.help .tip{display:none;position:absolute;top:calc(100% + 6px);z-index:10;width:240px;max-width:calc(100vw - 16px);padding:8px 10px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);box-shadow:0 6px 18px rgba(0,0,0,.4);color:var(--text);font-size:12px;font-weight:400;line-height:1.45;text-align:left;pointer-events:none}
 .help.end .tip{right:-4px}
 .help.start .tip{left:-4px}
-.help:hover .tip,.help:focus .tip{display:block}
+.help.shown .tip{display:block}
 .warn{color:var(--warn);font-size:12px}
 .drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);cursor:pointer;font-size:13px}
 .drop.over{border-color:var(--accent);color:var(--accent)}
@@ -108,6 +108,8 @@ button.quiet:hover{color:var(--text);border-color:var(--line)}
 .chips button{padding:3px 9px;font-size:12px;border-radius:12px}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
 .legend i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+/* A table wider than a phone scrolls inside its card, not the page. */
+#bandTable,#ptTable{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
 th{color:var(--muted);font-weight:600;font-size:12px}
@@ -147,4 +149,4 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .app.booting header h1,.app.booting header .div,.app.booting header .sub{visibility:hidden}
 /* Above the sidebar and the cards while the name flies over them. */
 header h1{position:relative;z-index:5}
-@media (max-width:900px){.wrap{flex-direction:column}aside{width:100%;position:static;max-height:none}}
+@media (max-width:900px){.wrap{flex-direction:column;align-items:stretch}aside{width:100%;position:static;max-height:none}}
