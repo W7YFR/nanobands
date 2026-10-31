@@ -17,6 +17,8 @@ import { openStore } from "@/store";
 import { parseSweepText, type SweepRange } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { autoTrace as traceCurve } from "@/trace";
+import { NanoVNA, toTouchstone, VnaError, type Range } from "@/vna";
+import { connectPort, serialApi, type SerialLike } from "@/vna-serial";
 
 const OK = "#3fb950", BAD = "#f85149", TRACE = "#4dd0ff";
 
@@ -55,7 +57,10 @@ interface State {
   corners: Quad | null;
   refs: { u: number; f: number }[];
   trace: TraceState | null;
-  source: "image" | "s1p" | null;
+  /** A photo, a Touchstone file, or a sweep from a connected NanoVNA. */
+  source: "image" | "s1p" | "vna" | null;
+  /** The Touchstone text behind the data, for Save .s1p. */
+  s1p: { text: string; name: string } | null;
   /** Pinned frequencies. */
   manual: number[];
   mode: "idle" | "pen" | "ref";
@@ -73,7 +78,7 @@ interface State {
 }
 
 const state: State = {
-  src: null, px: null, iw: 0, ih: 0, corners: null, refs: [], trace: null, source: null, manual: [],
+  src: null, px: null, iw: 0, ih: 0, corners: null, refs: [], trace: null, source: null, s1p: null, manual: [],
   mode: "idle", view: null, an: null, k: 1, straight: false, rect: null, photoCollapsed: false,
   sweepTyped: false, ocrText: "",
 };
@@ -194,12 +199,14 @@ function applySweep(r: SweepRange): void {
   refresh();
 }
 
-function setTouchstone(text: string): void {
+/** Show Touchstone data. A repeat sweep of the same range keeps the pins and the zoom. */
+function setTouchstone(text: string, name: string, source: "s1p" | "vna" = "s1p", repeat = false): void {
   const { f, s } = parseTouchstone(text);
   if (f.length < 2) { alert("Couldn't find S11 data in that file."); return; }
   Object.assign(state, {
-    source: "s1p", trace: { N: f.length, v: null, f: Float64Array.from(f), s: Float64Array.from(s), auto: false, edited: false },
-    src: null, px: null, corners: null, refs: [], manual: [], view: null, mode: "idle",
+    source, s1p: { text, name }, trace: { N: f.length, v: null, f: Float64Array.from(f), s: Float64Array.from(s), auto: false, edited: false },
+    src: null, px: null, corners: null, refs: [],
+    ...(repeat ? {} : { manual: [], view: null }), mode: "idle",
   } satisfies Partial<State>);
   fld("#fStart").value = String(+f[0]!.toFixed(4));
   fld("#fStop").value = String(+f[f.length - 1]!.toFixed(4));
@@ -219,7 +226,7 @@ function handleFile(file: File | null | undefined): void {
   showFileName(name);
   // A new file starts a new session: keep the file, forget what was done to the last one.
   saveFile(file, name);
-  if (isTouchstone(name)) { void file.text().then((t) => setTouchstone(t)); return; }
+  if (isTouchstone(name)) { void file.text().then((t) => setTouchstone(t, name)); return; }
   loadImageEl(URL.createObjectURL(file)).then((im) => setImage(im)).catch(() => alert("Couldn't read that image."));
 }
 
@@ -290,7 +297,7 @@ async function restoreSession(): Promise<void> {
   restoring = true;
   try {
     showFileName(f.name);
-    if (isTouchstone(f.name)) { setTouchstone(await f.blob.text()); if (sv) applySnapshot(sv); }
+    if (isTouchstone(f.name)) { setTouchstone(await f.blob.text(), f.name); if (sv) applySnapshot(sv); }
     else setImage(await loadImageEl(URL.createObjectURL(f.blob)), sv ?? null);
   } catch {
     clearAll();
@@ -302,9 +309,10 @@ async function restoreSession(): Promise<void> {
 
 function clearAll(): void {
   ocrJob++; // a reading still in flight lands nowhere
+  live = false;
   clearTimeout(saveTimer);
   Object.assign(state, {
-    src: null, px: null, iw: 0, ih: 0, corners: null, refs: [], trace: null, source: null, manual: [],
+    src: null, px: null, iw: 0, ih: 0, corners: null, refs: [], trace: null, source: null, s1p: null, manual: [],
     mode: "idle", view: null, an: null, straight: false, rect: null, sweepTyped: false, photoCollapsed: false,
   } satisfies Partial<State>);
   map = null; dragCorner = -1; hover = null;
@@ -314,7 +322,7 @@ function clearAll(): void {
   for (const c of ["#calCard", "#traceCard", "#photoCard"]) $(c).classList.remove("hidden");
   drop.innerHTML = DROP_HTML;
   fileIn.value = "";
-  syncModeButtons(); syncStraightBtn();
+  syncModeButtons(); syncStraightBtn(); syncVna();
   void store.del("file"); void store.del("session");
   refresh();
 }
@@ -807,7 +815,7 @@ function renderTables(): void {
   const res = ((an.fmax - an.fmin) / t.N) * 1000;
   $("#resNote").textContent = state.source === "image"
     ? `· traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point`
-    : `· ${t.N} points from file`;
+    : `· ${t.N} points from ${state.source === "vna" ? "the NanoVNA" : "file"}`;
   let h = "<table><tr><th>Band</th><th>Segment</th><th>Range (MHz)</th><th>Usable at SWR ≤ " + s.thr + '</th><th style="width:22%"></th></tr>';
   const bands = bandsInRange(an.fmin, an.fmax);
   if (!bands.length) h += '<tr><td colspan="5" class="empty">No amateur bands inside this sweep.</td></tr>';
@@ -871,6 +879,93 @@ function renderRefs(): void {
   });
 }
 
+/* ---------------- NanoVNA ---------------- */
+
+let serial: SerialLike | string = "";
+let vna: NanoVNA | null = null, vnaRange: Range | null = null, live = false, sweeping = false;
+const mhz = (hz: number): number => +(hz / 1e6).toFixed(6);
+
+function vnaNote(text: string): void { const el = $("#vnaNote"); el.textContent = text; el.classList.toggle("hidden", !text); }
+
+function syncVna(): void {
+  $("#vnaBtn").textContent = vna ? "Disconnect" : "Connect NanoVNA";
+  $("#vnaBtn").classList.toggle("wide", !vna);
+  for (const sel of ["#vnaPanel", "#sweepBtn", "#liveBtn"]) $(sel).classList.toggle("hidden", !vna);
+  $("#liveBtn").textContent = live ? "Hold" : "Live";
+  $("#liveBtn").classList.toggle("on", live);
+  $<HTMLButtonElement>("#sweepBtn").disabled = live;
+  if (vna && vnaRange) {
+    const r = vnaRange;
+    $("#vnaInfo").textContent = `${vna.info.board} · firmware ${vna.info.version} · ${mhz(r.start)}–${mhz(r.stop)} MHz, ${r.points} points`;
+  }
+}
+
+async function connectVna(): Promise<void> {
+  if (typeof serial === "string") { vnaNote(serial); return; }
+  try {
+    const link = await connectPort(serial);
+    if (!link) return;
+    vna = await NanoVNA.open(link, (line) => console.info("[NanoVNA]", line));
+    console.info("[NanoVNA]", vna.info);
+    vnaRange = await vna.range();
+    const slot = $<HTMLSelectElement>("#vnaSlot");
+    slot.innerHTML = '<option value="">As set</option>' +
+      Array.from({ length: vna.info.slots }, (_, i) => `<option value="${i}">Slot ${i}</option>`).join("");
+    vnaNote("");
+    syncVna();
+    await sweepOnce();
+  } catch (e) {
+    vnaFail(e);
+  }
+}
+
+async function disconnectVna(): Promise<void> {
+  live = false;
+  const v = vna;
+  vna = vnaRange = null;
+  syncVna();
+  await v?.close();
+}
+
+function vnaFail(e: unknown): void {
+  live = false;
+  console.error("[NanoVNA]", e);
+  vnaNote(e instanceof Error ? e.message : String(e));
+  if (!(e instanceof VnaError) || e.closed) void disconnectVna();
+  syncVna();
+}
+
+/** Sweep the device's range once and show it. */
+async function sweepOnce(): Promise<void> {
+  if (!vna || !vnaRange) return;
+  const dev = vna, r = vnaRange, scan = await dev.scan(r);
+  // Disconnected, or a recall changed the range, while it swept.
+  if (vna !== dev || vnaRange !== r) return;
+  if (scan.hz.length < 2) throw new VnaError("The sweep came back empty.");
+  const name = `nanovna-${mhz(r.start)}-${mhz(r.stop)}mhz.s1p`, text = toTouchstone(scan, dev.info.board);
+  const repeat = state.source === "vna" && state.s1p?.name === name;
+  const blob = new Blob([text], { type: "text/plain" });
+  if (repeat) void store.set("file", { blob, name });
+  else { showFileName(name); saveFile(blob, name); }
+  setTouchstone(text, name, "vna", repeat);
+}
+
+async function runLive(): Promise<void> {
+  live = true;
+  syncVna();
+  try {
+    while (live && vna) {
+      await sweepOnce();
+      // Let the page draw and take clicks between sweeps, even when a reply arrives at once.
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  } catch (e) {
+    vnaFail(e);
+  }
+  live = false;
+  syncVna();
+}
+
 /* ---------------- Glue ---------------- */
 
 function refresh(): void {
@@ -883,6 +978,7 @@ function refresh(): void {
   $("#photoCard").classList.toggle("collapsed", !!(state.src && state.photoCollapsed));
   $("#collapseBtn").textContent = state.photoCollapsed ? "Expand" : "Collapse";
   $("#clearAll").classList.toggle("hidden", !state.source);
+  $("#expS1p").classList.toggle("hidden", !state.s1p);
   $("#traceBtn").classList.toggle("primary", state.source === "image" && !state.trace?.v);
   renderPhoto(); renderChart(); renderChips(); renderTables(); renderRefs();
   // Preferences outlive a file: they survive Clear and apply to the next one.
@@ -1030,6 +1126,33 @@ export function start(): void {
   }
 
   $("#clearAll").onclick = clearAll;
+
+  serial = serialApi();
+  if (typeof serial === "string") { $<HTMLButtonElement>("#vnaBtn").disabled = true; vnaNote(serial); }
+  // `make dev` at ?fake: a stand-in NanoVNA, for work without the device.
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has("fake")) {
+    void import("@/vna-fake").then(({ FakeNanoVNA }) => {
+      serial = new FakeNanoVNA({ noise: 0.004 }).serial();
+      $<HTMLButtonElement>("#vnaBtn").disabled = false;
+      vnaNote("");
+    });
+  }
+  $("#vnaBtn").onclick = () => void (vna ? disconnectVna() : connectVna());
+  $("#sweepBtn").onclick = async () => {
+    if (sweeping || live) return;
+    sweeping = true;
+    try { await sweepOnce(); } catch (e) { vnaFail(e); } finally { sweeping = false; }
+  };
+  $("#liveBtn").onclick = () => { if (live) { live = false; syncVna(); } else void runLive(); };
+  fld("#vnaSlot").onchange = async () => {
+    const v = fld("#vnaSlot").value;
+    if (!vna || v === "") return;
+    try {
+      vnaRange = await vna.recall(+v);
+      syncVna();
+      if (!live) await sweepOnce();
+    } catch (e) { vnaFail(e); }
+  };
   window.addEventListener("pagehide", () => {
     if (state.source && !restoring) { clearTimeout(saveTimer); void store.set("session", snapshot()); }
   });
@@ -1061,6 +1184,10 @@ export function start(): void {
     drawChart(c.getContext("2d")!, W, Hh, 2);
     hoverF = saved;
     download("swr-chart.png", c.toDataURL("image/png"));
+  };
+  $("#expS1p").onclick = () => {
+    if (!state.s1p) return;
+    download(state.s1p.name, URL.createObjectURL(new Blob([state.s1p.text], { type: "text/plain" })));
   };
   $("#expCsv").onclick = () => {
     const t = state.trace;

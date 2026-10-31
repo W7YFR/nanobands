@@ -49,6 +49,12 @@
     <div class="drop" id="drop">Drop / paste a photo of the SWR screen<br>or a Touchstone <code>.s1p</code> file<br><u>browse…</u></div>
     <input type="file" id="file" accept="image/*,.s1p,.s2p,.txt" class="hidden">
     <p class="hint">An .s1p export (NanoVNA-Saver, or the NanoVNA's own SD-card save) skips calibration and tracing and gives exact data.</p>
+    <div id="vnaPanel" class="hidden">
+      <p class="hint" id="vnaInfo"></p>
+      <div class="row"><label>Calibration</label><select id="vnaSlot" title="Loads a saved calibration on the NanoVNA, as its RECALL menu does"></select></div>
+    </div>
+    <div class="row"><button id="sweepBtn" class="primary hidden">Sweep</button><button id="liveBtn" class="hidden">Live</button><button id="vnaBtn" class="wide">Connect NanoVNA</button></div>
+    <p class="hint hidden" id="vnaNote"></p>
   </div>
 
   <div class="card" id="calCard">
@@ -85,7 +91,7 @@
 
   <div class="card">
     <h2>Export</h2>
-    <div class="row"><button id="expPhoto">Photo + overlay PNG</button><button id="expChart">Chart PNG</button><button id="expCsv">CSV</button></div>
+    <div class="row"><button id="expPhoto">Photo + overlay PNG</button><button id="expChart">Chart PNG</button><button id="expCsv">CSV</button><button id="expS1p" class="hidden">Touchstone .s1p</button></div>
   </div>
 </aside>
 

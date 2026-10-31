@@ -1,7 +1,26 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 /* From vitest rather than vite: the `test` key below is vitest's. */
 import { defineConfig } from "vitest/config";
 import { playwright } from "@vitest/browser-playwright";
+import type { Plugin } from "vite";
+
+/* On the dev server only, the tab icon's letters are green, so a dev tab
+   stands apart from the live site. The icon is favicon.svg with its stroke
+   recolored, inlined in place of both icon links. */
+function devIcon(): Plugin {
+  return {
+    name: "dev-icon",
+    apply: "serve",
+    transformIndexHtml(html) {
+      const svg = readFileSync(new URL("./app/public/favicon.svg", import.meta.url), "utf8").replace('stroke="#6aa9ff"', 'stroke="#3fb950"');
+      const href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+      return html
+        .replace(/<link rel="icon" href="favicon\.ico"[^>]*>\n?/, "")
+        .replace(/<link rel="icon" href="favicon\.svg"[^>]*>/, `<link rel="icon" href="${href}" type="image/svg+xml">`);
+    },
+  };
+}
 
 /* Two test tiers, chosen by directory:
 
@@ -16,6 +35,7 @@ import { playwright } from "@vitest/browser-playwright";
    and needs `npx playwright install chromium` once. */
 export default defineConfig({
   root: "app",
+  plugins: [devIcon()],
   // Relative, so the build works at the domain root or under /nanobands/.
   base: "./",
   server: {

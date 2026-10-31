@@ -7,6 +7,18 @@ them.
 
 ## Unreleased
 
+### Added
+
+- **Connect NanoVNA** reads a sweep straight from a NanoVNA over USB, in desktop Chrome or Edge. It sweeps the range the device is set to.
+- **Live** sweeps the NanoVNA again and again until **Hold**. **Calibration** loads one of the device's saved slots and its range.
+- **Touchstone .s1p** saves the sweep as a file.
+
+### Development
+
+- `make dev` at `/?fake` connects a stand-in NanoVNA. The tests use it too.
+- The tab icon under `make dev` has green letters.
+- The console logs each command sent to a connected NanoVNA, and its reply.
+
 ## v1.1.1 — 2026-10-30
 
 ### Fixed
