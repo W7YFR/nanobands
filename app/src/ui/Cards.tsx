@@ -108,9 +108,14 @@ function Stat({ ok, id, children }: { ok: boolean | null; id?: string; children:
   );
 }
 
-function GridStat({ note }: { note: GridNote }): React.ReactElement {
+/** A button that reads as part of a line of text. */
+function TextButton({ id, onClick, children }: { id?: string; onClick(): void; children: React.ReactNode }): React.ReactElement {
+  return <button type="button" className="text" id={id} onClick={onClick}>{children}</button>;
+}
+
+function GridStat({ note, straight, onStraight }: { note: GridNote; straight: boolean; onStraight(): void }): React.ReactElement {
   return note.kind === "found"
-    ? <Stat ok id="gridNote">Grid found <Help align="start" text="If it is off, Edit corners on the photo lets you move its corners." /></Stat>
+    ? <Stat ok id="gridNote">Grid found · <TextButton id="gridEdit" onClick={onStraight}>{straight ? "Edit corners" : "Straighten"}</TextButton></Stat>
     : <Stat ok={false} id="gridNote">No grid found. Drag the photo's corners onto it.</Stat>;
 }
 
@@ -119,7 +124,7 @@ function OcrStat({ note, onUse }: { note: OcrNote; onUse(): void }): React.React
   switch (note.kind) {
     case "looking": return <Stat ok={null} id="ocrNote">Reading the sweep from the photo</Stat>;
     case "read": return <Stat ok id="ocrNote">Sweep read from the photo: {f(note.start)}–{f(note.stop)} MHz</Stat>;
-    case "offer": return <Stat ok={null} id="ocrNote">The photo says {f(note.start)}–{f(note.stop)} MHz. <a href="#" id="ocrUse" onClick={(e) => { e.preventDefault(); onUse(); }}>Use it</a></Stat>;
+    case "offer": return <Stat ok={null} id="ocrNote">The photo says {f(note.start)}–{f(note.stop)} MHz. <TextButton id="ocrUse" onClick={onUse}>Use it</TextButton></Stat>;
     case "none": return <Stat ok={false} id="ocrNote">No sweep found on the photo. Enter it below.</Stat>;
     case "failed": return <Stat ok={false} id="ocrNote">Couldn't read the photo's text. Enter the sweep below.</Stat>;
   }
@@ -131,11 +136,14 @@ const sweepSet = (f: Fields): boolean => {
   return Number.isFinite(a) && Number.isFinite(b) && b > a;
 };
 
-export function CalibrateCard({ fields, onField, grid, ocr, onUseOcr, onDetectGrid, mode, onRefMode, refs, onRemoveRef }: {
+export function CalibrateCard({ fields, onField, grid, ocr, straight, onStraight, onUseOcr, onDetectGrid, mode, onRefMode, refs, onRemoveRef }: {
   fields: Fields;
   onField(k: keyof Fields, v: string): void;
   grid: GridNote | null;
   ocr: OcrNote | null;
+  /** The photo is squared up on its corners; false while they are edited. */
+  straight: boolean;
+  onStraight(): void;
   onUseOcr(): void;
   onDetectGrid(): void;
   mode: Mode;
@@ -162,7 +170,7 @@ export function CalibrateCard({ fields, onField, grid, ocr, onUseOcr, onDetectGr
       <div hidden={shut}>
         {(grid || ocr) && (
           <div className="stats">
-            {grid && <GridStat note={grid} />}
+            {grid && <GridStat note={grid} straight={straight} onStraight={onStraight} />}
             {ocr && <OcrStat note={ocr} onUse={onUseOcr} />}
           </div>
         )}

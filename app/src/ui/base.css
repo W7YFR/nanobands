@@ -68,7 +68,9 @@ aside{counter-reset:step}
 .stat .ic{flex:none;width:12px;text-align:center;font-weight:700}
 .stat.ok .ic{color:var(--ok)}
 .stat.bad .ic{color:var(--warn)}
-.stat .help{margin-left:2px}
+/* A button in a line of text: blue text, no box. */
+button.text{background:none;border:none;padding:0;color:var(--accent);font:inherit;cursor:pointer}
+button.text:hover,button.text:focus-visible{text-decoration:underline;outline:none}
 /* A button that takes the label and field columns of a .form. */
 .form .span{grid-column:1 / 3}
 .refs{margin-top:8px}

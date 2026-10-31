@@ -257,6 +257,9 @@ export function App(): React.ReactElement {
     });
   };
 
+  // Edit corners and Straighten. It works on the photo, so it opens the photo if it was collapsed.
+  const onStraight = (): void => setDoc((d) => ({ ...d, straight: !d.straight, collapsed: false }));
+
   const setCollapsed = (c: boolean): void => {
     setDoc((d) => ({ ...d, collapsed: c }));
     if (c) { setMode("idle"); setHoverF(null); }
@@ -371,7 +374,7 @@ export function App(): React.ReactElement {
               <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} />
               {doc.source === "image" && (
                 <>
-                  <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr}
+                  <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr} straight={doc.straight} onStraight={onStraight}
                     onUseOcr={() => setDoc((d) => (d.ocr?.kind === "offer" ? withSweep(d, d.ocr) : d))}
                     onDetectGrid={onDetectGrid} mode={mode} onRefMode={() => toggleMode("ref")}
                     refs={doc.refs} onRemoveRef={(j) => setDoc((d) => withRefs(d, d.refs.filter((_, i) => i !== j)))} />
@@ -390,7 +393,7 @@ export function App(): React.ReactElement {
                 </div>
               ) : photoScene && (
                 <PhotoCard scene={photoScene} kRef={kRef} collapsed={doc.collapsed} onCollapse={() => setCollapsed(!doc.collapsed)}
-                  onStraight={() => setDoc((d) => ({ ...d, straight: !d.straight }))} mode={mode}
+                  onStraight={onStraight} mode={mode}
                   onCornerMove={onCornerMove} onCornerDrop={onCornerDrop} onPen={onPen} onRef={onRef} onHover={setHoverF} />
               )}
               <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}

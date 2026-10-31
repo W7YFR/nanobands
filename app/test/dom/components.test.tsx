@@ -82,18 +82,19 @@ describe("CalibrateCard", () => {
   it("offers a reading when the sweep was typed, and uses it on request", () => {
     const onUse = vi.fn();
     render(
-      <CalibrateCard fields={DEFAULT_FIELDS} onField={() => {}} grid={{ kind: "found", horizontal: 9, vertical: 7 }}
+      <CalibrateCard fields={DEFAULT_FIELDS} onField={() => {}} grid={{ kind: "found", horizontal: 9, vertical: 7 }} straight onStraight={() => {}}
         ocr={{ kind: "offer", start: 3, stop: 55, raw: "START 3 / STOP 55" }} onUseOcr={onUse} onDetectGrid={() => {}}
         mode="idle" onRefMode={() => {}} refs={[]} onRemoveRef={() => {}} />,
     );
-    expect(screen.getByText("Grid found")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("link", { name: "Use it" }));
+    expect(screen.getByText(/Grid found/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit corners" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use it" }));
     expect(onUse).toHaveBeenCalledOnce();
   });
 
   it("sends field edits up", () => {
     const onField = vi.fn();
-    render(<CalibrateCard fields={DEFAULT_FIELDS} onField={onField} grid={null} ocr={null} onUseOcr={() => {}} onDetectGrid={() => {}}
+    render(<CalibrateCard fields={DEFAULT_FIELDS} onField={onField} grid={null} ocr={null} straight onStraight={() => {}} onUseOcr={() => {}} onDetectGrid={() => {}}
       mode="idle" onRefMode={() => {}} refs={[{ u: 0.5, f: 14 }]} onRemoveRef={() => {}} />);
     fireEvent.change(document.querySelector("#fStart")!, { target: { value: "1.8" } });
     expect(onField).toHaveBeenCalledWith("start", "1.8");
