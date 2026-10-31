@@ -85,8 +85,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         onDoubleClick={() => onView(null)}
       />
       <div className="legend">
-        <span><b>bands</b> row: <i style={{ background: "var(--ok)", marginLeft: 4 }}></i>usable (licensed, SWR ≤ max) <i style={{ background: "rgba(248,81,73,.7)", marginLeft: 6 }}></i>licensed, SWR too high</span>
-        <span><b>≤3:1</b> row: start–end MHz of each stretch where SWR stays under the max</span>
+        <span><i style={{ background: "var(--ok)" }}></i>Usable</span>
+        <span><i style={{ background: "rgba(248,81,73,.7)" }}></i>SWR too high</span>
         <span><i style={{ background: "var(--data)" }}></i>CW / RTTY / data</span>
         <span><i style={{ background: "var(--phone)" }}></i>Phone / image</span>
         <span><i style={{ background: "var(--cw)" }}></i>CW only</span>
