@@ -18,8 +18,8 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Point } from "@/geometry";
-import { drawMagnifier, drawPenView, drawPhoto, type PhotoScene } from "./draw-photo";
+import type { Point, Quad } from "@/geometry";
+import { drawCornerDrag, drawMagnifier, drawPenView, drawPhoto, fitCanvas, type PhotoScene } from "./draw-photo";
 import { calOK } from "./model";
 import type { Mode } from "./Cards";
 import { useNoSwipe } from "./useNoSwipe";
@@ -44,7 +44,7 @@ function follow(at: number, size: number, room: number, lo: number, hi: number):
 
 const touchScreen = (): boolean => window.matchMedia?.("(pointer: coarse)").matches ?? false;
 
-export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode, onPenMode, onUndo, canUndo, onClearMarks, canClear, onCornerMove, onCornerDrop, onPen, onRef, onHover }: {
+export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode, onPenMode, onUndo, canUndo, onClearMarks, canClear, onCorners, onPen, onRef, onHover }: {
   /** Everything to draw, except the corner being dragged, which is the card's own. */
   scene: Omit<PhotoScene, "dragCorner">;
   /** CSS pixels per view pixel, for the PNG export. */
@@ -61,8 +61,8 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
   /** Takes back every pen mark. */
   onClearMarks(): void;
   canClear: boolean;
-  onCornerMove(j: number, p: Point): void;
-  onCornerDrop(): void;
+  /** A corner drag ended with the corners at `q`. */
+  onCorners(q: Quad): void;
   /** A pen stroke reached (x, y) in view pixels; `start` begins a new stroke, and `erase` wipes instead of drawing. */
   onPen(x: number, y: number, start: boolean, erase?: boolean): void;
   onRef(x: number, y: number): void;
@@ -70,6 +70,12 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
 }): React.ReactElement {
   const wrap = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
   const hover = useRef<Point | null>(null), drag = useRef(-1), pen = useRef(false);
+  /** The corners during a drag. The card keeps them until release, so a
+   *  move redraws the photo alone, not the page. */
+  const dragQuad = useRef<Quad | null>(null);
+  /** During a drag: the photo shrunk once to the canvas, so each move copies
+   *  it instead of scaling the full photo down again. */
+  const small = useRef<HTMLCanvasElement | null>(null);
   const vw = scene.view;
   const focus = mode === "pen" && !collapsed && touchScreen();
 
@@ -123,8 +129,7 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
     geo.current = { s, sx, ox, oy };
     c.style.width = cw + "px";
     c.style.height = ch + "px";
-    c.width = Math.round(cw * dpr);
-    c.height = Math.round(ch * dpr);
+    fitCanvas(c, ctx, Math.round(cw * dpr), Math.round(ch * dpr));
     const sc: PhotoScene = { ...scene, dragCorner: drag.current };
     if (focus) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cw, ch);
@@ -146,6 +151,22 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
       return;
     }
     ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
+    if (dragQuad.current) {
+      const W = c.width, H = c.height;
+      if (small.current?.width !== W || small.current.height !== H) {
+        small.current = document.createElement("canvas");
+        small.current.width = W;
+        small.current.height = H;
+        small.current.getContext("2d")!.drawImage(vw.src, 0, 0, W, H);
+      }
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(small.current, 0, 0);
+      ctx.restore();
+      drawCornerDrag(ctx, 1 / s, dragQuad.current, drag.current);
+      if (hover.current) drawMagnifier(ctx, dpr, s, { ...sc, trace: null }, hover.current, ox, oy, cw);
+      return;
+    }
     drawPhoto(ctx, 1 / s, sc, false);
     if (hover.current && (drag.current >= 0 || mode !== "idle")) drawMagnifier(ctx, dpr, s, sc, hover.current, ox, oy, cw);
   };
@@ -317,6 +338,13 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
     document.documentElement.classList.add("photo-drag");
   };
   const release = (): void => document.documentElement.classList.remove("photo-drag");
+  const endDrag = (): void => {
+    const q = dragQuad.current;
+    drag.current = -1;
+    dragQuad.current = null;
+    small.current = null;
+    if (q) onCorners(q);
+  };
   useEffect(() => release, []);
   const nearCorner = (x: number, y: number): number =>
     vw.straight || wide ? -1 : scene.corners.findIndex(([cx, cy]) => Math.hypot(cx - x, cy - y) * geo.current.s < 14);
@@ -355,7 +383,7 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
               const [x, y] = at(e);
               hover.current = [x, y];
               const hit = nearCorner(x, y);
-              if (hit >= 0) { drag.current = hit; hold(e); draw(); return; }
+              if (hit >= 0) { drag.current = hit; dragQuad.current = [...scene.corners] as Quad; hold(e); draw(); return; }
               if (mode === "pen") { pen.current = true; stroke.current = [e.clientX, e.clientY]; hold(e); onPen(x, y, true); draw(); return; }
               if (mode === "ref") onRef(x, y);
             }}
@@ -364,7 +392,7 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
               const [x, y] = at(e);
               hover.current = [x, y];
               e.currentTarget.style.cursor = nearCorner(x, y) >= 0 ? "grab" : "crosshair";
-              if (drag.current >= 0) { onCornerMove(drag.current, [x, y]); return; }
+              if (drag.current >= 0 && dragQuad.current) { dragQuad.current[drag.current] = [x, y]; draw(); return; }
               if (mode === "pen" && pen.current && e.buttons & 1) { stroke.current = [e.clientX, e.clientY]; onPen(Math.min(vw.w, Math.max(0, x)), y, false); return; }
               const s = scene.settings;
               let f: number | null = null;
@@ -380,7 +408,7 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
               release();
               pen.current = false;
               stroke.current = null;
-              if (drag.current >= 0) { drag.current = -1; onCornerDrop(); }
+              if (drag.current >= 0) endDrag();
               // A finger has no hover: the magnifier goes when it lifts.
               if (e.pointerType !== "mouse") { hover.current = null; draw(); }
             }}
@@ -389,7 +417,7 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
               release();
               pen.current = false;
               stroke.current = null;
-              if (drag.current >= 0) { drag.current = -1; onCornerDrop(); }
+              if (drag.current >= 0) endDrag();
               hover.current = null;
               draw();
             }}

@@ -159,12 +159,34 @@ export function drawPhoto(ctx: CanvasRenderingContext2D, U: number, sc: PhotoSce
     }
   }
   if (forExport || vw.straight) return;
-  // corner handles
-  sc.corners.forEach(([x, y], j) => {
-    ctx.lineWidth = 2 * U; ctx.strokeStyle = j === sc.dragCorner ? "#fff" : "#f2cc60";
+  drawHandles(ctx, U, sc.corners, sc.dragCorner);
+}
+
+function drawHandles(ctx: CanvasRenderingContext2D, U: number, corners: Quad, dragCorner: number): void {
+  corners.forEach(([x, y], j) => {
+    ctx.lineWidth = 2 * U; ctx.strokeStyle = j === dragCorner ? "#fff" : "#f2cc60";
     ctx.beginPath(); ctx.arc(x, y, 9 * U, 0, 7); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x - 4 * U, y); ctx.lineTo(x + 4 * U, y); ctx.moveTo(x, y - 4 * U); ctx.lineTo(x, y + 4 * U); ctx.stroke();
   });
+}
+
+/** While a corner is dragged, over the photo: the grid's outline and the
+ *  handles, nothing that needs the corners settled. The overlay comes back
+ *  on release. */
+export function drawCornerDrag(ctx: CanvasRenderingContext2D, U: number, corners: Quad, dragCorner: number): void {
+  ctx.strokeStyle = "rgba(242,204,96,.7)"; ctx.lineWidth = 1 * U;
+  ctx.beginPath();
+  corners.forEach(([x, y], j) => (j ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.closePath(); ctx.stroke();
+  drawHandles(ctx, U, corners, dragCorner);
+}
+
+/** Size a canvas to w × h device pixels. Resizing throws its pixels away and
+ *  costs a new buffer, so only when the size changes; otherwise clear it. */
+export function fitCanvas(c: HTMLCanvasElement, ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; return; }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, w, h);
 }
 
 /** A round magnifier near the pointer, for placing corners and drawing with

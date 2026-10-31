@@ -10,6 +10,7 @@ import type { Analysis } from "@/analysis";
 import { bandsInRange } from "@/bands";
 import { Help } from "./Help";
 import { drawChart, freqAt, type ChartGeom } from "./draw-chart";
+import { fitCanvas } from "./draw-photo";
 import type { Curve, Settings } from "./model";
 import { useNoSwipe } from "./useNoSwipe";
 
@@ -48,8 +49,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
     const c = canvasRef.current, ctx = c?.getContext("2d");
     if (!c || !ctx) return;
     const dpr = window.devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
-    c.width = W * dpr;
-    c.height = H * dpr;
+    fitCanvas(c, ctx, Math.round(W * dpr), Math.round(H * dpr));
     geom.current = drawChart(ctx, W, H, dpr, { settings, an, curve, range, manual, hoverF, drag: drag.current });
   };
   const drawRef = useRef(draw);
