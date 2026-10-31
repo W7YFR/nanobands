@@ -11,6 +11,7 @@ import "@/style.css";
 import html from "../../index.html?raw";
 import photo from "../data/random-wire-3-55mhz.jpg?url";
 import pkg from "../../../package.json";
+import { FakeNanoVNA } from "@/vna-fake";
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string): T => document.querySelector<T>(sel)!;
 
@@ -21,6 +22,8 @@ async function until(test: () => boolean, ms = 20000): Promise<void> {
     await new Promise((r) => setTimeout(r, 50));
   }
 }
+
+const device = new FakeNanoVNA();
 
 beforeAll(async () => {
   indexedDB.deleteDatabase("nanobands");
@@ -35,6 +38,7 @@ beforeAll(async () => {
       terminate: async () => undefined,
     }),
   };
+  Object.defineProperty(navigator, "serial", { value: device.serial(), configurable: true });
   const { start } = await import("@/ui/app");
   start();
 });
@@ -99,5 +103,50 @@ describe("the page", () => {
     expect($<HTMLInputElement>("#fStart").value).toBe("");
     expect($("#drop").textContent).toContain("Drop / paste a photo");
     expect($("#bandTable").textContent).toContain("No data yet");
+  });
+});
+
+describe("a connected NanoVNA", () => {
+  it("connects, reads the device and sweeps its range", async () => {
+    $("#vnaBtn").click();
+    await until(() => $("#vnaInfo").textContent !== "" && $("#bandTable").textContent!.includes("20m"));
+    expect($("#vnaInfo").textContent).toBe("NanoVNA-H 4 · firmware 1.2.44 · 3–55 MHz, 401 points");
+    expect($("#vnaBtn").textContent).toBe("Disconnect");
+    expect($("#drop").textContent).toContain("nanovna-3-55mhz.s1p");
+    expect($("#resNote").textContent).toContain("401 points from the NanoVNA");
+    expect($("#photoCard").classList.contains("hidden")).toBe(true);
+    expect($("#expS1p").classList.contains("hidden")).toBe(false);
+    expect(device.log).toContain("scan 3000000 55000000 401 3");
+  });
+
+  it("keeps pins across live sweeps, and stops on Hold", async () => {
+    const pinned = document.querySelectorAll("#ptTable [data-del]").length;
+    const scans = (): number => device.log.filter((c) => c.startsWith("scan")).length;
+    const before = scans();
+    $("#liveBtn").click();
+    expect($("#liveBtn").textContent).toBe("Hold");
+    expect($<HTMLButtonElement>("#sweepBtn").disabled).toBe(true);
+    await until(() => scans() >= before + 3);
+    $("#liveBtn").click();
+    expect($("#liveBtn").textContent).toBe("Live");
+    expect(document.querySelectorAll("#ptTable [data-del]").length).toBe(pinned);
+  });
+
+  it("recalls a calibration slot and sweeps its range", async () => {
+    const slot = $<HTMLSelectElement>("#vnaSlot");
+    expect(slot.options).toHaveLength(8);
+    slot.value = "1";
+    slot.dispatchEvent(new Event("change"));
+    await until(() => $("#drop").textContent!.includes("nanovna-144-148mhz.s1p"));
+    expect($("#vnaInfo").textContent).toContain("144–148 MHz, 101 points");
+    expect($("#bandTable").textContent).toContain("2m");
+  });
+
+  it("disconnects", async () => {
+    $("#vnaBtn").click();
+    await until(() => $("#vnaBtn").textContent === "Connect NanoVNA");
+    expect($("#vnaPanel").classList.contains("hidden")).toBe(true);
+    // The last sweep stays on the page.
+    expect($("#bandTable").textContent).toContain("2m");
   });
 });

@@ -31,7 +31,20 @@ Live at [w7yfr.com/nanobands](https://www.w7yfr.com/nanobands/).
 An `.s1p` file skips steps 2 and 3 and gives exact data instead of a traced
 curve. NanoVNA-Saver writes one with **Files → Save 1-port file (S11)**.
 
-The exports save the overlaid photo, the chart, or the traced curve as CSV.
+### A connected NanoVNA
+
+In desktop Chrome or Edge, **Connect NanoVNA** reads the sweep straight off the
+device over USB. It sweeps the range the NanoVNA is set to, so its calibration
+applies as is. **Live** sweeps again and again until **Hold**. **Calibration**
+loads one of the device's saved slots, and its range, as the device's RECALL
+menu does. Quit NanoVNA-Saver first: one program at a time can hold the port.
+
+The NanoVNA, -H, -H4 and -F family work. The V2, SAA-2 and LiteVNA use a
+different protocol and do not. For work without the device, `make dev` at
+`/?fake` connects a stand-in NanoVNA instead.
+
+The exports save the overlaid photo, the chart, the traced curve as CSV, or
+the sweep as an `.s1p` file.
 
 ---
 
