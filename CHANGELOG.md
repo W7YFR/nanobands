@@ -23,6 +23,7 @@ them.
 ### Fixed
 
 - On a phone, the chart and the tables no longer run past the right edge of the screen.
+- On a phone, **Band segments you can use** stacks each band, with its bars full width, so it no longer scrolls sideways.
 - A **?** near the bottom of the sidebar opens upward, so its text is not cut off.
 - The chart's labels no longer overlap. **MHz** sits left of the axis, and on a narrow chart a label with no room is left out.
 - The step numbers count only the steps on the page. With a NanoVNA or an .s1p file, **Analyze** is step 2.
