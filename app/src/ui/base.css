@@ -87,7 +87,7 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
 .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;font-weight:600;display:flex;gap:8px;align-items:center}
 /* The steps count only the cards on the page: with a NanoVNA or an .s1p
    file there is no Calibrate or Trace, so Analyze is step 2, not 4. */
-aside{counter-reset:step}
+.wrap{counter-reset:step}
 .card h2 b.step::before{counter-increment:step;content:counter(step)}
 /* A step that is done shows a green check, and still counts. */
 .card h2 b.step.done{background:var(--ok)}
@@ -234,4 +234,6 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .app.booting header h1,.app.booting header .div,.app.booting header .sub{visibility:hidden}
 /* Above the sidebar and the cards while the name flies over them. */
 header h1{position:relative;z-index:5}
-@media (max-width:900px){.wrap{flex-direction:column;align-items:stretch}aside{width:100%;position:static;max-height:none}}
+/* One column on a narrow screen. The sidebar's cards join it, so Export can
+   go last, under the tables, where the results it saves are. */
+@media (max-width:900px){.wrap{flex-direction:column;align-items:stretch}aside{display:contents}#exportCard{order:1}}
