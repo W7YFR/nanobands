@@ -27,7 +27,7 @@ import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
   DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, curveOf, defaultCorners, loadImage, photoFrom, rectOf, settingsOf, swrOn, viewOf,
-  type Doc, type Fields, type Photo, type Prefs,
+  type Doc, type Fields, type Photo, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
 import { applySnapshot, snapshotOf, type Snapshot } from "./session";
@@ -281,10 +281,19 @@ export function App(): React.ReactElement {
     setDoc((d) => (d.trace?.kind !== "photo" ? d : d.trace.auto && !d.trace.edited ? traced(d) : { ...d, retrace: true }));
 
   const penLast = useRef<[number, number] | null>(null);
-  const onPen = (x: number, y: number, start: boolean): void => {
+  /** Each pen stroke: the trace before it, and the trace it left. */
+  const strokes = useRef<{ before: Trace | null; after: Trace | null }[]>([]);
+  const [, setStrokeCount] = useState(0);
+  /** A pen stroke reached (x, y) in view pixels. `erase` wipes the trace along it instead of drawing. */
+  const onPen = (x: number, y: number, start: boolean, erase = false): void => {
     const d = docRef.current;
     if (!view || d.source !== "image") return;
-    if (start) penLast.current = null;
+    if (start) {
+      penLast.current = null;
+      strokes.current.push({ before: d.trace, after: d.trace });
+      setStrokeCount(strokes.current.length);
+    }
+    if (erase && d.trace?.kind !== "photo") return;
     const t = d.trace?.kind === "photo" ? d.trace : { kind: "photo" as const, N: 1200, v: new Float32Array(1200).fill(NaN), auto: false, edited: true };
     const [u, v0] = view.vb(x, y), v = Math.max(0, Math.min(1, v0)), i = Math.floor(u * t.N);
     if (i < 0 || i >= t.N) { penLast.current = null; return; }
@@ -292,10 +301,30 @@ export function App(): React.ReactElement {
     const last = penLast.current;
     if (last) {
       const [i0, w0] = last, a = Math.min(i0, i), b = Math.max(i0, i);
-      for (let j = a; j <= b; j++) tv[j] = i === i0 ? v : w0 + ((v - w0) * (j - i0)) / (i - i0);
-    } else tv[i] = v;
+      for (let j = a; j <= b; j++) tv[j] = erase ? NaN : i === i0 ? v : w0 + ((v - w0) * (j - i0)) / (i - i0);
+    } else tv[i] = erase ? NaN : v;
     penLast.current = [i, v];
-    setDoc((cur) => ({ ...cur, trace: { ...t, v: tv, edited: true } }));
+    const next: Trace = { ...t, v: tv, edited: true };
+    const top = strokes.current.at(-1);
+    if (top) top.after = next;
+    setDoc((cur) => ({ ...cur, trace: next }));
+  };
+  // Undo takes back the last stroke only while the trace is still the one it
+  // left: an auto-trace or an erase since then makes the strokes moot.
+  const lastStroke = strokes.current.at(-1);
+  const canUndo = !!lastStroke && lastStroke.after === doc.trace;
+  // Every pen mark gone: an auto-trace is traced again, a hand-drawn one erased.
+  const canClear = doc.trace?.kind === "photo" && doc.trace.edited;
+  const onClearMarks = (): void => {
+    strokes.current = [];
+    setStrokeCount(0);
+    setDoc((d) => (d.trace?.kind !== "photo" ? d : d.trace.auto ? traced(d) : { ...d, trace: null }));
+  };
+  const onUndo = (): void => {
+    const top = strokes.current.pop();
+    if (top && top.after === docRef.current.trace) setDoc((d) => ({ ...d, trace: top.before }));
+    else strokes.current = [];
+    setStrokeCount(strokes.current.length);
   };
 
   const onRef = (x: number, y: number): void => {
@@ -392,7 +421,7 @@ export function App(): React.ReactElement {
                 </div>
               ) : photoScene && (
                 <PhotoCard scene={photoScene} kRef={kRef} collapsed={doc.collapsed} onCollapse={() => setCollapsed(!doc.collapsed)}
-                  onStraight={onStraight} mode={mode} onPenMode={() => toggleMode("pen")}
+                  onStraight={onStraight} mode={mode} onPenMode={() => toggleMode("pen")} onUndo={onUndo} canUndo={canUndo} onClearMarks={onClearMarks} canClear={canClear}
                   onCornerMove={onCornerMove} onCornerDrop={onCornerDrop} onPen={onPen} onRef={onRef} onHover={setHoverF} />
               )}
               <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}

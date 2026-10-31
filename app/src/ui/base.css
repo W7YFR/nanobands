@@ -33,7 +33,24 @@ header .div{width:1px;align-self:stretch;background:var(--line)}
 /* The photo's buttons sit at the right of its header, and wrap together
    under the title on a phone rather than overflow. */
 #photoCard h2{flex-wrap:wrap}
-#photoCard h2 .tools{margin-left:auto;display:flex;gap:6px}
+#photoCard h2 .tools{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+#photoCard h2 .tools button{white-space:nowrap}
+/* The pen on a touch screen: the photo fills the screen, over the page,
+   and the page behind does not scroll. */
+#photoCard.focus{position:fixed;inset:0;z-index:40;margin:0;border:none;border-radius:0;display:flex;flex-direction:column;padding:10px 12px;touch-action:none}
+#photoCard.focus h2{flex:none;margin-bottom:8px}
+#photoCard.focus #photoWrap{flex:1;min-height:0;position:relative}
+#photoCard.focus #photo{position:absolute;inset:0;max-width:none;border-radius:6px}
+/* While the pen fills the screen: no scrolling, no selecting and no
+   long-press menu anywhere on the page. */
+html.pen-focus{overflow:hidden}
+html.pen-focus,html.pen-focus *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* Draw and Erase, at the bottom within reach of a thumb: red while drawing, yellow while erasing. */
+#photoCard.focus .ink{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+#photoCard.focus .ink button{padding:14px;font-size:16px;font-weight:600}
+#photoCard.focus .ink button.on{background:rgba(248,81,73,.15);border-color:var(--bad);color:var(--bad)}
+#photoCard.focus .ink button.on.erase{background:rgba(242,204,96,.12);border-color:var(--warn);color:var(--warn)}
+.focus-hint{text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted);font-size:11px}
 /* A collapsed card keeps its header row and its Expand button, nothing else. */
 #photoCard.collapsed h2,#ptCard.collapsed h2{margin-bottom:0}
 #ptCount{text-transform:none;letter-spacing:0;font-weight:400}
