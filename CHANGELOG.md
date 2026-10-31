@@ -15,6 +15,8 @@ them.
 - **Trace** folds the same way once the auto-trace succeeds, and opens again when the corners move. Each of its controls has a **?**, and **Erase trace** is off with no trace.
 - The photo has its own **✎ Pen** button, next to **Edit corners**, so you can fix the trace without leaving the photo. A pen fix no longer opens **Trace**.
 - On a phone or tablet, **✎ Pen** fills the screen with the photo and its trace, and one finger steers a cursor with a magnifier that **✎ Draw** or **⌫ Erase** turns into a pen or an eraser. Two fingers zoom, the view follows the cursor near an edge, **↔** stretches steep curves wider, and **Undo** and **Clear marks** take back strokes.
+- A back swipe or **Back** closes **✎ Pen** instead of leaving the page.
+- A sideways swipe over the chart or the photo no longer goes back or forward a page.
 - **Export** lists each file on its own row: **Photo with overlay (PNG)**, **Chart (PNG)**, **Data (CSV)** and **Touchstone (.s1p)**. **Chart (PNG)** and **Data (CSV)** are off until the sweep is known.
 - **Analyze** lines up its fields, each with a **?** that says what it does. The chart's own **?** says how to pin and zoom, and a tap or a hover opens any **?**.
 - The chart's legend shows only its colors and their names.

@@ -11,6 +11,7 @@ import { bandsInRange } from "@/bands";
 import { Help } from "./Help";
 import { drawChart, freqAt, type ChartGeom } from "./draw-chart";
 import type { Curve, Settings } from "./model";
+import { useNoSwipe } from "./useNoSwipe";
 
 function Chips({ an, view, onView }: { an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void }): React.ReactElement {
   const same = (v: [number, number] | null): boolean =>
@@ -53,6 +54,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   };
   const drawRef = useRef(draw);
   useLayoutEffect(() => { drawRef.current = draw; draw(); });
+  useNoSwipe(canvasRef);
   useLayoutEffect(() => {
     const ro = new ResizeObserver(() => drawRef.current());
     if (canvasRef.current) ro.observe(canvasRef.current);

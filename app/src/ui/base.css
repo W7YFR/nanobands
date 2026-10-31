@@ -37,13 +37,15 @@ header .div{width:1px;align-self:stretch;background:var(--line)}
 #photoCard h2 .tools button{white-space:nowrap}
 /* The pen on a touch screen: the photo fills the screen, over the page,
    and the page behind does not scroll. */
-#photoCard.focus{position:fixed;inset:0;z-index:40;margin:0;border:none;border-radius:0;display:flex;flex-direction:column;padding:10px 12px;touch-action:none}
+/* Its sides stay clear of the screen's edges, where a swipe means back or
+   forward to the browser rather than a drag on the photo. */
+#photoCard.focus{position:fixed;inset:0;z-index:40;margin:0;border:none;border-radius:0;display:flex;flex-direction:column;padding:10px 28px;touch-action:none}
 #photoCard.focus h2{flex:none;margin-bottom:8px}
 #photoCard.focus #photoWrap{flex:1;min-height:0;position:relative}
 #photoCard.focus #photo{position:absolute;inset:0;max-width:none;border-radius:6px}
 /* While the pen fills the screen: no scrolling, no selecting and no
    long-press menu anywhere on the page. */
-html.pen-focus{overflow:hidden}
+html.pen-focus{overflow:hidden;overscroll-behavior:none}
 html.pen-focus,html.pen-focus *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* Draw and Erase, at the bottom within reach of a thumb: red while drawing, yellow while erasing. */
 #photoCard.focus .ink{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}

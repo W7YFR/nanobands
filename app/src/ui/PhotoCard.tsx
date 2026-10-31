@@ -18,6 +18,7 @@ import type { Point } from "@/geometry";
 import { drawMagnifier, drawPenView, drawPhoto, type PhotoScene } from "./draw-photo";
 import { calOK } from "./model";
 import type { Mode } from "./Cards";
+import { useNoSwipe } from "./useNoSwipe";
 
 /** How far a pinch can zoom in, over the photo fitted to the screen. */
 const MAX_ZOOM = 8;
@@ -131,6 +132,7 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
   };
   const drawRef = useRef(draw);
   useLayoutEffect(() => { drawRef.current = draw; draw(); });
+  useNoSwipe(canvas, !collapsed);
   useLayoutEffect(() => {
     const ro = new ResizeObserver(() => drawRef.current());
     if (wrap.current) ro.observe(wrap.current);
@@ -152,6 +154,23 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
     root.classList.add("pen-focus");
     return () => { root.classList.remove("pen-focus"); touches.current.clear(); pinch.current = null; steer.current = null; setTool("move"); setStretch(1); };
   }, [focus, vw.w, vw.h]);
+
+  // Back closes the pen rather than leaving the page. A phone's edge swipe
+  // goes back, and a page cannot stop it, so the pen keeps a step in the
+  // history for it to take. Done takes that step back off.
+  const closePen = useRef(onPenMode);
+  useLayoutEffect(() => { closePen.current = onPenMode; });
+  useEffect(() => {
+    if (!focus) return;
+    history.pushState({ penFocus: true }, "");
+    let popped = false;
+    const onPop = (): void => { popped = true; closePen.current(); };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      if (!popped && (history.state as { penFocus?: boolean } | null)?.penFocus) history.back();
+    };
+  }, [focus]);
 
   /** Draw or Erase on, or off again: each on starts a new stroke at the cursor. */
   const pick = (t: "draw" | "erase"): void => {
