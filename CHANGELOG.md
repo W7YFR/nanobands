@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.2.0 — 2026-10-31
+
 ### Added
 
 - **Connect NanoVNA** reads a sweep straight from a NanoVNA over USB, in desktop Chrome or Edge. It sweeps the range the device is set to.
