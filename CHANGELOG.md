@@ -7,6 +7,10 @@ them.
 
 ## Unreleased
 
+### Changed
+
+- With a mouse, **↔** next to **✎ Pen** stretches the photo wider, so steep curves lean over. The photo scrolls sideways in its card, and a stroke held at either edge scrolls it along.
+
 ## v1.4.0 — 2026-10-31
 
 ### Changed

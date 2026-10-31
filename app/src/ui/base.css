@@ -153,6 +153,9 @@ button.quiet:hover{color:var(--text);border-color:var(--line)}
 .refs span{display:inline-flex;gap:4px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;margin:2px}
 .refs span i{cursor:pointer;font-style:normal;color:var(--bad)}
 #photoWrap{position:relative}
+/* Stretched in the pen with a mouse: wider than the card, and scrolls sideways. */
+#photoWrap.wide{overflow-x:auto;overscroll-behavior-x:contain}
+#photoWrap.wide #photo{max-width:none}
 #photo{display:block;border-radius:8px;touch-action:none;cursor:crosshair;max-width:100%}
 #chart{display:block;width:100%;height:460px;touch-action:none;cursor:crosshair}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
