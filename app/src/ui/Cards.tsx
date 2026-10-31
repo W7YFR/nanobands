@@ -162,20 +162,20 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref }: {
       <div className="form">
         <label htmlFor="thr">Max SWR</label>
         <input type="number" id="thr" step="0.1" value={prefs.thr} onChange={(e) => onPref("thr", e.target.value)} />
-        <Help text="Band segments count as usable where the SWR stays under this. 3 suits most built-in tuners; use 2 without a tuner." />
+        <Help text="Frequencies at or under this SWR count as usable." />
         <label htmlFor="cls">License</label>
         <select id="cls" value={prefs.cls} onChange={(e) => onPref("cls", e.target.value as LicenseClass)}>
           <option value="E">Amateur Extra</option><option value="A">Advanced</option><option value="G">General</option><option value="T">Technician</option>
         </select>
-        <span />
+        <Help text="Shows only the segments this class may use." />
         <label htmlFor="mode">Mode</label>
         <select id="mode" value={prefs.mode} onChange={(e) => onPref("mode", e.target.value as OperatingMode)}>
           <option value="any">Any mode</option><option value="phone">Phone (SSB/AM/FM)</option><option value="cw">CW</option><option value="data">RTTY / digital</option>
         </select>
-        <Help text="CW is legal anywhere you have privileges. The CW/data sub-bands (blue) are the parts where phone isn't allowed." />
+        <Help text="Shows only the segments that allow this mode." />
         <label htmlFor="prom">Dip/peak min.</label>
         <input type="number" id="prom" step="0.05" value={prefs.prom} onChange={(e) => onPref("prom", e.target.value)} />
-        <Help text="Dips and peaks smaller than this many SWR are ignored." />
+        <Help text="Smaller dips and peaks are not marked." />
       </div>
     </div>
   );
