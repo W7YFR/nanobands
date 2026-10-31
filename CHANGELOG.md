@@ -14,6 +14,7 @@ them.
 - The chart's legend shows only its colors and their names.
 - **Key points** starts collapsed, with its count in the header. **Expand** opens it, and the page remembers.
 - Dragging a photo or .s1p file over the page outlines the whole window, on the landing too. Dragged text no longer lights up the drop zone.
+- A dropped or opened photo shows the page at once, with a placeholder where the photo goes until it is ready.
 
 ### Fixed
 

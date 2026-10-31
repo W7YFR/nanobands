@@ -55,6 +55,9 @@ function download(name: string, url: string): void {
 const mhz = (hz: number): number => +(hz / 1e6).toFixed(6);
 
 /** A photo traced afresh from its corners. */
+/** Resolves once the browser has painted what React last rendered. */
+const nextPaint = (): Promise<void> => new Promise((done) => requestAnimationFrame(() => setTimeout(done, 0)));
+
 function traced(d: Doc): Doc {
   if (!d.photo || !d.corners) return d;
   const { N, v } = autoTrace(d.photo.px, mappingFor(d.corners).fwd, d.corners, +d.fields.sens);
@@ -80,6 +83,8 @@ export function App(): React.ReactElement {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const [mode, setMode] = useState<Mode>("idle");
   const [hoverF, setHoverF] = useState<number | null>(null);
+  /** The name of a photo being opened, while its grid and trace are worked out. */
+  const [opening, setOpening] = useState<string | null>(null);
   // Until the saved session is read back, show neither the landing nor the page.
   const [booting, setBooting] = useState(true);
   const store = useMemo(() => openStore(), []);
@@ -156,8 +161,14 @@ export function App(): React.ReactElement {
     const name = file.name || "pasted image";
     // A new file starts a new session: keep the file, forget what was done to the last one.
     saveFile(file, name);
-    if (isTouchstone(name)) void file.text().then((t) => showTouchstone(t, name, "s1p", false));
-    else openPhoto(file, name).catch(() => alert("Couldn't read that image."));
+    if (isTouchstone(name)) { void file.text().then((t) => showTouchstone(t, name, "s1p", false)); return; }
+    // Opening a photo holds the page for a moment. Show the page and a
+    // placeholder for the photo first, then do the work.
+    setOpening(name);
+    void nextPaint()
+      .then(() => openPhoto(file, name))
+      .catch(() => alert("Couldn't read that image."))
+      .finally(() => setOpening(null));
   }, [saveFile, showTouchstone, openPhoto]);
 
   const over = useFileDrop(handleFile);
@@ -336,7 +347,7 @@ export function App(): React.ReactElement {
 
   /* ---------------- Layout ---------------- */
 
-  const landing = !doc.source && !vna.device;
+  const landing = !doc.source && !vna.device && !opening;
   let resNote = "";
   if (an && curve) {
     const res = ((an.fmax - an.fmin) / curve.N) * 1000;
@@ -372,7 +383,12 @@ export function App(): React.ReactElement {
               <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={exportChart} onCsv={exportCsv} onS1p={exportS1p} />
             </aside>
             <main>
-              {photoScene && (
+              {opening ? (
+                <div className="card" id="opening">
+                  <h2>Photo</h2>
+                  <p className="empty">Opening {opening}…</p>
+                </div>
+              ) : photoScene && (
                 <PhotoCard scene={photoScene} kRef={kRef} collapsed={doc.collapsed} onCollapse={() => setCollapsed(!doc.collapsed)}
                   onStraight={() => setDoc((d) => ({ ...d, straight: !d.straight }))} mode={mode}
                   onCornerMove={onCornerMove} onCornerDrop={onCornerDrop} onPen={onPen} onRef={onRef} onHover={setHoverF} />
