@@ -70,7 +70,8 @@ describe("the page", () => {
 
     await until(() => has("#fStop") && $<HTMLInputElement>("#fStop").value === "55");
     expect($("#fileName").textContent).toBe("random-wire.jpg");
-    expect($("#gridNote").textContent).toContain("Grid found (9 horizontal, 7 vertical lines)");
+    expect($("#gridNote").textContent).toContain("Grid found");
+    expect($("#calSummary").textContent).toBe("3–55 MHz · SWR 1–5");
     expect($("#ocrNote").textContent).toContain("3–55 MHz");
     expect($<HTMLInputElement>("#fStart").value).toBe("3");
     expect($("#straightBtn").textContent).toBe("Edit corners");

@@ -86,7 +86,7 @@ describe("CalibrateCard", () => {
         ocr={{ kind: "offer", start: 3, stop: 55, raw: "START 3 / STOP 55" }} onUseOcr={onUse} onDetectGrid={() => {}}
         mode="idle" onRefMode={() => {}} refs={[]} onRemoveRef={() => {}} />,
     );
-    expect(screen.getByText(/Grid found \(9 horizontal, 7 vertical lines\)/)).toBeInTheDocument();
+    expect(screen.getByText("Grid found")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "Use it" }));
     expect(onUse).toHaveBeenCalledOnce();
   });

@@ -99,22 +99,37 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
   );
 }
 
-function GridText({ note }: { note: GridNote }): React.ReactElement {
-  return note.kind === "found"
-    ? <>✓ Grid found ({note.horizontal} horizontal, {note.vertical} vertical lines). Photo straightened; <b>Edit corners</b> to adjust.</>
-    : <>Couldn't find the grid automatically, so drag the corners into place.</>;
+/** One line of what the app found: ✓ when it worked, ! when it needs you, … while it works. */
+function Stat({ ok, id, children }: { ok: boolean | null; id?: string; children: React.ReactNode }): React.ReactElement {
+  return (
+    <p className={"stat" + (ok === true ? " ok" : ok === false ? " bad" : "")} id={id}>
+      <span className="ic">{ok === true ? "✓" : ok === false ? "!" : "…"}</span><span>{children}</span>
+    </p>
+  );
 }
 
-function OcrText({ note, onUse }: { note: OcrNote; onUse(): void }): React.ReactElement {
+function GridStat({ note }: { note: GridNote }): React.ReactElement {
+  return note.kind === "found"
+    ? <Stat ok id="gridNote">Grid found <Help align="start" text="If it is off, Edit corners on the photo lets you move its corners." /></Stat>
+    : <Stat ok={false} id="gridNote">No grid found. Drag the photo's corners onto it.</Stat>;
+}
+
+function OcrStat({ note, onUse }: { note: OcrNote; onUse(): void }): React.ReactElement {
   const f = (x: number): number => +x.toFixed(6);
   switch (note.kind) {
-    case "looking": return <>Looking for START/STOP text in the photo…</>;
-    case "read": return <>✓ Read from photo: <b>{f(note.start)}–{f(note.stop)} MHz</b>. Check it against the screen (OCR saw “{note.raw}”).</>;
-    case "offer": return <>Photo says {f(note.start)}–{f(note.stop)} MHz. <a href="#" id="ocrUse" onClick={(e) => { e.preventDefault(); onUse(); }}>Use it</a></>;
-    case "none": return <>No START/STOP text found in the photo, so enter the sweep below.</>;
-    case "failed": return <>Couldn't run text recognition (offline?), so enter the sweep below.</>;
+    case "looking": return <Stat ok={null} id="ocrNote">Reading the sweep from the photo</Stat>;
+    case "read": return <Stat ok id="ocrNote">Sweep read from the photo: {f(note.start)}–{f(note.stop)} MHz</Stat>;
+    case "offer": return <Stat ok={null} id="ocrNote">The photo says {f(note.start)}–{f(note.stop)} MHz. <a href="#" id="ocrUse" onClick={(e) => { e.preventDefault(); onUse(); }}>Use it</a></Stat>;
+    case "none": return <Stat ok={false} id="ocrNote">No sweep found on the photo. Enter it below.</Stat>;
+    case "failed": return <Stat ok={false} id="ocrNote">Couldn't read the photo's text. Enter the sweep below.</Stat>;
   }
 }
+
+/** Whether the fields give a sweep the chart can use. */
+const sweepSet = (f: Fields): boolean => {
+  const a = parseFloat(f.start), b = parseFloat(f.stop);
+  return Number.isFinite(a) && Number.isFinite(b) && b > a;
+};
 
 export function CalibrateCard({ fields, onField, grid, ocr, onUseOcr, onDetectGrid, mode, onRefMode, refs, onRemoveRef }: {
   fields: Fields;
@@ -128,28 +143,46 @@ export function CalibrateCard({ fields, onField, grid, ocr, onUseOcr, onDetectGr
   refs: readonly { u: number; f: number }[];
   onRemoveRef(j: number): void;
 }): React.ReactElement {
-  const num = (k: keyof Fields, id: string, placeholder?: string): React.ReactElement => (
-    <input type="number" id={id} step="any" placeholder={placeholder} value={fields[k]} onChange={(e) => onField(k, e.target.value)} />
+  const num = (k: keyof Fields, id: string): React.ReactElement => (
+    <input type="number" id={id} step="any" value={fields[k]} onChange={(e) => onField(k, e.target.value)} />
   );
+  const done = sweepSet(fields);
+  // Folded when the app finished the step itself: the grid found and the
+  // sweep read. Typing never folds it, so it cannot close under the cursor.
+  const auto = grid?.kind === "found" && ocr?.kind === "read";
+  const [open, setOpen] = useState(!auto);
+  useEffect(() => setOpen(!auto), [auto]);
+  const shut = done && !open;
   return (
     <div className="card" id="calCard">
-      <h2><b className="step" /> Calibrate</h2>
-      <p className="hint" style={{ marginTop: 0 }}>When a photo loads, the plot grid is found and the photo is squared up on it. If it looks off, <b>Edit corners</b> (above the photo) shows the 4 yellow-ringed handles; drag them onto the grid's corners (a magnifier appears while dragging), then <b>Straighten</b> again.</p>
-      {grid && <p className="hint" id="gridNote"><GridText note={grid} /></p>}
-      {ocr && <p className="hint" id="ocrNote"><OcrText note={ocr} onUse={onUseOcr} /></p>}
-      <div className="row"><label>Sweep start</label>{num("start", "fStart", "MHz")} MHz</div>
-      <div className="row"><label>Sweep stop</label>{num("stop", "fStop", "MHz")} MHz</div>
-      <div className="row"><label>SWR at top</label>{num("top", "swrTop")}</div>
-      <div className="row"><label>SWR at bottom</label>{num("bot", "swrBot")}</div>
-      <div className="row">
-        <button id="gridBtn" onClick={onDetectGrid}>Detect grid</button>
-        <button id="refBtn" className={mode === "ref" ? "on" : ""} onClick={onRefMode}>+ Frequency reference</button>
+      <h2><b className={"step" + (done ? " done" : "")} /> Calibrate <span style={{ flex: 1 }}></span>
+        {done && <button id="calToggle" className="small" onClick={() => setOpen(!open)}>{open ? "Done" : "Change"}</button>}
+      </h2>
+      {shut && <p className="loaded" id="calSummary">{fields.start}–{fields.stop} MHz · SWR {fields.bot}–{fields.top}</p>}
+      <div hidden={shut}>
+        {(grid || ocr) && (
+          <div className="stats">
+            {grid && <GridStat note={grid} />}
+            {ocr && <OcrStat note={ocr} onUse={onUseOcr} />}
+          </div>
+        )}
+        <div className="form">
+          <label htmlFor="fStart">Start (MHz)</label>{num("start", "fStart")}<Help text="The frequency at the grid's left edge." />
+          <label htmlFor="fStop">Stop (MHz)</label>{num("stop", "fStop")}<Help text="The frequency at the grid's right edge." />
+          <label htmlFor="swrTop">Top SWR</label>{num("top", "swrTop")}<Help text="The SWR at the grid's top line." />
+          <label htmlFor="swrBot">Bottom SWR</label>{num("bot", "swrBot")}<Help text="The SWR at the grid's bottom line." />
+          <button id="gridBtn" className="span" onClick={onDetectGrid}>Detect grid</button>
+          <Help text="Finds the grid again and squares the photo up on it." />
+          <button id="refBtn" className={"span" + (mode === "ref" ? " on" : "")} onClick={onRefMode}>+ Frequency reference</button>
+          <Help text="Click two points of known frequency on the photo to work out start and stop." />
+        </div>
+        {refs.length > 0 && (
+          <div className="refs" id="refs">
+            {refs.map((r, j) => <span key={j}>{r.f} MHz <i onClick={() => onRemoveRef(j)}>×</i></span>)}
+            {refs.length === 1 && <> <span style={{ border: "none", background: "none" }}>add one more…</span></>}
+          </div>
+        )}
       </div>
-      <div className="refs" id="refs">
-        {refs.map((r, j) => <span key={j}>{r.f} MHz <i onClick={() => onRemoveRef(j)}>×</i></span>)}
-        {refs.length === 1 && <> <span style={{ border: "none", background: "none" }}>add one more…</span></>}
-      </div>
-      <p className="hint">Don't know start/stop? Click a point whose frequency you know (a marker, or a VNA grid line), enter the MHz, and repeat once more. Start/stop are solved from the two.</p>
     </div>
   );
 }
