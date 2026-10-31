@@ -382,7 +382,7 @@ export function App(): React.ReactElement {
                 </>
               )}
               <AnalyzeCard prefs={prefs} onPref={onPref} />
-              <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={exportChart} onCsv={exportCsv} onS1p={exportS1p} />
+              <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p} />
             </aside>
             <main>
               {opening ? (

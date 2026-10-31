@@ -272,20 +272,22 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref }: {
   );
 });
 
+/** Files to save. A file that does not apply to what is loaded is left out;
+ *  one with nothing to save yet is off. */
 export function ExportCard({ onPhoto, onChart, onCsv, onS1p }: {
   onPhoto: (() => void) | null;
-  onChart(): void;
-  onCsv(): void;
+  onChart: (() => void) | null;
+  onCsv: (() => void) | null;
   onS1p: (() => void) | null;
 }): React.ReactElement {
   return (
-    <div className="card">
+    <div className="card" id="exportCard">
       <h2>Export</h2>
-      <div className="row">
-        {onPhoto && <button id="expPhoto" onClick={onPhoto}>Photo + overlay PNG</button>}
-        <button id="expChart" onClick={onChart}>Chart PNG</button>
-        <button id="expCsv" onClick={onCsv}>CSV</button>
-        {onS1p && <button id="expS1p" onClick={onS1p}>Touchstone .s1p</button>}
+      <div className="stack">
+        {onPhoto && <button id="expPhoto" onClick={onPhoto}>Photo with overlay (PNG)</button>}
+        <button id="expChart" disabled={!onChart} onClick={onChart ?? undefined}>Chart (PNG)</button>
+        <button id="expCsv" disabled={!onCsv} onClick={onCsv ?? undefined}>Data (CSV)</button>
+        {onS1p && <button id="expS1p" onClick={onS1p}>Touchstone (.s1p)</button>}
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ them.
 - With a photo or .s1p file open, **Load** shrinks to a green check and the file name. **Change** brings back **Open another file** and **Connect NanoVNA**.
 - **Calibrate** folds to a green check and its sweep once it finds the grid and reads the sweep, with **Change** to open it. Open, it shows what it found in short lines above its fields, and each field and button has a **?**. **Edit corners** sits next to **Grid found**.
 - **Trace** folds the same way once the auto-trace succeeds, and opens again when the corners move. Each of its controls has a **?**, and **Erase trace** is off with no trace.
+- **Export** lists each file on its own row: **Photo with overlay (PNG)**, **Chart (PNG)**, **Data (CSV)** and **Touchstone (.s1p)**. **Chart (PNG)** and **Data (CSV)** are off until the sweep is known.
 - **Analyze** lines up its fields, each with a **?** that says what it does. The chart's own **?** says how to pin and zoom, and a tap or a hover opens any **?**.
 - The chart's legend shows only its colors and their names.
 - **Key points** starts collapsed, with its count in the header. **Expand** opens it, and the page remembers.
@@ -22,6 +23,7 @@ them.
 ### Fixed
 
 - On a phone, the chart and the tables no longer run past the right edge of the screen.
+- A **?** near the bottom of the sidebar opens upward, so its text is not cut off.
 - The chart's labels no longer overlap. **MHz** sits left of the axis, and on a narrow chart a label with no room is left out.
 - The step numbers count only the steps on the page. With a NanoVNA or an .s1p file, **Analyze** is step 2.
 - Right after a reload, the footer no longer shows at the top of an empty page. It stays at the bottom of the window.

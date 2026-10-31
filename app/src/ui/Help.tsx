@@ -2,13 +2,25 @@
  * detail is there when wanted. A tap or click opens it and a second one
  * closes it, as does a tap elsewhere or Escape. A mouse also opens it on
  * hover. It does not rely on focus: Safari does not focus a button on a tap.
- * The text moves sideways as far as it must to stay on the screen.
+ * The text moves sideways as far as it must to stay on the screen, and opens
+ * upward where the box it sits in would cut it off below.
  */
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 /** The least room between the text and the edge of the screen, in pixels. */
 const EDGE = 8;
+
+/** The lowest point the text can show at: the window's bottom, or higher
+ *  where a box around it scrolls and so cuts off what sticks out. */
+function floorOf(el: HTMLElement): number {
+  let floor = window.innerHeight;
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY;
+    if (o === "auto" || o === "scroll" || o === "hidden") floor = Math.min(floor, p.getBoundingClientRect().bottom);
+  }
+  return floor;
+}
 
 export function Help({ text, align = "end" }: {
   text: string;
@@ -34,9 +46,11 @@ export function Help({ text, align = "end" }: {
     const t = tip.current;
     if (!t || !shown) return;
     t.style.translate = "";
+    t.classList.remove("up");
     const r = t.getBoundingClientRect(), vw = document.documentElement.clientWidth;
     const dx = r.right > vw - EDGE ? vw - EDGE - r.right : r.left < EDGE ? EDGE - r.left : 0;
     if (dx) t.style.translate = `${dx}px 0`;
+    if (r.bottom > floorOf(t) - EDGE) t.classList.add("up");
   }, [shown]);
 
   return (

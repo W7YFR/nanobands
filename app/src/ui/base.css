@@ -73,6 +73,8 @@ button.text{background:none;border:none;padding:0;color:var(--accent);font:inher
 button.text:hover,button.text:focus-visible{text-decoration:underline;outline:none}
 /* A button that takes the label and field columns of a .form. */
 .form .span{grid-column:1 / 3}
+/* Buttons one under another, full width. */
+.stack{display:flex;flex-direction:column;gap:8px}
 .refs{margin-top:8px}
 .card h2 b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#000;font-size:11px}
 .row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
@@ -99,6 +101,7 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 .help.end .tip{right:-4px}
 .help.start .tip{left:-4px}
 .help.shown .tip{display:block}
+.help .tip.up{top:auto;bottom:calc(100% + 6px)}
 .warn{color:var(--warn);font-size:12px}
 .drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);cursor:pointer;font-size:13px}
 .drop.over{border-color:var(--accent);color:var(--accent)}
