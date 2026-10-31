@@ -8,8 +8,10 @@
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import type { Analysis } from "@/analysis";
 import { bandsInRange } from "@/bands";
+import { Help } from "./Help";
 import { drawChart, freqAt, type ChartGeom } from "./draw-chart";
 import type { Curve, Settings } from "./model";
+import { useNoSwipe } from "./useNoSwipe";
 
 function Chips({ an, view, onView }: { an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void }): React.ReactElement {
   const same = (v: [number, number] | null): boolean =>
@@ -52,6 +54,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   };
   const drawRef = useRef(draw);
   useLayoutEffect(() => { drawRef.current = draw; draw(); });
+  useNoSwipe(canvasRef);
   useLayoutEffect(() => {
     const ro = new ResizeObserver(() => drawRef.current());
     if (canvasRef.current) ro.observe(canvasRef.current);
@@ -61,7 +64,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   const xOf = (e: React.PointerEvent): number => e.clientX - e.currentTarget.getBoundingClientRect().left;
   return (
     <div className="card">
-      <h2>SWR vs. frequency <span id="resNote" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{resNote}</span></h2>
+      <h2>SWR vs. frequency <Help align="start" text="Click the chart to pin your own marker; click it again to remove it. Drag across the chart to zoom, double-click to reset." /> <span id="resNote" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{resNote}</span></h2>
       {an && <Chips an={an} view={view} onView={onView} />}
       <canvas id="chart" ref={canvasRef}
         onPointerDown={(e) => { if (!geom.current) return; drag.current = { x0: xOf(e), x1: xOf(e) }; e.currentTarget.setPointerCapture(e.pointerId); }}
@@ -84,8 +87,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         onDoubleClick={() => onView(null)}
       />
       <div className="legend">
-        <span><b>bands</b> row: <i style={{ background: "var(--ok)", marginLeft: 4 }}></i>usable (licensed, SWR ≤ max) <i style={{ background: "rgba(248,81,73,.7)", marginLeft: 6 }}></i>licensed, SWR too high</span>
-        <span><b>≤3:1</b> row: start–end MHz of each stretch where SWR stays under the max</span>
+        <span><i style={{ background: "var(--ok)" }}></i>Usable</span>
+        <span><i style={{ background: "rgba(248,81,73,.7)" }}></i>SWR too high</span>
         <span><i style={{ background: "var(--data)" }}></i>CW / RTTY / data</span>
         <span><i style={{ background: "var(--phone)" }}></i>Phone / image</span>
         <span><i style={{ background: "var(--cw)" }}></i>CW only</span>

@@ -7,6 +7,38 @@ them.
 
 ## Unreleased
 
+## v1.4.0 — 2026-10-31
+
+### Changed
+
+- **Load** shows a connected NanoVNA in its own panel, with a green **Connected** status, its calibration and range, and **Sweep** and **Live** side by side. The file drop sits under it, and no longer shows a NanoVNA sweep as an opened file.
+- With a photo or .s1p file open, **Load** shrinks to a green check and the file name. **Change** brings back **Open another file** and **Connect NanoVNA**.
+- **Calibrate** folds to a green check and its sweep once it finds the grid and reads the sweep, with **Change** to open it. Open, it lists what it found, with **Edit corners** next to **Grid found**, and each field and button has a **?**.
+- **Trace** folds the same way once the auto-trace succeeds, and opens when it needs you. Each control has a **?**, and **Erase trace** is off with no trace.
+- The photo has its own **✎ Pen** button, next to **Edit corners**, so you can fix the trace without leaving the photo. A pen fix no longer opens **Trace**.
+- On a phone or tablet, **✎ Pen** fills the screen with the photo and its trace, and one finger steers a cursor with a magnifier that **✎ Draw** or **⌫ Erase** turns into a pen or an eraser. Two fingers zoom, the view follows the cursor near an edge, **↔** stretches steep curves wider, and **Undo** and **Clear marks** take back strokes.
+- On a phone or tablet, a back swipe closes **✎ Pen** instead of leaving the page.
+- A sideways swipe over the chart or the photo no longer goes back or forward a page.
+- **Export** lists each file on its own row: **Photo with overlay (PNG)**, **Chart (PNG)**, **Data (CSV)** and **Touchstone (.s1p)**. **Chart (PNG)** and **Data (CSV)** are off until the sweep is known.
+- **Analyze** lines up its fields, each with a **?** that says what it does. The chart's own **?** says how to pin and zoom, and a tap or a hover opens any **?**.
+- The chart's legend shows only its colors and their names.
+- **Key points** starts collapsed, with its count in the header. **Expand** opens it, and the page remembers.
+- Dragging a photo or .s1p file over the page outlines the whole window, on the landing too. Dragged text no longer lights up the drop zone.
+- A dropped or opened photo shows the page at once, with a placeholder where the photo goes until it is ready.
+
+### Fixed
+
+- On a phone, the chart and the tables no longer run past the right edge of the screen.
+- On a phone, **Band segments you can use** stacks each band, with its bars full width, so it no longer scrolls sideways.
+- A **?** near the bottom of the sidebar opens upward, so its text is not cut off.
+- The chart's labels no longer overlap. **MHz** sits left of the axis, and on a narrow chart a label with no room is left out.
+- The step numbers count only the steps on the page. With a NanoVNA or an .s1p file, **Analyze** is step 2.
+- Right after a reload, the footer no longer shows at the top of an empty page. It stays at the bottom of the window.
+
+### Development
+
+- `make test-browser` has its own port, so it runs while cwt's browser tests run.
+
 ## v1.3.0 — 2026-10-31
 
 ### Changed

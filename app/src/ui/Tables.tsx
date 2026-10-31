@@ -20,7 +20,7 @@ function BandRows({ b, an, s }: { b: Band; an: Analysis; s: Settings }): React.R
   const segs = segsFor(b, s);
   if (!segs.length) {
     const why = b.priv[s.cls].length ? `No ${MODE_NAMES[s.mode]} privileges here for this license class` : "No privileges for this license class";
-    return <tr><td><b>{b.name}</b></td><td colSpan={4} style={{ color: "var(--muted)" }}>{why}</td></tr>;
+    return <tr className="seg first"><td className="band"><b>{b.name}</b></td><td className="none" colSpan={4}>{why}</td></tr>;
   }
   const tot = segs.map((g) => segUsable(g, an));
   const avg = tot.reduce((a, u, j) => a + u.frac * (segs[j]![1] - segs[j]![0]), 0) / segs.reduce((a, g) => a + g[1] - g[0], 0);
@@ -43,12 +43,12 @@ function BandRows({ b, an, s }: { b: Band; an: Analysis; s: Settings }): React.R
             ? <div className="bar na">{segs.map((c, i) => <span key={i} style={{ left: `${((c[0] - g[0]) / span) * 100}%`, width: `${Math.max(1.5, ((c[1] - c[0]) / span) * 100)}%`, background: tot[i]!.frac > 0.995 ? OK : BAD }} />)}</div>
             : <div className="bar">{u.parts.map(([a, c], i) => <span key={i} style={{ left: `${((a - g[0]) / span) * 100}%`, width: `${Math.max(1, ((c - a) / span) * 100)}%` }} />)}</div>;
         return (
-          <tr key={j}>
-            {j === 0 && <td rowSpan={shown.length}><b>{b.name}</b><br /><Pill avg={avg} /></td>}
-            <td><span style={{ color: MODES[g[2]].color }}>■</span> {is60 ? `4 channels + 1 segment (${ok60.length}/${segs.length} usable)` : MODES[g[2]].label}</td>
-            <td className="num">{is60 ? `${g[0].toFixed(4)}–${g[1].toFixed(4)}` : `${fmtF(g[0])}–${fmtF(g[1])}`}</td>
-            <td className="num">{parts}{u.measured < 0.999 && <> <span className="warn">(partly outside sweep)</span></>}</td>
-            <td>{bar}</td>
+          <tr key={j} className={"seg" + (j === 0 ? " first" : "")}>
+            {j === 0 && <td className="band" rowSpan={shown.length}><b>{b.name}</b> <Pill avg={avg} /></td>}
+            <td className="mode"><span style={{ color: MODES[g[2]].color }}>■</span> {is60 ? `4 channels + 1 segment (${ok60.length}/${segs.length} usable)` : MODES[g[2]].label}</td>
+            <td className="num range">{is60 ? `${g[0].toFixed(4)}–${g[1].toFixed(4)}` : `${fmtF(g[0])}–${fmtF(g[1])}`}</td>
+            <td className={"num usable" + (parts === "—" ? " nil" : "")}>{parts}{u.measured < 0.999 && <> <span className="warn">(partly outside sweep)</span></>}</td>
+            <td className="barcell">{bar}</td>
           </tr>
         );
       })}
@@ -60,9 +60,9 @@ export const BandTable = memo(function BandTable({ an, settings }: { an: Analysi
   if (!an) return <Empty />;
   const bands = bandsInRange(an.fmin, an.fmax);
   return (
-    <table>
+    <table className="bands" style={{ "--thr": `"${settings.thr}"` } as React.CSSProperties}>
       <tbody>
-        <tr><th>Band</th><th>Segment</th><th>Range (MHz)</th><th>Usable at SWR ≤ {settings.thr}</th><th style={{ width: "22%" }}></th></tr>
+        <tr className="head"><th>Band</th><th>Segment</th><th>Range (MHz)</th><th>Usable at SWR ≤ {settings.thr}</th><th style={{ width: "22%" }}></th></tr>
         {!bands.length && <tr><td colSpan={5} className="empty">No amateur bands inside this sweep.</td></tr>}
         {bands.map((b) => <BandRows key={b.name} b={b} an={an} s={settings} />)}
       </tbody>

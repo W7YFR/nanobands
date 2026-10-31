@@ -69,8 +69,9 @@ describe("the page", () => {
     fireEvent.change(input);
 
     await until(() => has("#fStop") && $<HTMLInputElement>("#fStop").value === "55");
-    expect($("#drop").textContent).toContain("random-wire.jpg");
-    expect($("#gridNote").textContent).toContain("Grid found (9 horizontal, 7 vertical lines)");
+    expect($("#fileName").textContent).toBe("random-wire.jpg");
+    expect($("#gridNote").textContent).toContain("Grid found");
+    expect($("#calSummary").textContent).toBe("3–55 MHz · SWR 1–5");
     expect($("#ocrNote").textContent).toContain("3–55 MHz");
     expect($<HTMLInputElement>("#fStart").value).toBe("3");
     expect($("#straightBtn").textContent).toBe("Edit corners");
@@ -116,9 +117,9 @@ describe("a connected NanoVNA", () => {
   it("connects from the landing, reads the device and sweeps its range", async () => {
     $("#landConnect").click();
     await until(() => has("#vnaInfo") && $("#bandTable").textContent!.includes("20m"));
-    expect($("#vnaInfo").textContent).toBe("NanoVNA-H 4 · firmware 1.2.44 · 3–55 MHz, 401 points");
+    expect($("#vnaInfo").textContent).toBe("NanoVNA-H 4 · firmware 1.2.44");
+    expect($("#vnaRange").textContent).toBe("3–55 MHz · 401 points");
     expect($("#vnaBtn").textContent).toBe("Disconnect");
-    expect($("#drop").textContent).toContain("nanovna-3-55mhz.s1p");
     expect($("#resNote").textContent).toContain("401 points from the NanoVNA");
     expect(has("#photoCard")).toBe(false);
     expect(has("#expS1p")).toBe(true);
@@ -142,8 +143,7 @@ describe("a connected NanoVNA", () => {
     const slot = $<HTMLSelectElement>("#vnaSlot");
     expect(slot.options).toHaveLength(8);
     fireEvent.change(slot, { target: { value: "1" } });
-    await until(() => $("#drop").textContent!.includes("nanovna-144-148mhz.s1p"));
-    expect($("#vnaInfo").textContent).toContain("144–148 MHz, 101 points");
+    await until(() => $("#vnaRange").textContent === "144–148 MHz · 101 points");
     expect($("#bandTable").textContent).toContain("2m");
   });
 

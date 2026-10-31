@@ -169,10 +169,35 @@ export function drawPhoto(ctx: CanvasRenderingContext2D, U: number, sc: PhotoSce
 
 /** A round magnifier near the pointer, for placing corners and drawing with
  *  the pen. In CSS pixels; k is CSS pixels per view pixel. */
-export function drawMagnifier(ctx: CanvasRenderingContext2D, dpr: number, k: number, sc: PhotoScene, hover: Point): void {
+/** The pen's full-screen view: the photo and its trace, nothing else, so
+ *  nothing covers the curve. The photo is drawn at sx by sy CSS pixels per
+ *  view pixel, with its top-left at (ox, oy); sx above sy stretches it wide. */
+export function drawPenView(ctx: CanvasRenderingContext2D, dpr: number, sc: PhotoScene, sx: number, sy: number, ox: number, oy: number): void {
+  ctx.setTransform(dpr * sx, 0, 0, dpr * sy, dpr * ox, dpr * oy);
+  ctx.drawImage(sc.view.src, 0, 0);
+  const t = sc.trace;
+  if (t?.kind !== "photo") return;
+  // In screen pixels, so the line keeps its width however the photo is stretched.
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const R = 64, Z = 4, cw = sc.view.w * k, d = sc.dragCorner;
-  const hx = hover[0] * k, hy = hover[1] * k;
+  ctx.strokeStyle = TRACE; ctx.lineWidth = 2; ctx.lineJoin = "round";
+  ctx.beginPath();
+  let pen = false;
+  for (let i = 0; i < t.N; i++) {
+    if (Number.isNaN(t.v[i])) { pen = false; continue; }
+    const [x, y] = sc.view.vf((i + 0.5) / t.N, t.v[i]!);
+    if (pen) ctx.lineTo(ox + x * sx, oy + y * sy);
+    else ctx.moveTo(ox + x * sx, oy + y * sy);
+    pen = true;
+  }
+  ctx.stroke();
+}
+
+/** The magnifier, for a photo drawn at k CSS pixels per view pixel (kx across)
+ *  with its top-left at (ox, oy) on a canvas cw CSS pixels wide. */
+export function drawMagnifier(ctx: CanvasRenderingContext2D, dpr: number, k: number, sc: PhotoScene, hover: Point, ox = 0, oy = 0, cw = sc.view.w * k, kx = k): void {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const R = 64, Z = 4, d = sc.dragCorner;
+  const hx = ox + hover[0] * kx, hy = oy + hover[1] * k;
   let cx: number, cy: number;
   if (d >= 0) {
     // Fixed per corner so it never jumps mid-drag: top corners look below, bottom corners above.

@@ -92,6 +92,9 @@ export default defineConfig({
         test: {
           name: "browser",
           include: ["test/browser/**/*.test.{ts,tsx}"],
+          /* Not vitest's default port, which cwt's browser tier holds, so
+             the two can run at once. */
+          api: { port: 63415, strictPort: true },
           browser: {
             enabled: true,
             provider: playwright(),

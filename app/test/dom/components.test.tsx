@@ -45,7 +45,7 @@ describe("Landing", () => {
 describe("LoadCard", () => {
   it("offers Connect, full width, before a device is connected", () => {
     const vna = vnaStub();
-    render(<LoadCard fileName={null} over={false} onBrowse={() => {}} vna={vna} />);
+    render(<LoadCard source={null} fileName={null} over={false} onBrowse={() => {}} vna={vna} />);
     const btn = screen.getByRole("button", { name: "Connect NanoVNA" });
     expect(btn).toHaveClass("wide");
     expect(screen.queryByRole("button", { name: "Sweep" })).toBeNull();
@@ -56,8 +56,11 @@ describe("LoadCard", () => {
   it("shows the device, its slots, and Sweep, Live and Disconnect once connected", () => {
     const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
     const vna = vnaStub({ device, range: { start: 3e6, stop: 55e6, points: 401 } });
-    render(<LoadCard fileName="nanovna-3-55mhz.s1p" over={false} onBrowse={() => {}} vna={vna} />);
-    expect(screen.getByText("NanoVNA-H 4 · firmware 1.2.44 · 3–55 MHz, 401 points")).toBeInTheDocument();
+    const { container } = render(<LoadCard source="vna" fileName="nanovna-3-55mhz.s1p" over={false} onBrowse={() => {}} vna={vna} />);
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(container.querySelector("#vnaInfo")).toHaveTextContent("NanoVNA-H 4 · firmware 1.2.44");
+    expect(screen.getByText("3–55 MHz · 401 points")).toBeInTheDocument();
+    expect(container.querySelector("#drop")).not.toHaveTextContent("nanovna-3-55mhz.s1p");
     expect(screen.getAllByRole("option")).toHaveLength(8);
     fireEvent.change(screen.getByLabelText("Calibration"), { target: { value: "2" } });
     expect(vna.recall).toHaveBeenCalledWith(2);
@@ -68,7 +71,8 @@ describe("LoadCard", () => {
 
   it("shows Hold while live, and no Sweep to press", () => {
     const device = { info: { board: "NanoVNA", version: "0.4.5", slots: 5, method: "scan" } } as NanoVNA;
-    render(<LoadCard fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range: { start: 1e6, stop: 30e6, points: 101 }, live: true })} />);
+    render(<LoadCard source={null} fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range: { start: 1e6, stop: 30e6, points: 101 }, live: true })} />);
+    expect(screen.getByText("Sweeping live")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hold" })).toHaveClass("on");
     expect(screen.getByRole("button", { name: "Sweep" })).toBeDisabled();
   });
@@ -78,18 +82,19 @@ describe("CalibrateCard", () => {
   it("offers a reading when the sweep was typed, and uses it on request", () => {
     const onUse = vi.fn();
     render(
-      <CalibrateCard fields={DEFAULT_FIELDS} onField={() => {}} grid={{ kind: "found", horizontal: 9, vertical: 7 }}
+      <CalibrateCard fields={DEFAULT_FIELDS} onField={() => {}} grid={{ kind: "found", horizontal: 9, vertical: 7 }} straight onStraight={() => {}}
         ocr={{ kind: "offer", start: 3, stop: 55, raw: "START 3 / STOP 55" }} onUseOcr={onUse} onDetectGrid={() => {}}
         mode="idle" onRefMode={() => {}} refs={[]} onRemoveRef={() => {}} />,
     );
-    expect(screen.getByText(/Grid found \(9 horizontal, 7 vertical lines\)/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("link", { name: "Use it" }));
+    expect(screen.getByText(/Grid found/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit corners" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use it" }));
     expect(onUse).toHaveBeenCalledOnce();
   });
 
   it("sends field edits up", () => {
     const onField = vi.fn();
-    render(<CalibrateCard fields={DEFAULT_FIELDS} onField={onField} grid={null} ocr={null} onUseOcr={() => {}} onDetectGrid={() => {}}
+    render(<CalibrateCard fields={DEFAULT_FIELDS} onField={onField} grid={null} ocr={null} straight onStraight={() => {}} onUseOcr={() => {}} onDetectGrid={() => {}}
       mode="idle" onRefMode={() => {}} refs={[{ u: 0.5, f: 14 }]} onRemoveRef={() => {}} />);
     fireEvent.change(document.querySelector("#fStart")!, { target: { value: "1.8" } });
     expect(onField).toHaveBeenCalledWith("start", "1.8");

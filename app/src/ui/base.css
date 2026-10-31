@@ -28,8 +28,34 @@ header h1 .art{display:block;white-space:pre;font-family:var(--mono);font-size:c
 header .div{width:1px;align-self:stretch;background:var(--line)}
 #clearAll{margin-left:auto}
 .ghost{visibility:hidden}
-/* A collapsed photo keeps its header row and its Expand button, nothing else. */
-#photoCard.collapsed h2{margin-bottom:0}
+/* A button in a card's header row, such as Collapse. */
+.card h2 button.small{text-transform:none;letter-spacing:0;font-size:12px;padding:3px 10px}
+/* The photo's buttons sit at the right of its header, and wrap together
+   under the title on a phone rather than overflow. */
+#photoCard h2{flex-wrap:wrap}
+#photoCard h2 .tools{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+#photoCard h2 .tools button{white-space:nowrap}
+/* The pen on a touch screen: the photo fills the screen, over the page,
+   and the page behind does not scroll. */
+/* Its sides stay clear of the screen's edges, where a swipe means back or
+   forward to the browser rather than a drag on the photo. */
+#photoCard.focus{position:fixed;inset:0;z-index:40;margin:0;border:none;border-radius:0;display:flex;flex-direction:column;padding:10px 28px;touch-action:none}
+#photoCard.focus h2{flex:none;margin-bottom:8px}
+#photoCard.focus #photoWrap{flex:1;min-height:0;position:relative}
+#photoCard.focus #photo{position:absolute;inset:0;max-width:none;border-radius:6px}
+/* While the pen fills the screen: no scrolling, no selecting and no
+   long-press menu anywhere on the page. */
+html.pen-focus{overflow:hidden;overscroll-behavior:none}
+html.pen-focus,html.pen-focus *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* Draw and Erase, at the bottom within reach of a thumb: red while drawing, yellow while erasing. */
+#photoCard.focus .ink{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+#photoCard.focus .ink button{padding:14px;font-size:16px;font-weight:600}
+#photoCard.focus .ink button.on{background:rgba(248,81,73,.15);border-color:var(--bad);color:var(--bad)}
+#photoCard.focus .ink button.on.erase{background:rgba(242,204,96,.12);border-color:var(--warn);color:var(--warn)}
+.focus-hint{text-transform:none;letter-spacing:0;font-weight:400;color:var(--muted);font-size:11px}
+/* A collapsed card keeps its header row and its Expand button, nothing else. */
+#photoCard.collapsed h2,#ptCard.collapsed h2{margin-bottom:0}
+#ptCount{text-transform:none;letter-spacing:0;font-weight:400}
 #photoCard.collapsed #photoWrap,#photoCard.collapsed #photoEmpty{display:none}
 /* On a phone the header is two rows, the same with the name and without:
    the callsign and Clear, then the name. The landing shows the line under
@@ -49,6 +75,30 @@ aside{width:330px;flex:none;display:flex;flex-direction:column;gap:12px;position
 main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;font-weight:600;display:flex;gap:8px;align-items:center}
+/* The steps count only the cards on the page: with a NanoVNA or an .s1p
+   file there is no Calibrate or Trace, so Analyze is step 2, not 4. */
+aside{counter-reset:step}
+.card h2 b.step::before{counter-increment:step;content:counter(step)}
+/* A step that is done shows a green check, and still counts. */
+.card h2 b.step.done{background:var(--ok)}
+.card h2 b.step.done::before{content:"✓"}
+/* The open file under a done Load, in full, on its own line. */
+.loaded{margin:-4px 0 0;font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.change{margin-top:12px}
+/* What the app found, as short lines apart from the fields under them. */
+.stats{display:flex;flex-direction:column;gap:4px;margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.stat{display:flex;gap:7px;align-items:baseline;margin:0;font-size:12px;color:var(--muted)}
+.stat .ic{flex:none;width:12px;text-align:center;font-weight:700}
+.stat.ok .ic{color:var(--ok)}
+.stat.bad .ic{color:var(--warn)}
+/* A button in a line of text: blue text, no box. */
+button.text{background:none;border:none;padding:0;color:var(--accent);font:inherit;cursor:pointer}
+button.text:hover,button.text:focus-visible{text-decoration:underline;outline:none}
+/* A button that takes the label and field columns of a .form. */
+.form .span{grid-column:1 / 3}
+/* Buttons one under another, full width. */
+.stack{display:flex;flex-direction:column;gap:8px}
+.refs{margin-top:8px}
 .card h2 b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#000;font-size:11px}
 .row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
 .row label{color:var(--muted);font-size:12px;min-width:84px}
@@ -62,9 +112,43 @@ button:disabled{opacity:.45;cursor:default;border-color:var(--line)}
 button.wide{flex:1}
 button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 .hint{color:var(--muted);font-size:12px;margin:6px 0 0}
+/* A card's settings as a grid: label, field, then a "?" or an empty cell, so
+   every field is the same width and starts at the same edge. */
+.form{display:grid;grid-template-columns:84px 1fr 18px;gap:8px;align-items:center}
+.form label{color:var(--muted);font-size:12px}
+.form input,.form select{width:100%}
+/* The "?": its detail shows over whatever is below it, while Help says so. */
+.help{position:relative;display:inline-grid;place-items:center;flex:none;width:18px;height:18px;padding:0;border-radius:50%;background:none;border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:600;line-height:1;cursor:help;text-transform:none;letter-spacing:0}
+.help.shown,.help:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
+.help .tip{display:none;position:absolute;top:calc(100% + 6px);z-index:10;width:240px;max-width:calc(100vw - 16px);padding:8px 10px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);box-shadow:0 6px 18px rgba(0,0,0,.4);color:var(--text);font-size:12px;font-weight:400;line-height:1.45;text-align:left;pointer-events:none}
+.help.end .tip{right:-4px}
+.help.start .tip{left:-4px}
+.help.shown .tip{display:block}
+.help .tip.up{top:auto;bottom:calc(100% + 6px)}
 .warn{color:var(--warn);font-size:12px}
 .drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);cursor:pointer;font-size:13px}
 .drop.over{border-color:var(--accent);color:var(--accent)}
+/* While files are dragged over the page: the whole window is the target. It
+   takes no pointer events, so the drop still reaches the page. */
+#dropping{position:fixed;inset:10px;z-index:50;display:grid;place-items:center;border:2px dashed var(--accent);border-radius:14px;background:color-mix(in srgb, var(--bg) 82%, transparent);pointer-events:none}
+#dropping p{margin:0;padding:12px 20px;border-radius:8px;background:var(--panel);border:1px solid var(--accent);color:var(--accent);font-size:16px;font-weight:600}
+/* What is loaded, the NanoVNA or a file: a panel of its own with a green
+   status, so it reads apart from the other way in under it. */
+.panel{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.panel-head{display:flex;align-items:center;justify-content:space-between}
+.panel .status{display:inline-flex;align-items:center;gap:7px;color:var(--ok);font-size:13px;font-weight:600}
+.panel .status i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(63,185,80,.2)}
+.panel.live .status i{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
+.panel-sub{margin:6px 0 10px;color:var(--muted);font-size:12px}
+.panel-sub b{color:var(--text);font-weight:600}
+.panel .row{margin:0 0 8px}
+.panel .row label{min-width:72px}
+.panel select{flex:1}
+#vnaRange{font-size:13px;font-variant-numeric:tabular-nums}
+.panel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+button.quiet{background:none;border-color:transparent;color:var(--muted);padding:2px 6px;font-size:12px}
+button.quiet:hover{color:var(--text);border-color:var(--line)}
 .refs{font-size:12px;color:var(--muted)}
 .refs span{display:inline-flex;gap:4px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;margin:2px}
 .refs span i{cursor:pointer;font-style:normal;color:var(--bad)}
@@ -75,6 +159,29 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 .chips button{padding:3px 9px;font-size:12px;border-radius:12px}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
 .legend i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+/* On a wide screen a band's name and pill sit in its own column. */
+.bands td.band .pill{margin-top:4px}
+.bands td.none{color:var(--muted)}
+/* On a phone, each band stacks: its name and pill, then for each segment
+   the mode and range on one line, the bar, and what is usable under it. */
+@media (max-width:600px){
+  .bands,.bands tbody{display:block}
+  .bands tr.head{display:none}
+  .bands tr.seg{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:4px 0 6px}
+  .bands tr.seg.first{border-top:1px solid var(--line);padding-top:10px}
+  .bands tr.seg.first:first-of-type,.bands tr.head+tr.seg.first{border-top:none}
+  .bands tr.seg td{display:block;padding:0;border:none}
+  .bands td.band{grid-column:1 / -1;display:flex!important;align-items:center;gap:8px;margin-bottom:2px}
+  .bands td.band .pill{margin-top:0}
+  .bands td.none{grid-column:1 / -1}
+  .bands td.barcell{grid-column:1 / -1;order:1}
+  .bands td.usable{grid-column:1 / -1;order:2;color:var(--muted);white-space:normal}
+  .bands td.usable::before{content:"Usable at SWR ≤ " var(--thr) ": "}
+  /* Nothing usable: the all-red bar says so. */
+  .bands td.usable.nil{display:none}
+}
+/* A table wider than a phone scrolls inside its card, not the page. */
+#bandTable,#ptTable{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
 th{color:var(--muted);font-weight:600;font-size:12px}
@@ -87,8 +194,10 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .empty{color:var(--muted);padding:30px;text-align:center}
 .pts td button{padding:0 6px;font-size:12px}
 .hidden{display:none!important}
-/* The page fills the window, so the footer sits at its bottom. */
+/* The page fills the window, and the footer takes the free room above it, so
+   it sits at the bottom even while nothing else shows. */
 .app{display:flex;flex-direction:column;min-height:100vh}
+.app>.colophon{margin-top:auto}
 .wrap{flex:1}
 #landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6vh 16px 4vh;text-align:center}
 /* The name as the hero: the header's letters, sized to fill the width up to
@@ -99,8 +208,9 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 #landing .ways{display:flex;flex-direction:column;gap:10px;width:min(400px, 100%)}
 #landing button{width:100%;padding:13px;font-size:16px}
 #landing .hint{margin:0}
-#landing .or{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:12px;margin:6px 0}
-#landing .or::before,#landing .or::after{content:"";flex:1;border-top:1px solid var(--line)}
+.or{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:12px;margin:12px 0 10px}
+.or::before,.or::after{content:"";flex:1;border-top:1px solid var(--line)}
+#landing .or{margin:6px 0}
 /* While a saved session is read back, neither the landing nor the page
    shows, so the landing does not flash before the page. */
 .app.booting #landing,.app.booting .wrap{display:none}
@@ -111,4 +221,4 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .app.booting header h1,.app.booting header .div,.app.booting header .sub{visibility:hidden}
 /* Above the sidebar and the cards while the name flies over them. */
 header h1{position:relative;z-index:5}
-@media (max-width:900px){.wrap{flex-direction:column}aside{width:100%;position:static;max-height:none}}
+@media (max-width:900px){.wrap{flex-direction:column;align-items:stretch}aside{width:100%;position:static;max-height:none}}
