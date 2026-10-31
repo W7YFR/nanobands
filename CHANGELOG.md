@@ -23,6 +23,13 @@ them.
 
 - A corner drag or a pen stroke no longer selects text on the page. On a phone or tablet, nothing on the page selects or opens a long-press menu.
 - Dragging a corner no longer lags. The band plan, the trace and the key points hide during the drag and come back on release.
+- On a photo whose screen dims toward one side, the grid reaches the plot's true edge. The trace no longer stops at the last frequency line.
+- On a bright photo, the trace follows narrow dips to the bottom instead of cutting across them.
+- **Start (MHz)** and **Stop (MHz)** fill in from photos that OCR reads with garbled zeros or units.
+
+### Development
+
+- The browser tests run on a third photo of the random wire, on a 1–3 SWR scale, with a dim right edge and narrow dips.
 
 ## v1.4.0 — 2026-10-31
 

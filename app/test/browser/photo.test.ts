@@ -1,13 +1,19 @@
 /* The photo pipeline on real photos of a NanoVNA-H4.
  *
- * Both are the same 3–55 MHz sweep of a random wire. The first shows START and
- * STOP; the second was cropped above them. The expected numbers are what the
- * page has given since v1.0.0 and what the NanoVNA's own marker agrees with:
- * M1 read SWR 2.970 at 4.690 MHz, just inside the first crossing at 4.64.
+ * The first two are the same 3–55 MHz sweep of a random wire. The first shows
+ * START and STOP; the second was cropped above them. The expected numbers
+ * agree with the NanoVNA's own marker, M1 at SWR 2.970 and 4.690 MHz, just
+ * inside the first crossing at 4.64, and with where the curve crosses the grid
+ * lines in the photo.
  *
  * The second photo is the one the text filter exists for: without it, the
  * trace follows the yellow `S11 SWR` header across the top left and loses the
  * first two crossings.
+ *
+ * The third is the same random wire on a 1–3 SWR scale. Its screen fades
+ * toward the right, so the border past the 50 MHz line is too dim for the
+ * grid's color test, and its dips are narrow and deep, with the M1 marker's
+ * box on the side of the first.
  */
 
 import { describe, expect, it } from "vitest";
@@ -18,6 +24,7 @@ import type { Pixels } from "@/pixels";
 import { autoTrace } from "@/trace";
 import labeled from "../data/random-wire-3-55mhz.jpg?url";
 import unlabeled from "../data/random-wire-3-55mhz-no-labels.jpg?url";
+import topThree from "../data/random-wire-3-55mhz-top-3.jpg?url";
 
 /** Decode a photo the way the page does: at most 4000 px on its long side. */
 async function load(url: string): Promise<Pixels> {
@@ -29,19 +36,21 @@ async function load(url: string): Promise<Pixels> {
   return x.getImageData(0, 0, w, h);
 }
 
-/** Grid, trace and analysis for a 3–55 MHz sweep on a 1–5 SWR scale. */
-async function run(url: string) {
+/** Grid, trace and analysis for a 3–55 MHz sweep on a 1 to `top` SWR scale,
+ *  with a maximum SWR of `thr`. */
+async function run(url: string, top = 5, thr = 3) {
   const px = await load(url);
   const grid = detectGrid(px);
   if (!grid) throw new Error("no grid found");
   const { N, v } = autoTrace(px, mappingFor(grid.corners).fwd, grid.corners, 70);
   const f = Array.from({ length: N }, (_, i) => 3 + ((i + 0.5) / N) * 52);
-  const s = Array.from(v, (y) => 5 + y * (1 - 5));
-  return { grid, an: analyze(f, s, { thr: 3, prom: 0.2, top: 5 })! };
+  const s = Array.from(v, (y) => top + y * (1 - top));
+  return { grid, v, an: analyze(f, s, { thr, prom: 0.2, top })! };
 }
 
-const CROSSINGS = [4.64, 6.539, 13.204, 22.044, 26.359, 34.804, 39.31, 45.643, 51.985];
-const DIPS = [5.871, 15.361, 31.134, 42.422];
+const CROSSINGS = [4.64, 6.54, 13.17, 22.06, 26.41, 34.76, 39.26, 45.61, 51.985];
+// The dip at 20.65 MHz is shallow: SWR 2.52 under a 2.73 peak.
+const DIPS = [5.871, 15.35, 20.65, 31.134, 42.43];
 
 const within = (got: number[], want: number[], tol: number): void => {
   expect(got).toHaveLength(want.length);
@@ -70,5 +79,25 @@ describe.each([
     const peaks = (await run(url)).an.extrema.filter((e) => e.type === "peak");
     expect(peaks.filter((p) => p.clipped)).toHaveLength(1);
     expect(peaks.find((p) => p.clipped)!.f).toBeGreaterThan(48);
+  });
+});
+
+describe("a photo whose screen fades toward the right", () => {
+  it("finds the dim border past the 50 MHz line", async () => {
+    const { grid } = await run(topThree, 3, 2);
+    expect(grid.horizontal).toBe(9);
+    expect(grid.vertical).toBe(7);
+  });
+
+  it("traces to the right edge", async () => {
+    const { v } = await run(topThree, 3, 2);
+    // SWR 1.8 at 55 MHz, past the 2.0 line at v = 0.5.
+    expect(v[v.length - 1]).toBeGreaterThan(0.55);
+  });
+
+  it("follows each narrow dip to its bottom", async () => {
+    const dips = (await run(topThree, 3, 2)).an.extrema.filter((e) => e.type === "dip");
+    within(dips.map((e) => e.f), [5.74, 15.21, 19.93, 30.61, 41.79], 0.1);
+    within(dips.map((e) => e.s), [1.44, 1.28, 2.43, 1.16, 1.12], 0.05);
   });
 });

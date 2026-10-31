@@ -35,6 +35,14 @@ describe("detectGrid", () => {
     near(r!.corners, sc.corners, 3);
   });
 
+  it("finds a border too dim for the color test past the last frequency line", () => {
+    const sc = screen({ fade: true });
+    const r = detectGrid(sc.px);
+    expect(r).not.toBeNull();
+    near(r!.corners, sc.corners, 3);
+    expect(r!.vertical).toBe(7);
+  });
+
   it("finds nothing in a blank picture", () => {
     expect(detectGrid(blank(1200, 900))).toBeNull();
   });
@@ -74,6 +82,16 @@ describe("autoTrace", () => {
     let worst = 0;
     for (let i = Math.floor(N * 0.28); i < N * 0.47; i++) if (!Number.isNaN(v[i])) worst = Math.max(worst, Math.abs(v[i]! - sc.curve((i + 0.5) / N)));
     expect(worst).toBeLessThan(0.05);
+  });
+
+  it("follows a narrow, overexposed dip to its bottom", () => {
+    const sc = screen({ dip: true });
+    const { v } = autoTrace(sc.px, mappingFor(sc.corners).fwd, sc.corners, 70);
+    const N = v.length;
+    let deepest = 0;
+    for (let i = Math.floor(N * 0.42); i < N * 0.48; i++) if (!Number.isNaN(v[i])) deepest = Math.max(deepest, v[i]!);
+    // A path that cuts across the dip stays near its top, at v = 0.3.
+    expect(deepest).toBeGreaterThan(sc.curve(0.45) - 0.05);
   });
 
   it("finds nothing when the color sensitivity rules out the curve", () => {
