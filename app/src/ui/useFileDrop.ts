@@ -1,8 +1,12 @@
 /* Files dropped or pasted anywhere on the page.
  *
  * On the document rather than on the drop zone, so a photo dropped on the
- * chart or the landing loads just the same. Returns whether a drag is over the
- * page, for the drop zone to light up.
+ * chart or the landing loads just the same. Returns whether files are being
+ * dragged over the page, for the page to show where they will go.
+ *
+ * A drag fires dragenter and dragleave on each element it crosses, so a
+ * count of the elements it is in says whether it is still on the page. Only
+ * a drag that carries files counts: dragged text is not a file to open.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -13,9 +17,26 @@ export function useFileDrop(onFile: (file: File) => void): boolean {
   useLayoutEffect(() => { sink.current = onFile; });
 
   useEffect(() => {
-    const enter = (e: Event): void => { e.preventDefault(); setOver(true); };
-    const leave = (e: Event): void => { e.preventDefault(); setOver(false); };
+    let depth = 0;
+    const files = (e: DragEvent): boolean => !!e.dataTransfer?.types.includes("Files");
+    const enter = (e: DragEvent): void => {
+      if (!files(e)) return;
+      e.preventDefault();
+      depth++;
+      setOver(true);
+    };
+    // Lets the drop happen. The browser fires it again and again during a drag.
+    const overPage = (e: DragEvent): void => { if (files(e)) e.preventDefault(); };
+    const leave = (e: DragEvent): void => {
+      if (!files(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (!depth) setOver(false);
+    };
     const drop = (e: DragEvent): void => {
+      // Always, so a file dropped anywhere never replaces the page.
+      e.preventDefault();
+      depth = 0;
+      setOver(false);
       const f = e.dataTransfer?.files[0];
       if (f) sink.current(f);
     };
@@ -25,16 +46,14 @@ export function useFileDrop(onFile: (file: File) => void): boolean {
       if (f) sink.current(f);
     };
     document.addEventListener("dragenter", enter);
-    document.addEventListener("dragover", enter);
+    document.addEventListener("dragover", overPage);
     document.addEventListener("dragleave", leave);
-    document.addEventListener("drop", leave);
     document.addEventListener("drop", drop);
     document.addEventListener("paste", paste);
     return () => {
       document.removeEventListener("dragenter", enter);
-      document.removeEventListener("dragover", enter);
+      document.removeEventListener("dragover", overPage);
       document.removeEventListener("dragleave", leave);
-      document.removeEventListener("drop", leave);
       document.removeEventListener("drop", drop);
       document.removeEventListener("paste", paste);
     };

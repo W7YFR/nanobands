@@ -84,6 +84,10 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 .warn{color:var(--warn);font-size:12px}
 .drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);cursor:pointer;font-size:13px}
 .drop.over{border-color:var(--accent);color:var(--accent)}
+/* While files are dragged over the page: the whole window is the target. It
+   takes no pointer events, so the drop still reaches the page. */
+#dropping{position:fixed;inset:10px;z-index:50;display:grid;place-items:center;border:2px dashed var(--accent);border-radius:14px;background:color-mix(in srgb, var(--bg) 82%, transparent);pointer-events:none}
+#dropping p{margin:0;padding:12px 20px;border-radius:8px;background:var(--panel);border:1px solid var(--accent);color:var(--accent);font-size:16px;font-weight:600}
 /* The connected NanoVNA: a panel of its own, with a green status, so it
    reads apart from the file drop under it. */
 .vna{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}

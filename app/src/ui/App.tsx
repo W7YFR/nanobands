@@ -399,6 +399,7 @@ export function App(): React.ReactElement {
         )}
         <Footer />
       </Flight>
+      {over && <div id="dropping" aria-hidden="true"><p>Drop a photo or .s1p file to open it</p></div>}
     </div>
   );
 }
