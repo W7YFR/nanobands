@@ -358,7 +358,6 @@ export function App(): React.ReactElement {
       ? `· traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point`
       : `· ${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`;
   }
-  const traceIsPhoto = doc.trace?.kind === "photo";
 
   return (
     <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")}>
@@ -378,7 +377,7 @@ export function App(): React.ReactElement {
                     onUseOcr={() => setDoc((d) => (d.ocr?.kind === "offer" ? withSweep(d, d.ocr) : d))}
                     onDetectGrid={onDetectGrid} mode={mode} onRefMode={() => toggleMode("ref")}
                     refs={doc.refs} onRemoveRef={(j) => setDoc((d) => withRefs(d, d.refs.filter((_, i) => i !== j)))} />
-                  <TraceCard traced={traceIsPhoto} mode={mode} onAutoTrace={() => setDoc(traced)} onPen={() => toggleMode("pen")}
+                  <TraceCard trace={doc.trace?.kind === "photo" ? doc.trace : null} mode={mode} onAutoTrace={() => setDoc(traced)} onPen={() => toggleMode("pen")}
                     onErase={() => setDoc((d) => ({ ...d, trace: null }))} sens={doc.fields.sens} onSens={onSens} retrace={doc.retrace} />
                 </>
               )}

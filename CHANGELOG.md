@@ -12,6 +12,7 @@ them.
 - **Load** shows a connected NanoVNA in its own panel, with a green **Connected** status, its calibration and range, and **Sweep** and **Live** side by side. The file drop sits under it, and no longer shows a NanoVNA sweep as an opened file.
 - With a photo or .s1p file open, **Load** shrinks to a green check and the file name. **Change** brings back **Open another file** and **Connect NanoVNA**.
 - **Calibrate** folds to a green check and its sweep once it finds the grid and reads the sweep, with **Change** to open it. Open, it shows what it found in short lines above its fields, and each field and button has a **?**. **Edit corners** sits next to **Grid found**.
+- **Trace** folds the same way once the auto-trace succeeds, and opens again when the corners move. Each of its controls has a **?**, and **Erase trace** is off with no trace.
 - **Analyze** lines up its fields, each with a **?** that says what it does. The chart's own **?** says how to pin and zoom, and a tap or a hover opens any **?**.
 - The chart's legend shows only its colors and their names.
 - **Key points** starts collapsed, with its count in the header. **Expand** opens it, and the page remembers.

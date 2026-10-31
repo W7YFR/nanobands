@@ -195,8 +195,9 @@ export function CalibrateCard({ fields, onField, grid, ocr, straight, onStraight
   );
 }
 
-export function TraceCard({ traced, mode, onAutoTrace, onPen, onErase, sens, onSens, retrace }: {
-  traced: boolean;
+export function TraceCard({ trace, mode, onAutoTrace, onPen, onErase, sens, onSens, retrace }: {
+  /** How the photo's trace was made, or null with no trace. */
+  trace: { auto: boolean; edited: boolean } | null;
   mode: Mode;
   onAutoTrace(): void;
   onPen(): void;
@@ -205,17 +206,39 @@ export function TraceCard({ traced, mode, onAutoTrace, onPen, onErase, sens, onS
   onSens(v: string): void;
   retrace: boolean;
 }): React.ReactElement {
+  const done = !!trace && !retrace;
+  // Folded when the auto-trace did the step. Pen fixes never fold it, and
+  // moved corners open it again.
+  const auto = done && trace.auto && !trace.edited;
+  const [open, setOpen] = useState(!auto);
+  useEffect(() => setOpen(!auto), [auto]);
+  const shut = done && !open;
+  const how = !trace ? "" : trace.auto ? (trace.edited ? "Traced automatically, then fixed with the pen" : "Traced automatically") : "Traced with the pen";
   return (
     <div className="card" id="traceCard">
-      <h2><b className="step" /> Trace</h2>
-      <div className="row">
-        <button id="traceBtn" className={traced ? "" : "primary"} onClick={onAutoTrace}>Auto-trace curve</button>
-        <button id="penBtn" className={mode === "pen" ? "on" : ""} onClick={onPen}>✎ Pen fix</button>
-        <button id="clearBtn" onClick={onErase}>Erase trace</button>
+      <h2><b className={"step" + (done ? " done" : "")} /> Trace <span style={{ flex: 1 }}></span>
+        {done && <button id="traceToggle" className="small" onClick={() => setOpen(!open)}>{open ? "Done" : "Change"}</button>}
+      </h2>
+      {shut && <p className="loaded" id="traceSummary">{how}</p>}
+      <div hidden={shut}>
+        <div className="stats">
+          {retrace
+            ? <Stat ok={false} id="retraceHint">Corners moved. <TextButton onClick={onAutoTrace}>Auto-trace</TextButton> again to fit them.</Stat>
+            : trace ? <Stat ok id="traceNote">{how}</Stat>
+            : <Stat ok={false} id="traceNote">No trace yet. Auto-trace it, or draw it with the pen.</Stat>}
+        </div>
+        <div className="form">
+          <button id="traceBtn" className={"span" + (trace ? "" : " primary")} onClick={onAutoTrace}>Auto-trace curve</button>
+          <Help text="Finds the yellow curve on the photo and traces it." />
+          <button id="penBtn" className={"span" + (mode === "pen" ? " on" : "")} onClick={onPen}>✎ Pen fix</button>
+          <Help text="Drag along the curve on the photo to redraw that stretch." />
+          <button id="clearBtn" className="span" disabled={!trace} onClick={onErase}>Erase trace</button>
+          <Help text="Removes the trace, to draw it from scratch with the pen." />
+          <label htmlFor="sens">Sensitivity</label>
+          <input type="range" id="sens" min="20" max="140" value={sens} onChange={(e) => onSens(e.target.value)} />
+          <Help text="Left picks up a fainter curve. Right ignores more of the background." />
+        </div>
       </div>
-      <div className="row"><label>Color sensitivity</label><input type="range" id="sens" min="20" max="140" value={sens} onChange={(e) => onSens(e.target.value)} /></div>
-      <p className="hint">Auto-trace follows the yellow line and ignores on-screen text. If it strays, turn on Pen fix and drag along the real curve to redraw that stretch. (You can also trace by hand from scratch with the pen.)</p>
-      {retrace && <p className="warn" id="retraceHint">Corners moved — click Auto-trace again to re-fit.</p>}
     </div>
   );
 }
