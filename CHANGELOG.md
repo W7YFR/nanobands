@@ -10,6 +10,7 @@ them.
 ### Changed
 
 - **Load** shows a connected NanoVNA in its own panel, with a green **Connected** status, its calibration and range, and **Sweep** and **Live** side by side. The file drop sits under it, and no longer shows a NanoVNA sweep as an opened file.
+- With a photo or .s1p file open, **Load** shrinks to a green check and the file name. **Change** brings back **Open another file** and **Connect NanoVNA**.
 - **Analyze** lines up its fields, each with a **?** that says what it does. The chart's own **?** says how to pin and zoom, and a tap or a hover opens any **?**.
 - The chart's legend shows only its colors and their names.
 - **Key points** starts collapsed, with its count in the header. **Expand** opens it, and the page remembers.

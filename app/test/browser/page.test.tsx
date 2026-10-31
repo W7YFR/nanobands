@@ -69,7 +69,7 @@ describe("the page", () => {
     fireEvent.change(input);
 
     await until(() => has("#fStop") && $<HTMLInputElement>("#fStop").value === "55");
-    expect($("#drop").textContent).toContain("random-wire.jpg");
+    expect($("#fileName").textContent).toBe("random-wire.jpg");
     expect($("#gridNote").textContent).toContain("Grid found (9 horizontal, 7 vertical lines)");
     expect($("#ocrNote").textContent).toContain("3–55 MHz");
     expect($<HTMLInputElement>("#fStart").value).toBe("3");

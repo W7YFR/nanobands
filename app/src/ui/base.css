@@ -56,6 +56,12 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
    file there is no Calibrate or Trace, so Analyze is step 2, not 4. */
 aside{counter-reset:step}
 .card h2 b.step::before{counter-increment:step;content:counter(step)}
+/* A step that is done shows a green check, and still counts. */
+.card h2 b.step.done{background:var(--ok)}
+.card h2 b.step.done::before{content:"✓"}
+/* The open file under a done Load, in full, on its own line. */
+.loaded{margin:-4px 0 0;font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.change{margin-top:12px}
 .card h2 b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#000;font-size:11px}
 .row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
 .row label{color:var(--muted);font-size:12px;min-width:84px}
@@ -88,21 +94,21 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
    takes no pointer events, so the drop still reaches the page. */
 #dropping{position:fixed;inset:10px;z-index:50;display:grid;place-items:center;border:2px dashed var(--accent);border-radius:14px;background:color-mix(in srgb, var(--bg) 82%, transparent);pointer-events:none}
 #dropping p{margin:0;padding:12px 20px;border-radius:8px;background:var(--panel);border:1px solid var(--accent);color:var(--accent);font-size:16px;font-weight:600}
-/* The connected NanoVNA: a panel of its own, with a green status, so it
-   reads apart from the file drop under it. */
-.vna{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
-.vna-head{display:flex;align-items:center;justify-content:space-between}
-.vna .status{display:inline-flex;align-items:center;gap:7px;color:var(--ok);font-size:13px;font-weight:600}
-.vna .status i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(63,185,80,.2)}
-.vna.live .status i{animation:pulse 1s ease-in-out infinite}
+/* What is loaded, the NanoVNA or a file: a panel of its own with a green
+   status, so it reads apart from the other way in under it. */
+.panel{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.panel-head{display:flex;align-items:center;justify-content:space-between}
+.panel .status{display:inline-flex;align-items:center;gap:7px;color:var(--ok);font-size:13px;font-weight:600}
+.panel .status i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(63,185,80,.2)}
+.panel.live .status i{animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.3}}
-.vna-board{margin:6px 0 10px;color:var(--muted);font-size:12px}
-.vna-board b{color:var(--text);font-weight:600}
-.vna .row{margin:0 0 8px}
-.vna .row label{min-width:72px}
-.vna select{flex:1}
+.panel-sub{margin:6px 0 10px;color:var(--muted);font-size:12px}
+.panel-sub b{color:var(--text);font-weight:600}
+.panel .row{margin:0 0 8px}
+.panel .row label{min-width:72px}
+.panel select{flex:1}
 #vnaRange{font-size:13px;font-variant-numeric:tabular-nums}
-.vna-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.panel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 button.quiet{background:none;border-color:transparent;color:var(--muted);padding:2px 6px;font-size:12px}
 button.quiet:hover{color:var(--text);border-color:var(--line)}
 .refs{font-size:12px;color:var(--muted)}

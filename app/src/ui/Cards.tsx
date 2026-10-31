@@ -2,7 +2,7 @@
  * They show settings and send changes up; the state lives in App.
  */
 
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import type { LicenseClass, OperatingMode } from "@/bands";
 import type { Range } from "@/vna";
 import type { Doc, Fields, GridNote, OcrNote, Prefs } from "./model";
@@ -14,7 +14,8 @@ export type Mode = "idle" | "pen" | "ref";
 const mhz = (hz: number): number => +(hz / 1e6).toFixed(6);
 const rangeText = (r: Range): string => `${mhz(r.start)}–${mhz(r.stop)} MHz · ${r.points} points`;
 
-/** Two ways in: the NanoVNA on top, in its own panel, then a file. */
+/** Two ways in: the NanoVNA and a file. A connected NanoVNA shows its panel,
+ *  with a file drop under it. An open file marks the step done. */
 export function LoadCard({ source, fileName, over, onBrowse, vna }: {
   source: Doc["source"];
   fileName: string | null;
@@ -26,48 +27,74 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
   const why = vna.unsupported || vna.note;
   // A sweep from the NanoVNA has a file name for its export, but no file was opened.
   const opened = source === "vna" ? null : fileName;
-  return (
-    <div className="card">
-      <h2><b className="step" /> Load</h2>
-      {d ? (
-        <div className={"vna" + (vna.live ? " live" : "")} id="vnaPanel">
-          <div className="vna-head">
-            <span className="status"><i />{vna.live ? "Sweeping live" : "Connected"}</span>
-            <button id="vnaBtn" className="quiet" onClick={() => void vna.disconnect()}>Disconnect</button>
-          </div>
-          <p className="vna-board" id="vnaInfo"><b>{d.info.board}</b> · firmware {d.info.version}</p>
-          <div className="row">
-            <label htmlFor="vnaSlot">Calibration</label>
-            <select id="vnaSlot" defaultValue="" title="Loads a saved calibration on the NanoVNA, as its RECALL menu does"
-              onChange={(e) => { if (e.target.value !== "") void vna.recall(+e.target.value); }}>
-              <option value="">As set</option>
-              {Array.from({ length: d.info.slots }, (_, i) => <option key={i} value={i}>Slot {i}</option>)}
-            </select>
-          </div>
-          {vna.range && (
-            <div className="row">
-              <label>Range</label>
-              <span id="vnaRange">{rangeText(vna.range)}</span>
-            </div>
-          )}
-          <div className="vna-actions">
-            <button id="sweepBtn" className="primary" disabled={vna.live} onClick={() => void vna.sweep()}>Sweep</button>
-            <button id="liveBtn" className={vna.live ? "on" : ""} onClick={() => vna.setLive(!vna.live)}>{vna.live ? "Hold" : "Live"}</button>
-          </div>
-        </div>
-      ) : (
+  const [changing, setChanging] = useState(false);
+  // A newly opened file closes the choices again.
+  useEffect(() => setChanging(false), [opened]);
+
+  const device = d ? (
+    <div className={"panel" + (vna.live ? " live" : "")} id="vnaPanel">
+      <div className="panel-head">
+        <span className="status"><i />{vna.live ? "Sweeping live" : "Connected"}</span>
+        <button id="vnaBtn" className="quiet" onClick={() => void vna.disconnect()}>Disconnect</button>
+      </div>
+      <p className="panel-sub" id="vnaInfo"><b>{d.info.board}</b> · firmware {d.info.version}</p>
+      <div className="row">
+        <label htmlFor="vnaSlot">Calibration</label>
+        <select id="vnaSlot" defaultValue="" title="Loads a saved calibration on the NanoVNA, as its RECALL menu does"
+          onChange={(e) => { if (e.target.value !== "") void vna.recall(+e.target.value); }}>
+          <option value="">As set</option>
+          {Array.from({ length: d.info.slots }, (_, i) => <option key={i} value={i}>Slot {i}</option>)}
+        </select>
+      </div>
+      {vna.range && (
         <div className="row">
-          <button id="vnaBtn" className="wide" disabled={!!vna.unsupported} onClick={() => void vna.connect()}>Connect NanoVNA</button>
+          <label>Range</label>
+          <span id="vnaRange">{rangeText(vna.range)}</span>
         </div>
       )}
-      {why && <p className="hint" id="vnaNote">{why}</p>}
+      <div className="panel-actions">
+        <button id="sweepBtn" className="primary" disabled={vna.live} onClick={() => void vna.sweep()}>Sweep</button>
+        <button id="liveBtn" className={vna.live ? "on" : ""} onClick={() => vna.setLive(!vna.live)}>{vna.live ? "Hold" : "Live"}</button>
+      </div>
+    </div>
+  ) : (
+    <div className="row">
+      <button id="vnaBtn" className="wide" disabled={!!vna.unsupported} onClick={() => void vna.connect()}>Connect NanoVNA</button>
+    </div>
+  );
+  const note = why && <p className="hint" id="vnaNote">{why}</p>;
+
+  const choices = (
+    <>
+      <div className="row"><button id="openAnother" className="wide" onClick={onBrowse}>Open another file</button></div>
+      <div className="or">or</div>
+      {device}
+      {note}
+    </>
+  );
+
+  // With a file open, the step is done: the card shrinks to its name and
+  // Change, which brings back both ways in.
+  if (opened) {
+    return (
+      <div className="card" id="loadCard">
+        <h2><b className="step done" /> Load <span style={{ flex: 1 }}></span>
+          <button id="changeBtn" className="small" onClick={() => setChanging(!changing)}>{changing ? "Cancel" : "Change"}</button>
+        </h2>
+        <p className="loaded" id="fileName">{opened}</p>
+        {changing && <div className="change">{choices}</div>}
+      </div>
+    );
+  }
+  return (
+    <div className="card" id="loadCard">
+      <h2><b className="step" /> Load</h2>
+      {device}
+      {note}
       <div className="or">or</div>
       <div className={"drop" + (over ? " over" : "")} id="drop" onClick={onBrowse}>
-        {opened
-          ? <><b className="fname">{opened}</b><br /><u>choose another…</u></>
-          : <>Drop or paste a photo of the SWR screen<br />or a Touchstone <code>.s1p</code> file, or <u>browse…</u></>}
+        Drop or paste a photo of the SWR screen<br />or a Touchstone <code>.s1p</code> file, or <u>browse…</u>
       </div>
-      {source === "image" && <p className="hint">An .s1p export (NanoVNA-Saver, or the NanoVNA's own SD-card save) skips calibration and tracing and gives exact data.</p>}
     </div>
   );
 }
