@@ -7,6 +7,10 @@ them.
 
 ## Unreleased
 
+### Changed
+
+- **Load** shows a connected NanoVNA in its own panel, with a green **Connected** status, its calibration and range, and **Sweep** and **Live** side by side. The file drop sits under it, and no longer shows a NanoVNA sweep as an opened file.
+
 ### Fixed
 
 - Right after a reload, the footer no longer shows at the top of an empty page. It stays at the bottom of the window.

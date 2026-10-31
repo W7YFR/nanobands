@@ -45,7 +45,7 @@ describe("Landing", () => {
 describe("LoadCard", () => {
   it("offers Connect, full width, before a device is connected", () => {
     const vna = vnaStub();
-    render(<LoadCard fileName={null} over={false} onBrowse={() => {}} vna={vna} />);
+    render(<LoadCard source={null} fileName={null} over={false} onBrowse={() => {}} vna={vna} />);
     const btn = screen.getByRole("button", { name: "Connect NanoVNA" });
     expect(btn).toHaveClass("wide");
     expect(screen.queryByRole("button", { name: "Sweep" })).toBeNull();
@@ -56,8 +56,11 @@ describe("LoadCard", () => {
   it("shows the device, its slots, and Sweep, Live and Disconnect once connected", () => {
     const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
     const vna = vnaStub({ device, range: { start: 3e6, stop: 55e6, points: 401 } });
-    render(<LoadCard fileName="nanovna-3-55mhz.s1p" over={false} onBrowse={() => {}} vna={vna} />);
-    expect(screen.getByText("NanoVNA-H 4 · firmware 1.2.44 · 3–55 MHz, 401 points")).toBeInTheDocument();
+    const { container } = render(<LoadCard source="vna" fileName="nanovna-3-55mhz.s1p" over={false} onBrowse={() => {}} vna={vna} />);
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(container.querySelector("#vnaInfo")).toHaveTextContent("NanoVNA-H 4 · firmware 1.2.44");
+    expect(screen.getByText("3–55 MHz · 401 points")).toBeInTheDocument();
+    expect(container.querySelector("#drop")).not.toHaveTextContent("nanovna-3-55mhz.s1p");
     expect(screen.getAllByRole("option")).toHaveLength(8);
     fireEvent.change(screen.getByLabelText("Calibration"), { target: { value: "2" } });
     expect(vna.recall).toHaveBeenCalledWith(2);
@@ -68,7 +71,8 @@ describe("LoadCard", () => {
 
   it("shows Hold while live, and no Sweep to press", () => {
     const device = { info: { board: "NanoVNA", version: "0.4.5", slots: 5, method: "scan" } } as NanoVNA;
-    render(<LoadCard fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range: { start: 1e6, stop: 30e6, points: 101 }, live: true })} />);
+    render(<LoadCard source={null} fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range: { start: 1e6, stop: 30e6, points: 101 }, live: true })} />);
+    expect(screen.getByText("Sweeping live")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hold" })).toHaveClass("on");
     expect(screen.getByRole("button", { name: "Sweep" })).toBeDisabled();
   });

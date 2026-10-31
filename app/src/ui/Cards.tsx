@@ -5,15 +5,17 @@
 import { memo } from "react";
 import type { LicenseClass, OperatingMode } from "@/bands";
 import type { Range } from "@/vna";
-import type { Fields, GridNote, OcrNote, Prefs } from "./model";
+import type { Doc, Fields, GridNote, OcrNote, Prefs } from "./model";
 import type { Vna } from "./useVna";
 
 export type Mode = "idle" | "pen" | "ref";
 
 const mhz = (hz: number): number => +(hz / 1e6).toFixed(6);
-const rangeText = (r: Range): string => `${mhz(r.start)}–${mhz(r.stop)} MHz, ${r.points} points`;
+const rangeText = (r: Range): string => `${mhz(r.start)}–${mhz(r.stop)} MHz · ${r.points} points`;
 
-export function LoadCard({ fileName, over, onBrowse, vna }: {
+/** Two ways in: the NanoVNA on top, in its own panel, then a file. */
+export function LoadCard({ source, fileName, over, onBrowse, vna }: {
+  source: Doc["source"];
   fileName: string | null;
   over: boolean;
   onBrowse(): void;
@@ -21,18 +23,18 @@ export function LoadCard({ fileName, over, onBrowse, vna }: {
 }): React.ReactElement {
   const d = vna.device;
   const why = vna.unsupported || vna.note;
+  // A sweep from the NanoVNA has a file name for its export, but no file was opened.
+  const opened = source === "vna" ? null : fileName;
   return (
     <div className="card">
       <h2><b>1</b> Load</h2>
-      <div className={"drop" + (over ? " over" : "")} id="drop" onClick={onBrowse}>
-        {fileName
-          ? <><b className="fname">{fileName}</b><br /><u>choose another…</u></>
-          : <>Drop / paste a photo of the SWR screen<br />or a Touchstone <code>.s1p</code> file<br /><u>browse…</u></>}
-      </div>
-      <p className="hint">An .s1p export (NanoVNA-Saver, or the NanoVNA's own SD-card save) skips calibration and tracing and gives exact data.</p>
-      {d && vna.range && (
-        <div id="vnaPanel">
-          <p className="hint" id="vnaInfo">{`${d.info.board} · firmware ${d.info.version} · ${rangeText(vna.range)}`}</p>
+      {d ? (
+        <div className={"vna" + (vna.live ? " live" : "")} id="vnaPanel">
+          <div className="vna-head">
+            <span className="status"><i />{vna.live ? "Sweeping live" : "Connected"}</span>
+            <button id="vnaBtn" className="quiet" onClick={() => void vna.disconnect()}>Disconnect</button>
+          </div>
+          <p className="vna-board" id="vnaInfo"><b>{d.info.board}</b> · firmware {d.info.version}</p>
           <div className="row">
             <label htmlFor="vnaSlot">Calibration</label>
             <select id="vnaSlot" defaultValue="" title="Loads a saved calibration on the NanoVNA, as its RECALL menu does"
@@ -41,15 +43,30 @@ export function LoadCard({ fileName, over, onBrowse, vna }: {
               {Array.from({ length: d.info.slots }, (_, i) => <option key={i} value={i}>Slot {i}</option>)}
             </select>
           </div>
+          {vna.range && (
+            <div className="row">
+              <label>Range</label>
+              <span id="vnaRange">{rangeText(vna.range)}</span>
+            </div>
+          )}
+          <div className="vna-actions">
+            <button id="sweepBtn" className="primary" disabled={vna.live} onClick={() => void vna.sweep()}>Sweep</button>
+            <button id="liveBtn" className={vna.live ? "on" : ""} onClick={() => vna.setLive(!vna.live)}>{vna.live ? "Hold" : "Live"}</button>
+          </div>
+        </div>
+      ) : (
+        <div className="row">
+          <button id="vnaBtn" className="wide" disabled={!!vna.unsupported} onClick={() => void vna.connect()}>Connect NanoVNA</button>
         </div>
       )}
-      <div className="row">
-        {d && <button id="sweepBtn" className="primary" disabled={vna.live} onClick={() => void vna.sweep()}>Sweep</button>}
-        {d && <button id="liveBtn" className={vna.live ? "on" : ""} onClick={() => vna.setLive(!vna.live)}>{vna.live ? "Hold" : "Live"}</button>}
-        <button id="vnaBtn" className={d ? "" : "wide"} disabled={!d && !!vna.unsupported}
-          onClick={() => void (d ? vna.disconnect() : vna.connect())}>{d ? "Disconnect" : "Connect NanoVNA"}</button>
-      </div>
       {why && <p className="hint" id="vnaNote">{why}</p>}
+      <div className="or">or</div>
+      <div className={"drop" + (over ? " over" : "")} id="drop" onClick={onBrowse}>
+        {opened
+          ? <><b className="fname">{opened}</b><br /><u>choose another…</u></>
+          : <>Drop or paste a photo of the SWR screen<br />or a Touchstone <code>.s1p</code> file, or <u>browse…</u></>}
+      </div>
+      {source === "image" && <p className="hint">An .s1p export (NanoVNA-Saver, or the NanoVNA's own SD-card save) skips calibration and tracing and gives exact data.</p>}
     </div>
   );
 }

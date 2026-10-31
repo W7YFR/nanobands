@@ -357,7 +357,7 @@ export function App(): React.ReactElement {
         ) : (
           <div className="wrap">
             <aside>
-              <LoadCard fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} />
+              <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} />
               {doc.source === "image" && (
                 <>
                   <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr}
