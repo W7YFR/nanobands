@@ -27,7 +27,7 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
   const opened = source === "vna" ? null : fileName;
   return (
     <div className="card">
-      <h2><b>1</b> Load</h2>
+      <h2><b className="step" /> Load</h2>
       {d ? (
         <div className={"vna" + (vna.live ? " live" : "")} id="vnaPanel">
           <div className="vna-head">
@@ -105,7 +105,7 @@ export function CalibrateCard({ fields, onField, grid, ocr, onUseOcr, onDetectGr
   );
   return (
     <div className="card" id="calCard">
-      <h2><b>2</b> Calibrate</h2>
+      <h2><b className="step" /> Calibrate</h2>
       <p className="hint" style={{ marginTop: 0 }}>When a photo loads, the plot grid is found and the photo is squared up on it. If it looks off, <b>Edit corners</b> (above the photo) shows the 4 yellow-ringed handles; drag them onto the grid's corners (a magnifier appears while dragging), then <b>Straighten</b> again.</p>
       {grid && <p className="hint" id="gridNote"><GridText note={grid} /></p>}
       {ocr && <p className="hint" id="ocrNote"><OcrText note={ocr} onUse={onUseOcr} /></p>}
@@ -138,7 +138,7 @@ export function TraceCard({ traced, mode, onAutoTrace, onPen, onErase, sens, onS
 }): React.ReactElement {
   return (
     <div className="card" id="traceCard">
-      <h2><b>3</b> Trace</h2>
+      <h2><b className="step" /> Trace</h2>
       <div className="row">
         <button id="traceBtn" className={traced ? "" : "primary"} onClick={onAutoTrace}>Auto-trace curve</button>
         <button id="penBtn" className={mode === "pen" ? "on" : ""} onClick={onPen}>✎ Pen fix</button>
@@ -157,7 +157,7 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref }: {
 }): React.ReactElement {
   return (
     <div className="card">
-      <h2><b>4</b> Analyze</h2>
+      <h2><b className="step" /> Analyze</h2>
       <div className="row"><label>Max SWR</label><input type="number" id="thr" step="0.1" value={prefs.thr} onChange={(e) => onPref("thr", e.target.value)} /></div>
       <div className="row"><label>License</label>
         <select id="cls" value={prefs.cls} onChange={(e) => onPref("cls", e.target.value as LicenseClass)}>

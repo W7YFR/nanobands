@@ -13,6 +13,7 @@ them.
 
 ### Fixed
 
+- The step numbers count only the steps on the page. With a NanoVNA or an .s1p file, **Analyze** is step 2.
 - Right after a reload, the footer no longer shows at the top of an empty page. It stays at the bottom of the window.
 
 ## v1.3.0 — 2026-10-31

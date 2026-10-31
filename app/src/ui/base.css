@@ -49,6 +49,10 @@ aside{width:330px;flex:none;display:flex;flex-direction:column;gap:12px;position
 main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;font-weight:600;display:flex;gap:8px;align-items:center}
+/* The steps count only the cards on the page: with a NanoVNA or an .s1p
+   file there is no Calibrate or Trace, so Analyze is step 2, not 4. */
+aside{counter-reset:step}
+.card h2 b.step::before{counter-increment:step;content:counter(step)}
 .card h2 b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#000;font-size:11px}
 .row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
 .row label{color:var(--muted);font-size:12px;min-width:84px}
