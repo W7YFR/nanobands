@@ -60,9 +60,11 @@ transmit.
 
 ## What it is
 
-A Vite and TypeScript app with no server. The band plan, the parsers, the
-analysis, and the grid finder and tracer are plain modules in `app/src` that
-take data and return data; `app/src/ui/app.ts` draws the page around them.
+A Vite, React and TypeScript app with no server. The band plan, the parsers,
+the analysis, the grid finder and tracer, and the NanoVNA shell are plain
+modules in `app/src` that take data and return data. The page is React
+components in `app/src/ui`, and the photo and the chart are drawn on canvases
+by `draw-photo.ts` and `draw-chart.ts`.
 
 Reading START and STOP off the screen uses [Tesseract.js](https://tesseract.projectnaptha.com/),
 loaded from a CDN the first time a photo is opened and pinned to one version
@@ -76,7 +78,7 @@ the frequencies.
 ```
 make dev           # the app with hot reload at localhost:5174
 make dev:lan       # the same, on your LAN, for a phone
-make test          # the pure tests
+make test          # the pure and dom tests
 make browsers      # download Chromium for the browser tests (once)
 make test-browser  # the page and the photo pipeline, in Chromium
 make build         # build the site into dist/

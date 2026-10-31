@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 /* From vitest rather than vite: the `test` key below is vitest's. */
 import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import type { Plugin } from "vite";
 
@@ -22,20 +23,23 @@ function devIcon(): Plugin {
   };
 }
 
-/* Two test tiers, chosen by directory:
+/* Three test tiers, chosen by directory, as in cwt:
 
      test/pure     no DOM at all. The band plan, the parsers, the analysis, and
                    the grid finder and tracer run over synthetic pixel buffers.
                    Milliseconds, and most of the value.
+     test/dom      React against jsdom: the components' markup and wiring.
+                   jsdom has no canvas, so the photo and the chart are not
+                   drawn here.
      test/browser  real Chromium. Decoding a real photo needs a canvas, and
                    IndexedDB needs a browser; neither can be faked into
                    meaning anything.
 
-   `npm test` runs the pure tier. The browser tier is `npm run test:browser`
+   `npm test` runs pure and dom. The browser tier is `npm run test:browser`
    and needs `npx playwright install chromium` once. */
 export default defineConfig({
   root: "app",
-  plugins: [devIcon()],
+  plugins: [react(), devIcon()],
   // Relative, so the build works at the domain root or under /nanobands/.
   base: "./",
   server: {
@@ -77,8 +81,17 @@ export default defineConfig({
       {
         extends: true,
         test: {
+          name: "dom",
+          environment: "jsdom",
+          setupFiles: ["./test/setup-dom.ts"],
+          include: ["test/dom/**/*.test.{ts,tsx}"],
+        },
+      },
+      {
+        extends: true,
+        test: {
           name: "browser",
-          include: ["test/browser/**/*.test.ts"],
+          include: ["test/browser/**/*.test.{ts,tsx}"],
           browser: {
             enabled: true,
             provider: playwright(),

@@ -1,0 +1,203 @@
+/* The page's data: what is loaded, what was done to it, and the settings it is
+ * read with. Plain types and functions, no React, so the drawing modules and
+ * the components share one description of it.
+ */
+
+import { analyze, swrAt, type Analysis } from "@/analysis";
+import type { LicenseClass, OperatingMode } from "@/bands";
+import { mappingFor, type Mapping, type Point, type Quad } from "@/geometry";
+import type { Pixels } from "@/pixels";
+import { rectify, type Rectified } from "@/rectify";
+
+/** A loaded photo: a working copy at most 4000 px on its long side, and its pixels. */
+export interface Photo {
+  src: HTMLCanvasElement;
+  px: Pixels;
+  w: number;
+  h: number;
+}
+
+/** The curve. A photo's is a position down the plot per column; a file's or a
+ *  sweep's is frequency and SWR per point. */
+export type Trace =
+  | { kind: "photo"; N: number; v: Float32Array; auto: boolean; edited: boolean }
+  | { kind: "data"; N: number; f: Float64Array; s: Float64Array };
+
+/** What the text recognition said about the sweep. */
+export type OcrNote =
+  | { kind: "looking" }
+  | { kind: "read"; start: number; stop: number; raw: string }
+  | { kind: "offer"; start: number; stop: number; raw: string }
+  | { kind: "none" }
+  | { kind: "failed" };
+
+export type GridNote = { kind: "found"; horizontal: number; vertical: number } | { kind: "missing" };
+
+/** The calibration fields, as typed. They belong to the loaded file. */
+export interface Fields {
+  start: string;
+  stop: string;
+  top: string;
+  bot: string;
+  sens: string;
+}
+
+export const DEFAULT_FIELDS: Fields = { start: "", stop: "", top: "5", bot: "1", sens: "70" };
+
+/** How the curve is read. These outlive a file: they survive Clear. */
+export interface Prefs {
+  thr: string;
+  cls: LicenseClass;
+  mode: OperatingMode;
+  prom: string;
+}
+
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2" };
+
+/** Everything about the loaded file. Clear resets it to EMPTY_DOC. */
+export interface Doc {
+  source: "image" | "s1p" | "vna" | null;
+  fileName: string | null;
+  photo: Photo | null;
+  corners: Quad | null;
+  straight: boolean;
+  trace: Trace | null;
+  /** The Touchstone text behind the data, for the .s1p export. */
+  s1p: { text: string; name: string } | null;
+  /** Points of known frequency on the photo, to solve the sweep from. */
+  refs: { u: number; f: number }[];
+  /** Pinned frequencies. */
+  manual: number[];
+  /** Chart zoom, [lo, hi] in MHz. */
+  view: [number, number] | null;
+  collapsed: boolean;
+  /** The user typed the sweep, so text recognition offers its reading instead of using it. */
+  sweepTyped: boolean;
+  /** The corners moved after a hand-edited trace, so a new trace is suggested. */
+  retrace: boolean;
+  fields: Fields;
+  grid: GridNote | null;
+  ocr: OcrNote | null;
+}
+
+export const EMPTY_DOC: Doc = {
+  source: null, fileName: null, photo: null, corners: null, straight: false, trace: null, s1p: null,
+  refs: [], manual: [], view: null, collapsed: false, sweepTyped: false, retrace: false,
+  fields: DEFAULT_FIELDS, grid: null, ocr: null,
+};
+
+/** The numbers the drawing and the analysis work with. */
+export interface Settings {
+  start: number;
+  stop: number;
+  top: number;
+  bot: number;
+  thr: number;
+  cls: LicenseClass;
+  mode: OperatingMode;
+  prom: number;
+  sens: number;
+}
+
+export function settingsOf(f: Fields, p: Prefs): Settings {
+  return {
+    start: parseFloat(f.start), stop: parseFloat(f.stop),
+    top: parseFloat(f.top) || 5, bot: parseFloat(f.bot) || 1,
+    thr: parseFloat(p.thr) || 3, cls: p.cls, mode: p.mode,
+    prom: Math.max(0.01, parseFloat(p.prom) || 0.2), sens: +f.sens,
+  };
+}
+
+export const calOK = (s: Settings): boolean => Number.isFinite(s.start) && Number.isFinite(s.stop) && s.stop > s.start;
+
+/** Frequency and SWR per point. A photo's come from the sweep and scale settings. */
+export interface Curve {
+  N: number;
+  f: Float64Array;
+  s: Float64Array;
+}
+
+export function curveOf(t: Trace | null, s: Settings): Curve | null {
+  if (!t) return null;
+  if (t.kind === "data") return t;
+  const f = new Float64Array(t.N), w = new Float64Array(t.N);
+  for (let i = 0; i < t.N; i++) {
+    f[i] = calOK(s) ? s.start + ((i + 0.5) / t.N) * (s.stop - s.start) : NaN;
+    w[i] = Number.isNaN(t.v[i]) ? NaN : s.top + t.v[i]! * (s.bot - s.top);
+  }
+  return { N: t.N, f, s: w };
+}
+
+export function analysisOf(c: Curve | null, s: Settings): Analysis | null {
+  if (!c || !calOK(s)) return null;
+  return analyze(c.f, c.s, { thr: s.thr, prom: s.prom, top: s.top });
+}
+
+export const swrOn = (c: Curve | null, fq: number): number => (c ? swrAt(c.f, c.s, fq) : NaN);
+
+/* ---------------- The photo's views ---------------- */
+
+/** The straightened copy, as a canvas. */
+export interface Rect extends Rectified {
+  cv: HTMLCanvasElement;
+}
+
+export function rectOf(photo: Photo, corners: Quad): Rect {
+  const r = rectify(photo.px, mappingFor(corners).fwd, corners);
+  const cv = document.createElement("canvas");
+  cv.width = r.W;
+  cv.height = r.H;
+  cv.getContext("2d")!.putImageData(new ImageData(r.data as Uint8ClampedArray<ArrayBuffer>, r.W, r.H), 0, 0);
+  return { ...r, cv };
+}
+
+/** The photo as it is shown: as taken, or straightened. `vf` takes plot
+ *  coordinates (u across, v down, 0 to 1) to view pixels; `vb` goes back. */
+export interface View {
+  src: HTMLCanvasElement;
+  w: number;
+  h: number;
+  straight: boolean;
+  vf(u: number, v: number): Point;
+  vb(x: number, y: number): Point;
+}
+
+export function viewOf(photo: Photo, map: Mapping | null, rect: Rect | null): View {
+  if (rect) {
+    return {
+      src: rect.cv, w: rect.W, h: rect.H, straight: true,
+      vf: (u, v) => [rect.mx + u * rect.pw, rect.my + v * rect.ph],
+      vb: (x, y) => [(x - rect.mx) / rect.pw, (y - rect.my) / rect.ph],
+    };
+  }
+  return {
+    src: photo.src, w: photo.w, h: photo.h, straight: false,
+    vf: (u, v) => (map ? map.fwd(u, v) : [u * photo.w, v * photo.h]),
+    vb: (x, y) => (map ? map.back(x, y) : [x / photo.w, y / photo.h]),
+  };
+}
+
+/** The four corners a new photo starts with, before the grid is found. */
+export const defaultCorners = (w: number, h: number): Quad =>
+  [[w * 0.1, h * 0.1], [w * 0.9, h * 0.1], [w * 0.9, h * 0.9], [w * 0.1, h * 0.9]];
+
+/** Draw an image into a working copy and read its pixels. */
+export function photoFrom(im: HTMLImageElement): Photo {
+  const sc = Math.min(1, 4000 / Math.max(im.naturalWidth, im.naturalHeight));
+  const w = Math.round(im.naturalWidth * sc), h = Math.round(im.naturalHeight * sc);
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const x = c.getContext("2d", { willReadFrequently: true })!;
+  x.drawImage(im, 0, 0, w, h);
+  return { src: c, px: x.getImageData(0, 0, w, h), w, h };
+}
+
+export function loadImage(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => res(im);
+    im.onerror = rej;
+    im.src = URL.createObjectURL(blob);
+  });
+}

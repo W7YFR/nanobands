@@ -27,10 +27,14 @@ header h1{margin:0;color:var(--accent)}
 header h1 .art{display:block;white-space:pre;font-family:var(--mono);font-size:calc(34px / 6);line-height:1;font-weight:400;letter-spacing:0}
 header .div{width:1px;align-self:stretch;background:var(--line)}
 #clearAll{margin-left:auto}
+.ghost{visibility:hidden}
 /* A collapsed photo keeps its header row and its Expand button, nothing else. */
 #photoCard.collapsed h2{margin-bottom:0}
 #photoCard.collapsed #photoWrap,#photoCard.collapsed #photoEmpty{display:none}
-@media (max-width:600px){header .div{display:none}}
+/* On a phone the header is two rows, the same with the name and without:
+   the callsign and Clear, then the name. The landing shows the line under
+   the name, so the header leaves it out. */
+@media (max-width:600px){header .div,header .sub{display:none}#clearAll{order:1}header h1{order:2;flex-basis:100%}}
 header .sub{color:var(--muted);font-size:13px}
 /* The callsign, drawn: the same six rows w7yfr.com and cwt show, sized to a
    26px row the way cwt's landing page sizes it, and linking home. */
@@ -83,4 +87,28 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .empty{color:var(--muted);padding:30px;text-align:center}
 .pts td button{padding:0 6px;font-size:12px}
 .hidden{display:none!important}
+/* The page fills the window, so the footer sits at its bottom. */
+.app{display:flex;flex-direction:column;min-height:100vh}
+.wrap{flex:1}
+#landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6vh 16px 4vh;text-align:center}
+/* The name as the hero: the header's letters, sized to fill the width up to
+   about 2.6 times the header's size. 80 columns of a monospace face at 0.6em
+   each is 48em; the 1.02 leaves room for fonts a touch wider. */
+#hero{white-space:pre;font-family:var(--mono);font-size:min(15px, calc((100vw - 32px) / 49));line-height:1;color:var(--accent)}
+#landing .lead{color:var(--muted);font-size:15px;margin:18px 0 34px}
+#landing .ways{display:flex;flex-direction:column;gap:10px;width:min(400px, 100%)}
+#landing button{width:100%;padding:13px;font-size:16px}
+#landing .hint{margin:0}
+#landing .or{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:12px;margin:6px 0}
+#landing .or::before,#landing .or::after{content:"";flex:1;border-top:1px solid var(--line)}
+/* While a saved session is read back, neither the landing nor the page
+   shows, so the landing does not flash before the page. */
+.app.booting #landing,.app.booting .wrap{display:none}
+/* On the landing, the header shows only the callsign. The name and its line
+   keep their room, so the header is the same height with them and without,
+   and the name lands where it will stay. */
+.app.no-data header h1,.app.no-data header .div,.app.no-data header .sub,
+.app.booting header h1,.app.booting header .div,.app.booting header .sub{visibility:hidden}
+/* Above the sidebar and the cards while the name flies over them. */
+header h1{position:relative;z-index:5}
 @media (max-width:900px){.wrap{flex-direction:column}aside{width:100%;position:static;max-height:none}}

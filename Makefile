@@ -1,7 +1,7 @@
 # nanobands — read a NanoVNA SWR sweep against the US band plan.
 #
 # It traces, reads and analyzes, entirely in the browser. Everything under
-# app/src is the product; app/test holds two test tiers and the photos they
+# app/src is the product; app/test holds three test tiers and the photos they
 # run against.
 
 .DEFAULT_GOAL := help
@@ -51,7 +51,7 @@ browsers: node_modules ## Download the browser the browser test tier needs (once
 # ---- tests ---------------------------------------------------------------- #
 
 .PHONY: test
-test: node_modules ## The pure test tier
+test: node_modules ## The pure and dom test tiers
 	npm test
 
 .PHONY: test-browser
