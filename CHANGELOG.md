@@ -14,7 +14,7 @@ them.
 - **Calibrate** folds to a green check and its sweep once it finds the grid and reads the sweep, with **Change** to open it. Open, it shows what it found in short lines above its fields, and each field and button has a **?**. **Edit corners** sits next to **Grid found**.
 - **Trace** folds the same way once the auto-trace succeeds, and opens again when the corners move. Each of its controls has a **?**, and **Erase trace** is off with no trace.
 - The photo has its own **✎ Pen** button, next to **Edit corners**, so you can fix the trace without leaving the photo. A pen fix no longer opens **Trace**.
-- On a phone or tablet, **✎ Pen** fills the screen with the photo and its trace, upright or sideways. One finger steers a cursor with a magnifier, and **✎ Draw** or **⌫ Erase** makes it draw or wipe the trace as it moves. Two fingers zoom and move, **↔** stretches the photo wider for steep curves, **Undo** takes back a stroke and **Clear marks** takes back all of them.
+- On a phone or tablet, **✎ Pen** fills the screen with the photo and its trace, and one finger steers a cursor with a magnifier that **✎ Draw** or **⌫ Erase** turns into a pen or an eraser. Two fingers zoom, the view follows the cursor near an edge, **↔** stretches steep curves wider, and **Undo** and **Clear marks** take back strokes.
 - **Export** lists each file on its own row: **Photo with overlay (PNG)**, **Chart (PNG)**, **Data (CSV)** and **Touchstone (.s1p)**. **Chart (PNG)** and **Data (CSV)** are off until the sweep is known.
 - **Analyze** lines up its fields, each with a **?** that says what it does. The chart's own **?** says how to pin and zoom, and a tap or a hover opens any **?**.
 - The chart's legend shows only its colors and their names.

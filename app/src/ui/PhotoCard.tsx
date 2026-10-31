@@ -23,6 +23,17 @@ import type { Mode } from "./Cards";
 const MAX_ZOOM = 8;
 /** The widths Stretch steps through. */
 const STRETCHES = [1, 2, 4] as const;
+/** How close the cursor comes to the screen's edge, as a share of it, before the view follows. */
+const EDGE_ROOM = 0.3;
+
+/** How far to slide the view along one axis so a cursor at `at` stays at
+ *  least `room` inside [0, size], without sliding past either end of the
+ *  photo, which spans [lo, hi]. Positive slides the photo toward the end. */
+function follow(at: number, size: number, room: number, lo: number, hi: number): number {
+  if (at > size - room && hi > size) return -Math.min(at - (size - room), hi - size);
+  if (at < room && lo < 0) return Math.min(room - at, -lo);
+  return 0;
+}
 
 const touchScreen = (): boolean => window.matchMedia?.("(pointer: coarse)").matches ?? false;
 
@@ -193,6 +204,10 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
       Math.min(vw.h, Math.max(0, c[1] + (e.clientY - last[1]) / g.s)),
     ];
     if (tool !== "move") onPen(cursor.current[0], cursor.current[1], false, tool === "erase");
+    // Near an edge, the view follows the cursor so it can keep going.
+    const zm = zoom.current, w = e.currentTarget.clientWidth, h = e.currentTarget.clientHeight, [x, y] = cursor.current;
+    zm.ox += follow(zm.ox + x * g.sx, w, w * EDGE_ROOM, zm.ox, zm.ox + vw.w * g.sx);
+    zm.oy += follow(zm.oy + y * g.s, h, h * EDGE_ROOM, zm.oy, zm.oy + vw.h * g.s);
     draw();
   };
   const focusUp = (e: React.PointerEvent<HTMLCanvasElement>): void => {
