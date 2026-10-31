@@ -47,6 +47,9 @@ header .div{width:1px;align-self:stretch;background:var(--line)}
    long-press menu anywhere on the page. */
 html.pen-focus{overflow:hidden;overscroll-behavior:none}
 html.pen-focus,html.pen-focus *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* The same while a corner is dragged or a pen stroke is drawn in the card,
+   and on the photo itself, where a long press would select or open a menu. */
+html.photo-drag,html.photo-drag *,#photo{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* Draw and Erase, at the bottom within reach of a thumb: red while drawing, yellow while erasing. */
 #photoCard.focus .ink{flex:none;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 #photoCard.focus .ink button{padding:14px;font-size:16px;font-weight:600}

@@ -12,6 +12,10 @@ them.
 - With a mouse, **↔** next to **✎ Pen** stretches the photo wider, so steep curves lean over. The photo scrolls sideways in its card, and a stroke held at either edge scrolls it along.
 - On a phone or tablet turned sideways, **✎ Pen** puts **✎ Draw** and **⌫ Erase** on the right, so the photo uses the full height.
 
+### Fixed
+
+- Dragging a corner or drawing with **✎ Pen** on the photo no longer selects text on the page or opens a long-press menu.
+
 ## v1.4.0 — 2026-10-31
 
 ### Changed

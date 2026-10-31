@@ -308,6 +308,16 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
     const r = e.currentTarget.getBoundingClientRect(), g = geo.current;
     return [(e.clientX - r.left - g.ox) / g.sx, (e.clientY - r.top - g.oy) / g.s];
   };
+  /** A corner drag or a pen stroke holds the page still: nothing on it is
+   *  selected, and no long-press menu opens, until the pointer lets go. */
+  const hold = (e: React.PointerEvent<HTMLCanvasElement>): void => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    window.getSelection()?.removeAllRanges();
+    document.documentElement.classList.add("photo-drag");
+  };
+  const release = (): void => document.documentElement.classList.remove("photo-drag");
+  useEffect(() => release, []);
   const nearCorner = (x: number, y: number): number =>
     vw.straight || wide ? -1 : scene.corners.findIndex(([cx, cy]) => Math.hypot(cx - x, cy - y) * geo.current.s < 14);
 
@@ -345,8 +355,8 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
               const [x, y] = at(e);
               hover.current = [x, y];
               const hit = nearCorner(x, y);
-              if (hit >= 0) { drag.current = hit; e.currentTarget.setPointerCapture(e.pointerId); draw(); return; }
-              if (mode === "pen") { pen.current = true; stroke.current = [e.clientX, e.clientY]; e.currentTarget.setPointerCapture(e.pointerId); onPen(x, y, true); draw(); return; }
+              if (hit >= 0) { drag.current = hit; hold(e); draw(); return; }
+              if (mode === "pen") { pen.current = true; stroke.current = [e.clientX, e.clientY]; hold(e); onPen(x, y, true); draw(); return; }
               if (mode === "ref") onRef(x, y);
             }}
             onPointerMove={(e) => {
@@ -367,6 +377,7 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
             }}
             onPointerUp={(e) => {
               if (focus) { focusUp(e); return; }
+              release();
               pen.current = false;
               stroke.current = null;
               if (drag.current >= 0) { drag.current = -1; onCornerDrop(); }
@@ -375,8 +386,10 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
             }}
             onPointerCancel={(e) => {
               if (focus) { focusUp(e); return; }
+              release();
               pen.current = false;
               stroke.current = null;
+              if (drag.current >= 0) { drag.current = -1; onCornerDrop(); }
               hover.current = null;
               draw();
             }}
