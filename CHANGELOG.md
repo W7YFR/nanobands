@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.4.0 — 2026-10-31
+
 ### Changed
 
 - **Load** shows a connected NanoVNA in its own panel, with a green **Connected** status, its calibration and range, and **Sweep** and **Live** side by side. The file drop sits under it, and no longer shows a NanoVNA sweep as an opened file.
