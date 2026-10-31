@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.3.0 — 2026-10-31
+
 ### Changed
 
 - With nothing loaded, the page shows only the name, its description, **Connect NanoVNA** and **Open a photo or .s1p file**. Once a sweep, photo or file loads, the name moves up into the header and the rest appears.
