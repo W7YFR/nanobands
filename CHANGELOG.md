@@ -7,6 +7,10 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- Right after a reload, the footer no longer shows at the top of an empty page. It stays at the bottom of the window.
+
 ## v1.3.0 — 2026-10-31
 
 ### Changed

@@ -87,8 +87,10 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .empty{color:var(--muted);padding:30px;text-align:center}
 .pts td button{padding:0 6px;font-size:12px}
 .hidden{display:none!important}
-/* The page fills the window, so the footer sits at its bottom. */
+/* The page fills the window, and the footer takes the free room above it, so
+   it sits at the bottom even while nothing else shows. */
 .app{display:flex;flex-direction:column;min-height:100vh}
+.app>.colophon{margin-top:auto}
 .wrap{flex:1}
 #landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6vh 16px 4vh;text-align:center}
 /* The name as the hero: the header's letters, sized to fill the width up to
