@@ -207,11 +207,12 @@ export function TraceCard({ trace, mode, onAutoTrace, onPen, onErase, sens, onSe
   retrace: boolean;
 }): React.ReactElement {
   const done = !!trace && !retrace;
-  // Folded when the auto-trace did the step. Pen fixes never fold it, and
-  // moved corners open it again.
+  // Folded when the auto-trace did the step, and opened when it needs you:
+  // no trace, or moved corners. A pen fix leaves it as it is, so the photo
+  // does not move under the pen.
   const auto = done && trace.auto && !trace.edited;
   const [open, setOpen] = useState(!auto);
-  useEffect(() => setOpen(!auto), [auto]);
+  useEffect(() => { if (auto) setOpen(false); else if (!done) setOpen(true); }, [auto, done]);
   const shut = done && !open;
   const how = !trace ? "" : trace.auto ? (trace.edited ? "Traced automatically, then fixed with the pen" : "Traced automatically") : "Traced with the pen";
   return (

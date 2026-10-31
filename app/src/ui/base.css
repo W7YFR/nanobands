@@ -30,6 +30,10 @@ header .div{width:1px;align-self:stretch;background:var(--line)}
 .ghost{visibility:hidden}
 /* A button in a card's header row, such as Collapse. */
 .card h2 button.small{text-transform:none;letter-spacing:0;font-size:12px;padding:3px 10px}
+/* The photo's buttons sit at the right of its header, and wrap together
+   under the title on a phone rather than overflow. */
+#photoCard h2{flex-wrap:wrap}
+#photoCard h2 .tools{margin-left:auto;display:flex;gap:6px}
 /* A collapsed card keeps its header row and its Expand button, nothing else. */
 #photoCard.collapsed h2,#ptCard.collapsed h2{margin-bottom:0}
 #ptCount{text-transform:none;letter-spacing:0;font-weight:400}

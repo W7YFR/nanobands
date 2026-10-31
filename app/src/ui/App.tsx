@@ -392,7 +392,7 @@ export function App(): React.ReactElement {
                 </div>
               ) : photoScene && (
                 <PhotoCard scene={photoScene} kRef={kRef} collapsed={doc.collapsed} onCollapse={() => setCollapsed(!doc.collapsed)}
-                  onStraight={onStraight} mode={mode}
+                  onStraight={onStraight} mode={mode} onPenMode={() => toggleMode("pen")}
                   onCornerMove={onCornerMove} onCornerDrop={onCornerDrop} onPen={onPen} onRef={onRef} onHover={setHoverF} />
               )}
               <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}

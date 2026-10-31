@@ -12,7 +12,7 @@ import { calOK } from "./model";
 import type { Mode } from "./Cards";
 
 
-export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode, onCornerMove, onCornerDrop, onPen, onRef, onHover }: {
+export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode, onPenMode, onCornerMove, onCornerDrop, onPen, onRef, onHover }: {
   /** Everything to draw, except the corner being dragged, which is the card's own. */
   scene: Omit<PhotoScene, "dragCorner">;
   /** CSS pixels per view pixel, for the PNG export. */
@@ -21,6 +21,8 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
   onCollapse(): void;
   onStraight(): void;
   mode: Mode;
+  /** Turns the pen on or off, as Trace's Pen fix does. */
+  onPenMode(): void;
   onCornerMove(j: number, p: Point): void;
   onCornerDrop(): void;
   /** A pen stroke reached (x, y) in view pixels; `start` begins a new stroke. */
@@ -65,9 +67,12 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
 
   return (
     <div className={"card" + (collapsed ? " collapsed" : "")} id="photoCard">
-      <h2>Photo <span style={{ flex: 1 }}></span>
-        {!collapsed && <button id="straightBtn" className="small" onClick={onStraight}>{vw.straight ? "Edit corners" : "Straighten"}</button>}
-        <button id="collapseBtn" className="small" onClick={onCollapse}>{collapsed ? "Expand" : "Collapse"}</button>
+      <h2>Photo
+        <span className="tools">
+          {!collapsed && <button id="photoPen" className={"small" + (mode === "pen" ? " on" : "")} onClick={onPenMode}>✎ Pen</button>}
+          {!collapsed && <button id="straightBtn" className="small" onClick={onStraight}>{vw.straight ? "Edit corners" : "Straighten"}</button>}
+          <button id="collapseBtn" className="small" onClick={onCollapse}>{collapsed ? "Expand" : "Collapse"}</button>
+        </span>
       </h2>
       {!collapsed && (
         <div id="photoWrap" ref={wrap}>
