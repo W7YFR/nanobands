@@ -384,9 +384,12 @@ export function App(): React.ReactElement {
                 <div id="bandTable"><BandTable an={an} settings={settings} /></div>
                 <p className="hint">US privileges per 47 CFR §97.301/305, checked against the ARRL frequency-allocations chart. 60 m is four 2.8 kHz channels plus the 5351.5–5366.5 kHz segment (USB/CW/data). Power limits and new rule changes aren't modeled, so check the current ARRL chart before you transmit.</p>
               </div>
-              <div className="card">
-                <h2>Key points</h2>
-                <div id="ptTable">
+              <div className={"card" + (prefs.points ? "" : " collapsed")} id="ptCard">
+                <h2>Key points <span id="ptCount">{an ? `· ${an.crossings.length + an.extrema.length + doc.manual.length}` : ""}</span>
+                  <span style={{ flex: 1 }}></span>
+                  <button id="ptToggle" className="small" onClick={() => onPref("points", !prefs.points)}>{prefs.points ? "Collapse" : "Expand"}</button>
+                </h2>
+                <div id="ptTable" hidden={!prefs.points}>
                   <PointsTable an={an} settings={settings} manual={doc.manual} swr={swr}
                     onRemove={onRemovePin} />
                 </div>

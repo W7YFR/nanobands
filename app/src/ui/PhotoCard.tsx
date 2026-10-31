@@ -11,7 +11,6 @@ import { drawMagnifier, drawPhoto, type PhotoScene } from "./draw-photo";
 import { calOK } from "./model";
 import type { Mode } from "./Cards";
 
-const small: React.CSSProperties = { textTransform: "none", letterSpacing: 0, fontSize: 12, padding: "3px 10px" };
 
 export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode, onCornerMove, onCornerDrop, onPen, onRef, onHover }: {
   /** Everything to draw, except the corner being dragged, which is the card's own. */
@@ -67,8 +66,8 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
   return (
     <div className={"card" + (collapsed ? " collapsed" : "")} id="photoCard">
       <h2>Photo <span style={{ flex: 1 }}></span>
-        {!collapsed && <button id="straightBtn" style={small} onClick={onStraight}>{vw.straight ? "Edit corners" : "Straighten"}</button>}
-        <button id="collapseBtn" style={small} onClick={onCollapse}>{collapsed ? "Expand" : "Collapse"}</button>
+        {!collapsed && <button id="straightBtn" className="small" onClick={onStraight}>{vw.straight ? "Edit corners" : "Straighten"}</button>}
+        <button id="collapseBtn" className="small" onClick={onCollapse}>{collapsed ? "Expand" : "Collapse"}</button>
       </h2>
       {!collapsed && (
         <div id="photoWrap" ref={wrap}>

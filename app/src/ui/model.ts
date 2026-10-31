@@ -44,15 +44,17 @@ export interface Fields {
 
 export const DEFAULT_FIELDS: Fields = { start: "", stop: "", top: "5", bot: "1", sens: "70" };
 
-/** How the curve is read. These outlive a file: they survive Clear. */
+/** How the curve is read, and how the page shows it. These outlive a file: they survive Clear. */
 export interface Prefs {
   thr: string;
   cls: LicenseClass;
   mode: OperatingMode;
   prom: string;
+  /** Whether the Key points table is open. It starts closed. */
+  points: boolean;
 }
 
-export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2" };
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", points: false };
 
 /** Everything about the loaded file. Clear resets it to EMPTY_DOC. */
 export interface Doc {

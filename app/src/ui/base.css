@@ -28,8 +28,11 @@ header h1 .art{display:block;white-space:pre;font-family:var(--mono);font-size:c
 header .div{width:1px;align-self:stretch;background:var(--line)}
 #clearAll{margin-left:auto}
 .ghost{visibility:hidden}
-/* A collapsed photo keeps its header row and its Expand button, nothing else. */
-#photoCard.collapsed h2{margin-bottom:0}
+/* A button in a card's header row, such as Collapse. */
+.card h2 button.small{text-transform:none;letter-spacing:0;font-size:12px;padding:3px 10px}
+/* A collapsed card keeps its header row and its Expand button, nothing else. */
+#photoCard.collapsed h2,#ptCard.collapsed h2{margin-bottom:0}
+#ptCount{text-transform:none;letter-spacing:0;font-weight:400}
 #photoCard.collapsed #photoWrap,#photoCard.collapsed #photoEmpty{display:none}
 /* On a phone the header is two rows, the same with the name and without:
    the callsign and Clear, then the name. The landing shows the line under
