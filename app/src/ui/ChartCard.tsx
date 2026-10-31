@@ -8,6 +8,7 @@
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import type { Analysis } from "@/analysis";
 import { bandsInRange } from "@/bands";
+import { Help } from "./Help";
 import { drawChart, freqAt, type ChartGeom } from "./draw-chart";
 import type { Curve, Settings } from "./model";
 
@@ -61,7 +62,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   const xOf = (e: React.PointerEvent): number => e.clientX - e.currentTarget.getBoundingClientRect().left;
   return (
     <div className="card">
-      <h2>SWR vs. frequency <span id="resNote" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{resNote}</span></h2>
+      <h2>SWR vs. frequency <Help align="start" text="Click the chart to pin your own marker; click it again to remove it. Drag across the chart to zoom, double-click to reset." /> <span id="resNote" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{resNote}</span></h2>
       {an && <Chips an={an} view={view} onView={onView} />}
       <canvas id="chart" ref={canvasRef}
         onPointerDown={(e) => { if (!geom.current) return; drag.current = { x0: xOf(e), x1: xOf(e) }; e.currentTarget.setPointerCapture(e.pointerId); }}

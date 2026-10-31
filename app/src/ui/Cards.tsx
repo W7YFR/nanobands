@@ -6,6 +6,7 @@ import { memo } from "react";
 import type { LicenseClass, OperatingMode } from "@/bands";
 import type { Range } from "@/vna";
 import type { Doc, Fields, GridNote, OcrNote, Prefs } from "./model";
+import { Help } from "./Help";
 import type { Vna } from "./useVna";
 
 export type Mode = "idle" | "pen" | "ref";
@@ -158,20 +159,24 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref }: {
   return (
     <div className="card">
       <h2><b className="step" /> Analyze</h2>
-      <div className="row"><label>Max SWR</label><input type="number" id="thr" step="0.1" value={prefs.thr} onChange={(e) => onPref("thr", e.target.value)} /></div>
-      <div className="row"><label>License</label>
+      <div className="form">
+        <label htmlFor="thr">Max SWR</label>
+        <input type="number" id="thr" step="0.1" value={prefs.thr} onChange={(e) => onPref("thr", e.target.value)} />
+        <span />
+        <label htmlFor="cls">License</label>
         <select id="cls" value={prefs.cls} onChange={(e) => onPref("cls", e.target.value as LicenseClass)}>
           <option value="E">Amateur Extra</option><option value="A">Advanced</option><option value="G">General</option><option value="T">Technician</option>
         </select>
-      </div>
-      <div className="row"><label>Mode</label>
+        <span />
+        <label htmlFor="mode">Mode</label>
         <select id="mode" value={prefs.mode} onChange={(e) => onPref("mode", e.target.value as OperatingMode)}>
           <option value="any">Any mode</option><option value="phone">Phone (SSB/AM/FM)</option><option value="cw">CW</option><option value="data">RTTY / digital</option>
         </select>
+        <Help text="CW is legal anywhere you have privileges. The CW/data sub-bands (blue) are the parts where phone isn't allowed." />
+        <label htmlFor="prom">Dip/peak min.</label>
+        <input type="number" id="prom" step="0.05" value={prefs.prom} onChange={(e) => onPref("prom", e.target.value)} />
+        <Help text="Dips and peaks smaller than this many SWR are ignored." />
       </div>
-      <p className="hint">CW is legal anywhere you have privileges. The CW/data sub-bands (blue) are the parts where phone isn't allowed.</p>
-      <div className="row"><label>Dip/peak min.</label><input type="number" id="prom" step="0.05" value={prefs.prom} onChange={(e) => onPref("prom", e.target.value)} /> SWR</div>
-      <p className="hint">Dips and peaks smaller than this are ignored. Click the chart to pin your own marker; click it again to remove it. Drag across the chart to zoom, double-click to reset.</p>
     </div>
   );
 });

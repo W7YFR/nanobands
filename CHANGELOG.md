@@ -10,6 +10,7 @@ them.
 ### Changed
 
 - **Load** shows a connected NanoVNA in its own panel, with a green **Connected** status, its calibration and range, and **Sweep** and **Live** side by side. The file drop sits under it, and no longer shows a NanoVNA sweep as an opened file.
+- **Analyze** lines up its fields. **Mode** and **Dip/peak min.** explain themselves under a **?** you hover, and the chart's own **?** says how to pin and zoom.
 
 ### Fixed
 
