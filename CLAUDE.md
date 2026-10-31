@@ -1,9 +1,10 @@
 # Contributing
 
-NanoBands is a Vite and TypeScript app with no server. Everything under
-`app/src` is the product. `app/test` holds two test tiers: `pure` (no DOM, run
-with `make test`) and `browser` (real Chromium, real NanoVNA photos, run with
-`make test-browser`). CI builds the site and deploys it to GitHub Pages when a
+NanoBands is a Vite, React and TypeScript app with no server, built like cwt.
+Everything under `app/src` is the product: plain modules for the work, and
+React components in `app/src/ui`. `app/test` holds three test tiers: `pure`
+(no DOM) and `dom` (React in jsdom), both run with `make test`, and `browser`
+(real Chromium, real NanoVNA photos, run with `make test-browser`). CI builds the site and deploys it to GitHub Pages when a
 change to a build input merges to `main`.
 
 ## Workflow

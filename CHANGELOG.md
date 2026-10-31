@@ -10,6 +10,18 @@ them.
 ### Changed
 
 - With nothing loaded, the page shows only the name, its description, **Connect NanoVNA** and **Open a photo or .s1p file**. Once a sweep, photo or file loads, the name moves up into the header and the rest appears.
+- **Photo + overlay PNG** appears only when a photo is loaded.
+- On a phone, the header shows the callsign and **Clear** on one row and the name under them.
+
+### Fixed
+
+- The page no longer shows a flash of unstyled text while it loads.
+
+### Development
+
+- The page is a React app, built like cwt. Each card, the photo and the chart are components, and the canvas drawing lives in its own modules.
+- `make test` runs a new dom tier too: the components in jsdom, with Testing Library.
+- React is 19.3.0.
 
 ## v1.2.0 — 2026-10-31
 
