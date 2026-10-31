@@ -885,12 +885,15 @@ let serial: SerialLike | string = "";
 let vna: NanoVNA | null = null, vnaRange: Range | null = null, live = false, sweeping = false;
 const mhz = (hz: number): number => +(hz / 1e6).toFixed(6);
 
-function vnaNote(text: string): void { const el = $("#vnaNote"); el.textContent = text; el.classList.toggle("hidden", !text); }
+function vnaNote(text: string): void {
+  for (const sel of ["#vnaNote", "#landNote"]) { const el = $(sel); el.textContent = text; el.classList.toggle("hidden", !text); }
+}
 
 function syncVna(): void {
   $("#vnaBtn").textContent = vna ? "Disconnect" : "Connect NanoVNA";
   $("#vnaBtn").classList.toggle("wide", !vna);
   for (const sel of ["#vnaPanel", "#sweepBtn", "#liveBtn"]) $(sel).classList.toggle("hidden", !vna);
+  syncLanding();
   $("#liveBtn").textContent = live ? "Hold" : "Live";
   $("#liveBtn").classList.toggle("on", live);
   $<HTMLButtonElement>("#sweepBtn").disabled = live;
@@ -968,8 +971,41 @@ async function runLive(): Promise<void> {
 
 /* ---------------- Glue ---------------- */
 
+/** Nothing loaded and no NanoVNA connected: show the landing instead of the page. */
+function syncLanding(): void {
+  const empty = !state.source && !vna, body = document.body;
+  if (empty === body.classList.contains("no-data")) return;
+  const hero = $("#hero"), name = $("header h1 .art");
+  // The name flies between the hero and the header: measure where it is,
+  // switch, measure where it lands, and play the move back from the start.
+  const from = (empty ? name : hero).getBoundingClientRect();
+  body.classList.toggle("no-data", empty);
+  flyFrom(empty ? hero : name, from);
+  if (!empty) {
+    $("header .sub").animate([{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }], { duration: FLY_MS });
+    // The page was not laid out while hidden.
+    requestAnimationFrame(() => { layoutPhoto(); renderPhoto(); renderChart(); });
+  }
+}
+
+const FLY_MS = 550;
+
+/** Animate an element from where `from` was to where it is now. */
+function flyFrom(el: HTMLElement, from: DOMRect): void {
+  const to = el.getBoundingClientRect();
+  if (document.body.classList.contains("booting") || !from.width || !to.width) return;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const s = from.width / to.width;
+  el.animate(
+    [{ transformOrigin: "0 0", transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${s})` },
+     { transformOrigin: "0 0", transform: "none" }],
+    { duration: FLY_MS, easing: "cubic-bezier(.2,.7,.2,1)" },
+  );
+}
+
 function refresh(): void {
   recompute();
+  syncLanding();
   state.an = runAnalysis();
   $("#photoEmpty").classList.toggle("hidden", !!state.src);
   photo.classList.toggle("hidden", !state.src);
@@ -1019,6 +1055,8 @@ export function start(): void {
   measureScrollbar();
   window.addEventListener("resize", measureScrollbar);
   $("#version").textContent = APP_VERSION;
+  $("#hero").textContent = $("header h1 .art").textContent;
+  $("#lead").textContent = $("header .sub").textContent;
   $("#year").textContent = String(new Date().getFullYear());
 
   photo.addEventListener("pointerdown", (e) => {
@@ -1128,16 +1166,21 @@ export function start(): void {
   $("#clearAll").onclick = clearAll;
 
   serial = serialApi();
-  if (typeof serial === "string") { $<HTMLButtonElement>("#vnaBtn").disabled = true; vnaNote(serial); }
+  if (typeof serial === "string") {
+    for (const sel of ["#vnaBtn", "#landConnect"]) $<HTMLButtonElement>(sel).disabled = true;
+    vnaNote(serial);
+  }
   // `make dev` at ?fake: a stand-in NanoVNA, for work without the device.
   if (import.meta.env.DEV && new URLSearchParams(location.search).has("fake")) {
     void import("@/vna-fake").then(({ FakeNanoVNA }) => {
       serial = new FakeNanoVNA({ noise: 0.004 }).serial();
-      $<HTMLButtonElement>("#vnaBtn").disabled = false;
+      for (const sel of ["#vnaBtn", "#landConnect"]) $<HTMLButtonElement>(sel).disabled = false;
       vnaNote("");
     });
   }
   $("#vnaBtn").onclick = () => void (vna ? disconnectVna() : connectVna());
+  $("#landConnect").onclick = () => void connectVna();
+  $("#landOpen").onclick = () => fileIn.click();
   $("#sweepBtn").onclick = async () => {
     if (sweeping || live) return;
     sweeping = true;
@@ -1205,6 +1248,10 @@ export function start(): void {
     if (p["prom"]) fld("#prom").value = p["prom"];
   } catch { /* storage blocked: defaults stand */ }
   refresh();
-  void restoreSession();
+  void restoreSession().finally(() => {
+    document.body.classList.remove("booting");
+    // Laid out while hidden, so lay it out again now it shows.
+    layoutPhoto(); refresh();
+  });
 }
 

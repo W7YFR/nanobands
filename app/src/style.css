@@ -83,4 +83,26 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .empty{color:var(--muted);padding:30px;text-align:center}
 .pts td button{padding:0 6px;font-size:12px}
 .hidden{display:none!important}
+/* Before anything is loaded, the landing replaces the page. While a saved
+   session is read back, neither shows, so the landing does not flash. */
+/* The page fills the window, so the footer sits at its bottom. */
+body{display:flex;flex-direction:column;min-height:100vh}
+.wrap{flex:1}
+#landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6vh 16px 4vh;text-align:center}
+/* The name as the hero: the header's letters, sized to fill the width up to
+   about 2.6 times the header's size. 80 columns of a monospace face at 0.6em
+   each is 48em; the 1.02 leaves room for fonts a touch wider. */
+#hero{white-space:pre;font-family:var(--mono);font-size:min(15px, calc((100vw - 32px) / 49));line-height:1;color:var(--accent)}
+#landing .lead{color:var(--muted);font-size:15px;margin:18px 0 34px}
+#landing .ways{display:flex;flex-direction:column;gap:10px;width:min(400px, 100%)}
+#landing button{width:100%;padding:13px;font-size:16px}
+#landing .hint{margin:0}
+#landing .or{display:flex;align-items:center;gap:10px;color:var(--faint);font-size:12px;margin:6px 0}
+#landing .or::before,#landing .or::after{content:"";flex:1;border-top:1px solid var(--line)}
+body:not(.no-data) #landing,body.no-data .wrap,body.booting #landing,body.booting .wrap{display:none}
+/* On the landing, the header keeps only the callsign. */
+body.no-data header h1,body.no-data header .div,body.no-data header .sub,
+body.booting header h1,body.booting header .div,body.booting header .sub{display:none}
+/* Above the sidebar and the cards while the name flies over them. */
+header h1{position:relative;z-index:5}
 @media (max-width:900px){.wrap{flex-direction:column}aside{width:100%;position:static;max-height:none}}

@@ -25,7 +25,7 @@
 <meta property="og:image:alt" content="NanoBands: an SWR curve with the stretches under 3:1 shaded green.">
 <meta name="twitter:card" content="summary_large_image">
 </head>
-<body>
+<body class="booting">
 <header>
   <a class="callsign" href="https://www.w7yfr.com" aria-label="W7YFR — back to w7yfr.com"><span class="art" aria-hidden="true">██╗    ██╗███████╗██╗   ██╗███████╗██████╗ 
 ██║    ██║╚════██║╚██╗ ██╔╝██╔════╝██╔══██╗
@@ -42,6 +42,19 @@
 ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚══════╝</span></h1><span class="sub">Read a NanoVNA SWR sweep against the US band plan</span>
   <button id="clearAll" class="hidden" title="Clear the file and start over">Clear</button>
 </header>
+<!-- What a first visit sees: the two ways in, and nothing that needs data. -->
+<section id="landing">
+  <!-- The name and the line under it are copied from the header when the page starts. -->
+  <div class="art" id="hero" role="img" aria-label="NanoBands"></div>
+  <p class="lead" id="lead"></p>
+  <div class="ways">
+    <button id="landConnect" class="primary">Connect NanoVNA</button>
+    <p class="hint hidden" id="landNote"></p>
+    <div class="or">or</div>
+    <button id="landOpen">Open a photo or .s1p file</button>
+    <p class="hint">A photo of the NanoVNA's SWR screen, or a Touchstone file. You can also drop or paste one anywhere on the page.</p>
+  </div>
+</section>
 <div class="wrap">
 <aside>
   <div class="card">

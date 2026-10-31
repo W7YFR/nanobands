@@ -49,7 +49,10 @@ describe("the page", () => {
     expect($("#year").textContent).toBe(String(new Date().getFullYear()));
   });
 
-  it("starts empty, with no Clear and no photo controls", () => {
+  it("starts on the landing, with no Clear and no page", () => {
+    expect(document.body.classList.contains("no-data")).toBe(true);
+    expect(getComputedStyle($("#landing")).display).not.toBe("none");
+    expect(getComputedStyle($(".wrap")).display).toBe("none");
     expect($("#clearAll").classList.contains("hidden")).toBe(true);
     expect($("#straightBtn").classList.contains("hidden")).toBe(true);
     expect($("#bandTable").textContent).toContain("No data yet");
@@ -70,6 +73,8 @@ describe("the page", () => {
     expect($<HTMLInputElement>("#fStart").value).toBe("3");
     expect($("#straightBtn").textContent).toBe("Edit corners");
     expect($("#clearAll").classList.contains("hidden")).toBe(false);
+    expect(getComputedStyle($("#landing")).display).toBe("none");
+    expect(getComputedStyle($(".wrap")).display).not.toBe("none");
 
     const rows = [...document.querySelectorAll<HTMLTableRowElement>("#ptTable tr")].map((r) => r.textContent ?? "");
     expect(rows.filter((r) => /Drops below 3|Rises above 3/.test(r))).toHaveLength(9);
@@ -103,12 +108,13 @@ describe("the page", () => {
     expect($<HTMLInputElement>("#fStart").value).toBe("");
     expect($("#drop").textContent).toContain("Drop / paste a photo");
     expect($("#bandTable").textContent).toContain("No data yet");
+    expect(document.body.classList.contains("no-data")).toBe(true);
   });
 });
 
 describe("a connected NanoVNA", () => {
-  it("connects, reads the device and sweeps its range", async () => {
-    $("#vnaBtn").click();
+  it("connects from the landing, reads the device and sweeps its range", async () => {
+    $("#landConnect").click();
     await until(() => $("#vnaInfo").textContent !== "" && $("#bandTable").textContent!.includes("20m"));
     expect($("#vnaInfo").textContent).toBe("NanoVNA-H 4 · firmware 1.2.44 · 3–55 MHz, 401 points");
     expect($("#vnaBtn").textContent).toBe("Disconnect");
@@ -148,5 +154,6 @@ describe("a connected NanoVNA", () => {
     expect($("#vnaPanel").classList.contains("hidden")).toBe(true);
     // The last sweep stays on the page.
     expect($("#bandTable").textContent).toContain("2m");
+    expect(document.body.classList.contains("no-data")).toBe(false);
   });
 });
