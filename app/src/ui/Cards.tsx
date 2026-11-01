@@ -265,9 +265,11 @@ function CheckResult({ c, sweep, thr, top }: { c: FreqCheck; sweep: [number, num
   );
 }
 
-export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref, check, sweep, thr, top }: {
+export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref, onPin, check, sweep, thr, top }: {
   prefs: Prefs;
   onPref<K extends keyof Prefs>(k: K, v: Prefs[K]): void;
+  /** Enter in Frequency: pin it to the chart. */
+  onPin(): void;
   check: FreqCheck | null;
   sweep: [number, number] | null;
   thr: number;
@@ -294,8 +296,9 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref, check, swe
         <input type="number" id="prom" step="0.05" value={prefs.prom} onChange={(e) => onPref("prom", e.target.value)} />
         <Help text="Smaller dips and peaks are not marked." />
         <label htmlFor="freq">Frequency</label>
-        <input type="number" id="freq" step="0.001" min="0" placeholder="MHz" value={prefs.freq} onChange={(e) => onPref("freq", e.target.value)} />
-        <Help text="Gives the SWR at this frequency in MHz, and whether you may transmit there." />
+        <input type="number" id="freq" step="0.001" min="0" placeholder="MHz" value={prefs.freq} onChange={(e) => onPref("freq", e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") onPin(); }} />
+        <Help text="Marks this frequency in MHz on the chart and says whether you may transmit there; Enter, or a click on its mark, pins it." />
       </div>
       {check && <CheckResult c={check} sweep={sweep} thr={thr} top={top} />}
     </div>

@@ -7,7 +7,7 @@ import { segUsable, type Analysis } from "@/analysis";
 import { MODES, bandAt, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import { swrOn, type Curve, type Settings } from "./model";
-import { BAD, HIGH, MATCH, OK, curveColor } from "./colors";
+import { BAD, HIGH, MATCH, OK, PROBE, curveColor } from "./colors";
 
 /** Where the plot sits, for turning a pointer position into a frequency. */
 export interface ChartGeom {
@@ -23,7 +23,8 @@ export interface ChartGeom {
   bands: { band: Band; l: number; r: number; t: number; b: number }[];
 }
 
-export type KeyKind = "dip" | "peak" | "crossing" | "pin";
+/** `probe` is the frequency typed in the Analyze card, not pinned yet. */
+export type KeyKind = "dip" | "peak" | "crossing" | "pin" | "probe";
 export interface KeyPoint { kind: KeyKind; f: number; x: number; y: number }
 
 export const freqAt = (g: ChartGeom, x: number): number => g.lo + ((x - g.x0) / (g.x1 - g.x0)) * (g.hi - g.lo);
@@ -34,6 +35,8 @@ export interface ChartScene {
   curve: Curve | null;
   range: [number, number] | null;
   manual: readonly number[];
+  /** The frequency typed in the Analyze card, marked until Enter pins it. */
+  probe?: number | null;
   hoverF: number | null;
   /** A zoom being dragged, in CSS pixels. */
   drag: { x0: number; x1: number } | null;
@@ -230,6 +233,21 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(X(m), Y(w), 4, 0, 7); ctx.fill();
     points.push({ kind: "pin", f: m, x: X(m), y: Y(w) });
     tag(`${fmtF(m)} · ${w.toFixed(2)}`, X(m), Math.max(Y(w) - 14, y0 + 12), "#fff");
+  }
+  // the typed frequency: a dashed line, a ring on the curve and its readout
+  if (sc.probe != null && inView(sc.probe)) {
+    const f = sc.probe, x = X(f), w = swr(f);
+    ctx.strokeStyle = PROBE; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); ctx.setLineDash([]);
+    if (!Number.isNaN(w)) {
+      ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, Y(w), 5, 0, 7); ctx.stroke();
+      points.push({ kind: "probe", f, x, y: Y(w) });
+    }
+    const txt = `${fmtF(f)} · ${Number.isNaN(w) ? "—" : w >= yTop ? "≥" + yTop : w.toFixed(2)}`;
+    // Above the ring, or below it where above is off the plot or taken.
+    const up = Y(w) - 18, down = Math.min(Y(w) + 18, y1 - 10);
+    const ly = Number.isNaN(w) ? y0 + 10 : up >= y0 + 10 && (clear(txt, x, up) || !clear(txt, x, down)) ? up : down;
+    tag(txt, x, ly, PROBE);
   }
   // drag-zoom selection
   const d = sc.drag;

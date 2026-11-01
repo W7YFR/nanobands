@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { analyze } from "@/analysis";
 import { drawChart, type ChartGeom } from "@/ui/draw-chart";
-import { HIGH, MATCH, OK } from "@/ui/colors";
+import { HIGH, MATCH, OK, PROBE } from "@/ui/colors";
 import type { Curve, Settings } from "@/ui/model";
 
 const W = 800, H = 460;
@@ -18,12 +18,12 @@ function vee(dip: number, slope = 4): Curve {
   return { N, f, s };
 }
 
-function draw(curve: Curve, manual: number[] = []): { ctx: CanvasRenderingContext2D; g: ChartGeom } {
+function draw(curve: Curve, manual: number[] = [], probe: number | null = null): { ctx: CanvasRenderingContext2D; g: ChartGeom } {
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const ctx = c.getContext("2d", { willReadFrequently: true })!;
   const an = analyze(curve.f, curve.s, { thr: settings.thr, prom: settings.prom, top: settings.top });
-  const g = drawChart(ctx, W, H, 1, { settings, an, curve, range: [13.5, 14.5], manual, hoverF: null, drag: null })!;
+  const g = drawChart(ctx, W, H, 1, { settings, an, curve, range: [13.5, 14.5], manual, probe, hoverF: null, drag: null })!;
   return { ctx, g };
 }
 
@@ -89,5 +89,22 @@ describe("drawChart", () => {
     expect(strip.l).toBeCloseTo(xOf(g, 14.025), -1);
     expect(strip.r).toBeCloseTo(xOf(g, 14.35), -1);
     expect(name.l < xOf(g, 14.175) && name.r > xOf(g, 14.175)).toBe(true);
+  });
+
+  it("marks the typed frequency with a dashed line and a point to pin it by", () => {
+    const dashes = (ctx: CanvasRenderingContext2D, g: ChartGeom, x: number): number => {
+      const d = ctx.getImageData(x, g.y0, 1, g.y1 - g.y0).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (blendOf(d.subarray(i, i + 3), PROBE)) n++;
+      return n;
+    };
+    const { ctx, g } = draw(vee(13.8), [], 14.2);
+    expect(dashes(ctx, g, xOf(g, 14.2))).toBeGreaterThan(50);
+    const probe = g.points.find((p) => p.kind === "probe")!;
+    expect(probe.f).toBe(14.2);
+    expect(Math.round(probe.x)).toBe(xOf(g, 14.2));
+    expect(g.points.map((p) => p.kind)).not.toContain("pin");
+    const none = draw(vee(13.8));
+    expect(dashes(none.ctx, none.g, xOf(none.g, 14.2))).toBeLessThan(5);
   });
 });

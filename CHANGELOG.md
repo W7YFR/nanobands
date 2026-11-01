@@ -9,11 +9,11 @@ them.
 
 ### Added
 
-- **Frequency** in the Analyze card gives the SWR at one frequency, its band and segment, and whether you may transmit there. It says why not when the SWR is over **Max SWR** or your license class and mode have no segment there.
+- **Frequency** in the Analyze card gives the SWR, band and segment at a frequency, and whether you may transmit there and why not. The chart marks it until Enter, or a click on the mark, pins it.
 
 ### Development
 
-- Tests cover the frequency check and its result in the Analyze card.
+- Tests cover the frequency check, its result in the Analyze card, and its mark on the chart.
 
 ## v1.6.1 — 2026-11-01
 

@@ -27,8 +27,8 @@ const vnaStub = (over: Partial<Vna> = {}): Vna => ({
 
 describe("AnalyzeCard", () => {
   const curve = (() => { const { f, s } = vSweep(); return { N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) }; })();
-  const card = (f: number | null, onPref = vi.fn()) => render(
-    <AnalyzeCard prefs={DEFAULT_PREFS} onPref={onPref} check={f === null ? null : checkAt(curve, settings, f)}
+  const card = (f: number | null, onPref = vi.fn(), onPin = vi.fn()) => render(
+    <AnalyzeCard prefs={DEFAULT_PREFS} onPref={onPref} onPin={onPin} check={f === null ? null : checkAt(curve, settings, f)}
       sweep={[an.fmin, an.fmax]} thr={settings.thr} top={settings.top} />,
   );
 
@@ -38,6 +38,15 @@ describe("AnalyzeCard", () => {
     fireEvent.change(screen.getByLabelText("Frequency"), { target: { value: "14.3" } });
     expect(onPref).toHaveBeenCalledWith("freq", "14.3");
     expect(document.getElementById("freqCheck")).toBeNull();
+  });
+
+  it("pins the frequency on Enter", () => {
+    const onPin = vi.fn();
+    card(14.3, vi.fn(), onPin);
+    fireEvent.keyDown(screen.getByLabelText("Frequency"), { key: "a" });
+    expect(onPin).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByLabelText("Frequency"), { key: "Enter" });
+    expect(onPin).toHaveBeenCalledOnce();
   });
 
   it("says you may transmit in your segment under Max SWR", () => {

@@ -39,7 +39,7 @@ function Chips({ an, view, onView }: { an: Analysis; view: [number, number] | nu
   );
 }
 
-export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, onTogglePin, hoverF, onHover, resNote }: {
+export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   an: Analysis | null;
   curve: Curve | null;
@@ -47,6 +47,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   view: [number, number] | null;
   onView(v: [number, number] | null): void;
   manual: readonly number[];
+  probe: number | null;
   onTogglePin(f: number, tolerance: number): void;
   hoverF: number | null;
   onHover(f: number | null): void;
@@ -92,8 +93,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
     const dpr = window.devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
     fitCanvas(c, ctx, Math.round(W * dpr), Math.round(H * dpr));
     geom.current = drawChart(ctx, W, H, dpr, {
-      settings, an, curve, range, manual, hoverF, drag: drag.current?.zoom ? drag.current : null,
-      snap, hoverNote: snap === "pin" ? (touch ? "tap to unpin" : "click to unpin") : undefined,
+      settings, an, curve, range, manual, probe, hoverF, drag: drag.current?.zoom ? drag.current : null,
+      snap, hoverNote: snap === "pin" ? (touch ? "tap to unpin" : "click to unpin") : snap === "probe" ? (touch ? "tap to pin" : "click to pin") : undefined,
     });
   };
 
@@ -189,7 +190,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
       </h2>
       {an && <Chips an={an} view={view} onView={onView} />}
       <canvas id="chart" ref={canvasRef}
-        style={panning ? { cursor: "grabbing" } : snap === "pin" || tip ? { cursor: "pointer" } : undefined}
+        style={panning ? { cursor: "grabbing" } : snap === "pin" || snap === "probe" || tip ? { cursor: "pointer" } : undefined}
         // Stops the middle button's autoscroll.
         onMouseDown={(e) => { if (e.button === 1) e.preventDefault(); }}
         onPointerDown={(e) => {
@@ -235,7 +236,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
           else if (d.finger && d.showing) clearHover(); // a tap clears the reading
           else if (!moved && d.x0 >= g.x0 && d.x0 <= g.x1) {
             // A click on a snapped pin removes it. Anywhere else it pins,
-            // at the key point itself when the click snapped to one.
+            // at the key point itself when the click snapped to one, such
+            // as the typed frequency.
             const p = snapAt(d.x0, d.y0, d.finger);
             if (p?.kind === "pin") onTogglePin(p.f, 1e-9);
             else onTogglePin(p ? p.f : freqAt(g, d.x0), 0);
