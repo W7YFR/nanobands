@@ -20,7 +20,8 @@ export interface Extremum {
 
 export interface Analysis {
   crossings: Crossing[];
-  /** Stretches where SWR stays at or under the maximum, [lo, hi] in MHz. */
+  /** Stretches where SWR stays at or under the maximum and under the top of
+   *  the scale, [lo, hi] in MHz. */
   usable: [number, number][];
   extrema: Extremum[];
   fmin: number;
@@ -32,13 +33,34 @@ export interface AnalysisOptions {
   thr: number;
   /** Dips and peaks smaller than this are ignored. */
   prom: number;
-  /** The top of the scale, for telling a clipped peak. */
+  /** The top of the scale, for telling a clipped SWR. */
   top: number;
+  /** The bottom of the scale. 1 when left out. */
+  bot?: number;
 }
+
+/** An SWR over the top of the scale draws as a flat line along the top.
+ *  An SWR within this share of the scale's height under the top counts as
+ *  that line, so its real value is unknown. */
+const CLIP_SHARE = 0.015;
+
+/** Whether SWR `w` is at the top of the scale, so it may be any higher. */
+export const atTop = (w: number, s: { top: number; bot?: number | undefined }): boolean =>
+  w >= s.top - CLIP_SHARE * (s.top - (s.bot ?? 1));
+
+/** Whether SWR `w` is usable: at or under the maximum, and known. An SWR at
+ *  the top of the scale is never usable, since it may be any higher. */
+export const usableSwr = (w: number, s: { thr: number; top: number; bot?: number | undefined }): boolean =>
+  w <= s.thr && !atTop(w, s);
+
+/** The highest usable SWR: the maximum, or just under the top of the scale
+ *  when that is lower. */
+export const usableLimit = (s: { thr: number; top: number; bot?: number | undefined }): number =>
+  Math.min(s.thr, s.top - CLIP_SHARE * (s.top - (s.bot ?? 1)));
 
 /** Analyze SWR `w` at frequencies `f`. NaN in either marks a gap. */
 export function analyze(f: ArrayLike<number>, w: ArrayLike<number>, o: AnalysisOptions): Analysis | null {
-  const n = f.length, T = o.thr;
+  const n = f.length, T = usableLimit(o);
   const idx: number[] = [];
   for (let i = 0; i < n; i++) if (!Number.isNaN(w[i]) && !Number.isNaN(f[i])) idx.push(i);
   if (!idx.length) return null;
@@ -95,7 +117,7 @@ export function analyze(f: ArrayLike<number>, w: ArrayLike<number>, o: AnalysisO
       while (a > 0 && Math.abs(w[a - 1]! - we) < 1e-6) a--;
       while (b < n - 1 && Math.abs(w[b + 1]! - we) < 1e-6) b++;
       const i = Math.round((a + b) / 2);
-      return { f: f[i]!, s: we, type: e.type, clipped: e.type === "peak" && we >= o.top - 0.03 };
+      return { f: f[i]!, s: we, type: e.type, clipped: e.type === "peak" && atTop(we, o) };
     });
   return { crossings, usable, extrema, fmin: f[first]!, fmax: f[last]! };
 }

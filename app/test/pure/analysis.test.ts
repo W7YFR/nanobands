@@ -33,6 +33,26 @@ describe("analyze", () => {
     expect(an.extrema[0]!.s).toBeCloseTo(1.2, 2);
   });
 
+  it("never counts a flat line along the top of the scale as usable", () => {
+    // A 1–3 scale with Max SWR 3: the dip at 14 MHz, flat at 3 elsewhere,
+    // as the NanoVNA draws an SWR past its top line.
+    const flat = sample((f) => Math.min(3, 1.2 + 0.5 * Math.abs(f - 14)));
+    const an = analyze(flat.f, flat.s, { thr: 3, prom: 0.2, top: 3, bot: 1 })!;
+    expect(an.usable).toHaveLength(1);
+    expect(an.usable[0]![0]).toBeCloseTo(10.46, 1);
+    expect(an.usable[0]![1]).toBeCloseTo(17.54, 1);
+    expect(an.crossings.map((c) => c.dir)).toEqual(["down", "up"]);
+    // Under the top of the scale, the flat line is a real reading.
+    const high = analyze(flat.f, flat.s, { thr: 3, prom: 0.2, top: 5, bot: 1 })!;
+    expect(high.usable).toEqual([[3, 55]]);
+  });
+
+  it("scales the margin at the top with the scale", () => {
+    const near = sample(() => 4.95);
+    expect(analyze(near.f, near.s, { thr: 5, prom: 0.2, top: 5, bot: 1 })!.usable).toEqual([]);
+    expect(analyze(near.f, near.s, { thr: 5, prom: 0.2, top: 5, bot: 4.5 })!.usable).toEqual([[3, 55]]);
+  });
+
   it("reports a stretch that runs off either end of the sweep", () => {
     const low = sample(() => 1.5);
     expect(analyze(low.f, low.s, opts)!.usable).toEqual([[3, 55]]);
