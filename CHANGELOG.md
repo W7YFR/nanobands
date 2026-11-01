@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.6.0 — 2026-11-01
+
 ### Added
 
 - The scroll wheel zooms the chart about the pointer, and never scrolls the page while over it. When zoomed, Shift + scroll, a sideways scroll or a middle-button drag pans.
