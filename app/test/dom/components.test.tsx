@@ -1,9 +1,9 @@
 /* The components' markup and wiring, in jsdom. */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { analyze } from "@/analysis";
-import { AnalyzeCard, CalibrateCard, LoadCard } from "@/ui/Cards";
+import { AnalyzeCard, CalibrateCard, LoadCard, ShellCard } from "@/ui/Cards";
 import { Landing } from "@/ui/Landing";
 import { BANDS } from "@/bands";
 import { DEFAULT_FIELDS, DEFAULT_PREFS, bandView, checkAt, settingsOf } from "@/ui/model";
@@ -23,7 +23,7 @@ const an = (() => { const { f, s } = vSweep(); return analyze(f, s, { thr: 3, pr
 const vnaStub = (over: Partial<Vna> = {}): Vna => ({
   unsupported: "", device: null, range: null, live: false, note: "",
   connect: vi.fn(async () => undefined), disconnect: vi.fn(async () => undefined), sweep: vi.fn(async () => undefined),
-  setLive: vi.fn(), recall: vi.fn(async () => undefined), ...over,
+  setLive: vi.fn(), recall: vi.fn(async () => undefined), command: vi.fn(async () => []), reread: vi.fn(async () => undefined), ...over,
 });
 
 describe("AnalyzeCard", () => {
@@ -155,6 +155,98 @@ describe("LoadCard", () => {
     expect(screen.getByText("Sweeping live")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hold" })).toHaveClass("on");
     expect(screen.getByRole("button", { name: "Sweep" })).toBeDisabled();
+  });
+});
+
+describe("ShellCard", () => {
+  const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
+
+  it("shows only while a device is connected", () => {
+    const { rerender } = render(<ShellCard vna={vnaStub()} />);
+    expect(document.getElementById("shellCard")).toBeNull();
+    rerender(<ShellCard vna={vnaStub({ device })} />);
+    expect(screen.getByRole("button", { name: "Open shell" })).toBeEnabled();
+  });
+
+  it("keeps the window open when the device disconnects", () => {
+    const { rerender } = render(<ShellCard vna={vnaStub({ device })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    rerender(<ShellCard vna={vnaStub()} />);
+    expect(document.getElementById("shellCard")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Shell" })).toHaveTextContent("Not connected");
+    expect(screen.getByLabelText("Command")).toBeDisabled();
+  });
+
+  it("opens the window over the page, holds Live, and reads the range again on close", () => {
+    const vna = vnaStub({ device, live: true });
+    render(<ShellCard vna={vna} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    expect(vna.setLive).toHaveBeenCalledWith(false);
+    const dialog = screen.getByRole("dialog", { name: "Shell" });
+    expect(dialog.parentElement).toBe(document.body);
+    expect(screen.getByLabelText("Command")).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(vna.reread).toHaveBeenCalledOnce();
+  });
+
+  it("sends a command, shows the reply, and steps back through what was typed", async () => {
+    const vna = vnaStub({ device, command: vi.fn(async () => ["3000000 55000000 401"]) });
+    render(<ShellCard vna={vna} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    const input = screen.getByLabelText("Command");
+    fireEvent.change(input, { target: { value: " sweep " } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(vna.command).toHaveBeenCalledWith("sweep");
+    expect(await screen.findByText("3000000 55000000 401")).toBeInTheDocument();
+    expect(screen.getByText("ch> sweep")).toBeInTheDocument();
+    await waitFor(() => expect(input).not.toBeDisabled());
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(input).toHaveValue("sweep");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveValue("");
+  });
+
+  it("shows an error, and does not send a command that takes over the port", async () => {
+    const vna = vnaStub({ device, command: vi.fn(async () => { throw new Error('The NanoVNA does not know the command "bogus".'); }) });
+    render(<ShellCard vna={vna} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    const input = screen.getByLabelText("Command");
+    fireEvent.change(input, { target: { value: "reset" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(vna.command).not.toHaveBeenCalled();
+    expect(screen.getByText(/^Not sent\. Restarts the device/)).toHaveClass("err");
+    fireEvent.change(input, { target: { value: "bogus" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await screen.findByText(/does not know the command/)).toHaveClass("err");
+  });
+
+  it("lists the commands beside the prompt with ?, and puts a picked one in the prompt", () => {
+    render(<ShellCard vna={vnaStub({ device })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    const q = screen.getByRole("button", { name: "Commands" });
+    expect(q).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(q);
+    expect(q).toHaveAttribute("aria-expanded", "true");
+    const list = document.getElementById("shellHelp")!;
+    expect(list).toHaveTextContent("Loads the calibration and range from a slot.");
+    expect(list.querySelector("button:disabled")).toHaveTextContent("Not sent here.");
+    fireEvent.click(screen.getByText("Loads the calibration and range from a slot."));
+    expect(screen.getByLabelText("Command")).toHaveValue("recall ");
+    expect(screen.getByLabelText("Command")).toHaveFocus();
+    expect(document.getElementById("shellHelp")).not.toBeNull();
+    fireEvent.click(q);
+    expect(document.getElementById("shellHelp")).toBeNull();
+  });
+
+  it("opens the list when ? is typed in the prompt", () => {
+    const vna = vnaStub({ device });
+    render(<ShellCard vna={vna} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    fireEvent.change(screen.getByLabelText("Command"), { target: { value: "?" } });
+    fireEvent.keyDown(screen.getByLabelText("Command"), { key: "Enter" });
+    expect(document.getElementById("shellHelp")).not.toBeNull();
+    expect(vna.command).not.toHaveBeenCalled();
   });
 });
 

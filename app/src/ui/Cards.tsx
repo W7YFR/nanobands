@@ -2,12 +2,13 @@
  * They show settings and send changes up; the state lives in App.
  */
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { MODES, type LicenseClass, type OperatingMode } from "@/bands";
 import { fmtF } from "@/format";
 import type { Range } from "@/vna";
 import type { Doc, FreqCheck, Fields, GridNote, OcrNote, Prefs } from "./model";
 import { Help } from "./Help";
+import { ShellWindow, type ShellEntry } from "./ShellWindow";
 import type { Vna } from "./useVna";
 
 export type Mode = "idle" | "pen" | "ref";
@@ -345,6 +346,28 @@ export function ExportCard({ onPhoto, onChart, onCsv, onS1p }: {
         <button id="expCsv" disabled={!onCsv} onClick={onCsv ?? undefined}>Data (CSV)</button>
         {onS1p && <button id="expS1p" onClick={onS1p}>Touchstone (.s1p)</button>}
       </div>
+    </div>
+  );
+}
+
+/** Opens the Shell window. The card shows only while a NanoVNA is connected.
+ *  The window stays open when the device disconnects, so its last lines stay
+ *  in view. Its lines and typed commands stay while the page is open. */
+export function ShellCard({ vna }: { vna: Vna }): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const [entries, setEntries] = useState<ShellEntry[]>([]);
+  const history = useRef<string[]>([]);
+  const show = (): void => { vna.setLive(false); setOpen(true); };
+  const close = useCallback((): void => { setOpen(false); void vna.reread(); }, [vna]);
+  const win = open && <ShellWindow vna={vna} entries={entries} onEntries={setEntries} history={history.current} onClose={close} />;
+  if (!vna.device) return <>{win}</>;
+  return (
+    <div className="card" id="shellCard">
+      <h2>Shell</h2>
+      <div className="stack">
+        <button id="shellBtn" onClick={show}>Open shell</button>
+      </div>
+      {win}
     </div>
   );
 }

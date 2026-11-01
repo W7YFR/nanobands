@@ -250,6 +250,11 @@ export class NanoVNA {
     return parseDataScan(await this.sh.run("frequencies"), await this.sh.run("data 0", 10_000));
   }
 
+  /** Run a command typed in the Shell window and return what it printed. */
+  command(line: string, ms: number): Promise<string[]> {
+    return this.sh.run(line.trim().split(/\s+/).join(" "), ms);
+  }
+
   close(): Promise<void> {
     return this.link.close();
   }

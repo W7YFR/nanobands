@@ -308,3 +308,37 @@ header h1{position:relative;z-index:5}
 .disclaimer{margin:0;padding:8px 12px;border-left:3px solid var(--warn);background:color-mix(in srgb, var(--warn) 6%, transparent);border-radius:0 6px 6px 0;color:var(--muted);font-size:12px;line-height:1.5}
 .disclaimer b{color:var(--text);font-weight:600}
 .disclaimer .line{display:block}
+/* The Shell window: the whole page, a log above a prompt, and the commands
+   beside them while the "?" is on. On a phone the commands sit above the log,
+   so the prompt stays at the bottom by the keyboard. */
+html.shell-open{overflow:hidden}
+#shell{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
+.shell-head{flex:none;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line)}
+.shell-head h2{margin:0;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.shell-sub{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:12px}
+.shell-head button.small{min-width:0}
+.shell-sub b{color:var(--text);font-weight:600}
+.help.shell-q{width:22px;height:22px;font-size:12px;cursor:pointer}
+.shell-body{flex:1;min-height:0;display:flex}
+.term{flex:1;min-width:0;display:flex;flex-direction:column;font-family:var(--mono);font-size:13px}
+.term-log{flex:1;min-height:0;overflow:auto;margin:0;padding:12px 16px;font:inherit;white-space:pre-wrap;overflow-wrap:anywhere}
+.term-log .cmd{color:var(--accent)}
+.term-log .err{color:var(--bad)}
+.term-line{flex:none;display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--line);color:var(--accent)}
+.term-line input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--text);font:inherit;padding:2px 0}
+.term-line input::placeholder{color:var(--faint)}
+#shellHelp{flex:none;width:380px;overflow:auto;border-left:1px solid var(--line);background:var(--panel);padding:10px 0}
+#shellHelp .hint{margin:0 16px 8px}
+#shellHelp ul{list-style:none;margin:0;padding:0}
+#shellHelp li button{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;background:none;border:none;border-radius:0;padding:6px 16px;font-size:12px;color:var(--muted)}
+#shellHelp li button:hover:not(:disabled),#shellHelp li button:focus-visible{background:var(--panel2);outline:none}
+#shellHelp li button:disabled{opacity:.55}
+#shellHelp code{font-family:var(--mono);color:var(--muted);overflow-wrap:anywhere}
+#shellHelp code b{color:var(--text);font-weight:600}
+#shellHelp .refused{color:var(--warn)}
+@media (max-width:700px){
+  .shell-body{flex-direction:column}
+  #shellHelp{order:-1;width:auto;max-height:40%;border-left:none;border-bottom:1px solid var(--line)}
+}
+/* A field under 16px makes iOS zoom the page when it takes focus. */
+@media (pointer:coarse){.term-line input{font-size:16px}}

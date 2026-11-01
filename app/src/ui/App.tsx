@@ -19,7 +19,7 @@ import { parseSweepText } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { autoTrace } from "@/trace";
 import { toTouchstone } from "@/vna";
-import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type Mode } from "./Cards";
+import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, ShellCard, TraceCard, type Mode } from "./Cards";
 import { ChartCard } from "./ChartCard";
 import { drawChart } from "./draw-chart";
 import { Disclaimer } from "./Disclaimer";
@@ -469,6 +469,7 @@ export function App(): React.ReactElement {
               )}
               <AnalyzeCard prefs={prefs} onPref={onPref} onPin={onPinFreq} onView={onViewFreq} check={check} sweep={sweep} thr={settings.thr} top={settings.top} />
               <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p} />
+              <ShellCard vna={vna} />
             </aside>
             <main>
               {opening ? (

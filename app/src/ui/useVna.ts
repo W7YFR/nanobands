@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NanoVNA, VnaError, type Range, type Scan } from "@/vna";
+import { commandMs } from "@/shell";
 import { connectPort, serialApi, type SerialLike } from "@/vna-serial";
 
 export interface Vna {
@@ -23,6 +24,10 @@ export interface Vna {
   sweep(): Promise<void>;
   setLive(on: boolean): void;
   recall(slot: number): Promise<void>;
+  /** Run a line typed in the Shell window and return what the device printed. */
+  command(line: string): Promise<string[]>;
+  /** Read the device's range again, and sweep when the shell changed it. */
+  reread(): Promise<void>;
 }
 
 const log = (line: unknown): void => console.info("[NanoVNA]", line);
@@ -129,11 +134,36 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     }
   }, [sweepOnce, fail]);
 
+  const command = useCallback(async (line: string): Promise<string[]> => {
+    const d = dev.current;
+    if (!d) throw new VnaError("The NanoVNA is not connected.", true);
+    try {
+      return await d.command(line, commandMs(line));
+    } catch (e) {
+      if (!(e instanceof VnaError) || e.closed) void disconnect();
+      throw e;
+    }
+  }, [disconnect]);
+
+  const reread = useCallback(async (): Promise<void> => {
+    const d = dev.current, was = rng.current;
+    if (!d) return;
+    try {
+      const r = await d.range();
+      if (dev.current !== d || (was && r.start === was.start && r.stop === was.stop && r.points === was.points)) return;
+      rng.current = r;
+      setRange(r);
+      if (!liveOn.current) await sweepOnce();
+    } catch (e) {
+      fail(e);
+    }
+  }, [sweepOnce, fail]);
+
   // Let go of the port when the page goes.
   useEffect(() => () => { liveOn.current = false; void dev.current?.close(); }, []);
 
   return {
     unsupported: typeof serial === "string" ? serial : "",
-    device, range, live, note, connect, disconnect, sweep, setLive, recall,
+    device, range, live, note, connect, disconnect, sweep, setLive, recall, command, reread,
   };
 }
