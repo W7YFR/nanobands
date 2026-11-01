@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { analyze } from "@/analysis";
 import { AnalyzeCard, CalibrateCard, LoadCard } from "@/ui/Cards";
 import { Landing } from "@/ui/Landing";
-import { DEFAULT_FIELDS, DEFAULT_PREFS, checkAt, settingsOf } from "@/ui/model";
+import { BANDS } from "@/bands";
+import { DEFAULT_FIELDS, DEFAULT_PREFS, bandView, checkAt, settingsOf } from "@/ui/model";
 import { BandTable, PointsTable } from "@/ui/Tables";
 import { MATCH, OK } from "@/ui/colors";
 import type { Vna } from "@/ui/useVna";
@@ -38,6 +39,17 @@ describe("AnalyzeCard", () => {
     fireEvent.change(screen.getByLabelText("Frequency"), { target: { value: "14.3" } });
     expect(onPref).toHaveBeenCalledWith("freq", "14.3");
     expect(document.getElementById("freqCheck")).toBeNull();
+  });
+
+  it("clears the frequency with its ×, and shows no × when empty", () => {
+    const onPref = vi.fn();
+    const { unmount } = render(<AnalyzeCard prefs={DEFAULT_PREFS} onPref={onPref} onPin={vi.fn()} onView={vi.fn()} check={null} sweep={null} thr={3} top={5} />);
+    expect(screen.queryByRole("button", { name: "Clear frequency" })).toBeNull();
+    unmount();
+    render(<AnalyzeCard prefs={{ ...DEFAULT_PREFS, freq: "14.3" }} onPref={onPref} onPin={vi.fn()} onView={vi.fn()} check={null} sweep={null} thr={3} top={5} />);
+    fireEvent.click(screen.getByRole("button", { name: "Clear frequency" }));
+    expect(onPref).toHaveBeenCalledWith("freq", "");
+    expect(screen.getByLabelText("Frequency")).toHaveFocus();
   });
 
   it("pins the frequency on Enter", () => {
@@ -170,6 +182,72 @@ describe("the tables", () => {
     render(<BandTable an={an} settings={settings} />);
     const row = screen.getByText("20m").closest("td")!;
     expect(row).toHaveTextContent("all usable");
+  });
+
+  it("list every band, or only the usable ones", () => {
+    // 3:1 on the V at 14.2 MHz: only 20 m has a usable part.
+    const { unmount } = render(<BandTable an={an} settings={settings} />);
+    expect(screen.getByText("40m")).toBeInTheDocument();
+    unmount();
+    render(<BandTable an={an} settings={settings} shown="usable" />);
+    expect([...document.querySelectorAll("tbody.band")].map((t) => t.getAttribute("data-band"))).toEqual(["20m"]);
+  });
+
+  it("say when no band is usable", () => {
+    render(<BandTable an={an} settings={{ ...settings, cls: "T" }} shown="usable" />);
+    expect(screen.getByText("No usable band segments in this sweep.")).toBeInTheDocument();
+  });
+
+  it("show a band on the chart while the mouse is over it, and pick it on a click", () => {
+    const onPeek = vi.fn(), onPick = vi.fn();
+    render(<BandTable an={an} settings={settings} onPeek={onPeek} onPick={onPick} />);
+    const rows = document.querySelector('tbody[data-band="40m"]')!;
+    fireEvent.pointerEnter(rows, { pointerType: "touch" });
+    expect(onPeek).not.toHaveBeenCalled();
+    fireEvent.pointerEnter(rows, { pointerType: "mouse" });
+    expect(onPeek).toHaveBeenLastCalledWith(expect.objectContaining({ name: "40m" }));
+    fireEvent.pointerLeave(rows, { pointerType: "mouse" });
+    expect(onPeek).toHaveBeenLastCalledWith(null);
+    fireEvent.click(screen.getByText("40m"));
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ name: "40m" }));
+  });
+
+  it("mark the band the chart shows", () => {
+    const b20 = BANDS.find((b) => b.name === "20m")!;
+    render(<BandTable an={an} settings={settings} view={bandView(an, b20)} />);
+    expect([...document.querySelectorAll("tbody.band.on")].map((t) => t.getAttribute("data-band"))).toEqual(["20m"]);
+  });
+
+  it("give the range of the piece of a bar under the mouse", () => {
+    // At 1.15:1 the V is usable from about 14.12 to 14.28 MHz. General's 20 m
+    // phone segment, 14.225–14.35 MHz, is green then red.
+    const tight = (() => { const { f, s } = vSweep(); return analyze(f, s, { thr: 1.15, prom: 0.2, top: 5 })!; })();
+    render(<BandTable an={tight} settings={{ ...settings, thr: 1.15 }} />);
+    const bar = [...document.querySelectorAll('tbody[data-band="20m"] tr')].find((r) => r.textContent?.includes("14.225–14.350"))!.querySelector(".bar")!;
+    bar.getBoundingClientRect = () => ({ left: 0, width: 125, top: 0, height: 10, right: 125, bottom: 10, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerMove(bar, { pointerType: "mouse", clientX: 10, clientY: 5 });
+    expect(document.querySelector(".barTip")).toHaveTextContent(/^14\.225–14\.2\d\d · Usable$/);
+    fireEvent.pointerMove(bar, { pointerType: "mouse", clientX: 110, clientY: 5 });
+    expect(document.querySelector(".barTip")).toHaveTextContent(/^14\.2\d\d–14\.350 · SWR too high$/);
+    fireEvent.pointerLeave(bar, { pointerType: "mouse" });
+    expect(document.querySelector(".barTip")).toBeNull();
+  });
+
+  it("say you may not transmit between 60 m's channels", () => {
+    // A flat 1.2:1 across 5–6 MHz: every 60 m channel is usable.
+    const f = Array.from({ length: 201 }, (_, i) => 5 + i / 200);
+    const flat = analyze(f, f.map(() => 1.2), { thr: 3, prom: 0.2, top: 5 })!;
+    render(<BandTable an={flat} settings={settings} />);
+    const bar = document.querySelector('tbody[data-band="60m"] .bar')!;
+    // The bar runs 5.3306–5.4064 MHz across 758 pixels: 10 kHz per 100 pixels.
+    bar.getBoundingClientRect = () => ({ left: 0, width: 758, top: 0, height: 10, right: 758, bottom: 10, x: 0, y: 0, toJSON: () => ({}) });
+    const x = (mhz: number): number => (mhz - 5.3306) * 10000;
+    fireEvent.pointerMove(bar, { pointerType: "mouse", clientX: x(5.332), clientY: 5 });
+    expect(document.querySelector(".barTip")).toHaveTextContent("5.3320 · Usable");
+    fireEvent.pointerMove(bar, { pointerType: "mouse", clientX: x(5.340), clientY: 5 });
+    expect(document.querySelector(".barTip")).toHaveTextContent("5.3334–5.3466 · You may not transmit here");
+    fireEvent.pointerMove(bar, { pointerType: "mouse", clientX: x(5.36), clientY: 5 });
+    expect(document.querySelector(".barTip")).toHaveTextContent("5.3515–5.3665 · Usable");
   });
 
   it("list the crossings and the dip, and remove a pin", () => {

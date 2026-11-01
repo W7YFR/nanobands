@@ -17,4 +17,18 @@ if (!window.matchMedia) {
   })) as typeof window.matchMedia;
 }
 
+// jsdom has no PointerEvent, so a pointer event would lose its pointerType.
+if (!window.PointerEvent) {
+  class PointerEvent extends MouseEvent {
+    readonly pointerType: string;
+    readonly pointerId: number;
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init);
+      this.pointerType = init.pointerType ?? "";
+      this.pointerId = init.pointerId ?? 0;
+    }
+  }
+  window.PointerEvent = PointerEvent as typeof window.PointerEvent;
+}
+
 afterEach(() => cleanup());
