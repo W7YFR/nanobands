@@ -26,7 +26,7 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
-  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, curveOf, defaultCorners, loadImage, photoFrom, rectOf, settingsOf, swrOn, viewOf,
+  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, checkAt, curveOf, defaultCorners, loadImage, photoFrom, rectOf, settingsOf, swrOn, viewOf,
   type Doc, type Fields, type Photo, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
@@ -103,6 +103,11 @@ export function App(): React.ReactElement {
   const rect = useMemo(() => (doc.straight && doc.photo && doc.corners ? rectOf(doc.photo, doc.corners) : null), [doc.photo, doc.straight, doc.corners]);
   const view = useMemo(() => (doc.photo ? viewOf(doc.photo, map, rect) : null), [doc.photo, map, rect]);
   const swr = useCallback((f: number) => swrOn(curve, f), [curve]);
+  const check = useMemo(() => {
+    const f = parseFloat(prefs.freq);
+    return f > 0 ? checkAt(curve, settings, f) : null;
+  }, [curve, settings, prefs.freq]);
+  const sweep = useMemo((): [number, number] | null => (an ? [an.fmin, an.fmax] : null), [an]);
 
   /* ---------------- Loading ---------------- */
 
@@ -407,7 +412,7 @@ export function App(): React.ReactElement {
                     onErase={() => setDoc((d) => ({ ...d, trace: null }))} sens={doc.fields.sens} onSens={onSens} retrace={doc.retrace} />
                 </>
               )}
-              <AnalyzeCard prefs={prefs} onPref={onPref} />
+              <AnalyzeCard prefs={prefs} onPref={onPref} check={check} sweep={sweep} thr={settings.thr} top={settings.top} />
               <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p} />
             </aside>
             <main>

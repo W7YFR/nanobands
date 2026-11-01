@@ -3,9 +3,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { analyze } from "@/analysis";
-import { CalibrateCard, LoadCard } from "@/ui/Cards";
+import { AnalyzeCard, CalibrateCard, LoadCard } from "@/ui/Cards";
 import { Landing } from "@/ui/Landing";
-import { DEFAULT_FIELDS, DEFAULT_PREFS, settingsOf } from "@/ui/model";
+import { DEFAULT_FIELDS, DEFAULT_PREFS, checkAt, settingsOf } from "@/ui/model";
 import { BandTable, PointsTable } from "@/ui/Tables";
 import { MATCH, OK } from "@/ui/colors";
 import type { Vna } from "@/ui/useVna";
@@ -23,6 +23,46 @@ const vnaStub = (over: Partial<Vna> = {}): Vna => ({
   unsupported: "", device: null, range: null, live: false, note: "",
   connect: vi.fn(async () => undefined), disconnect: vi.fn(async () => undefined), sweep: vi.fn(async () => undefined),
   setLive: vi.fn(), recall: vi.fn(async () => undefined), ...over,
+});
+
+describe("AnalyzeCard", () => {
+  const curve = (() => { const { f, s } = vSweep(); return { N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) }; })();
+  const card = (f: number | null, onPref = vi.fn()) => render(
+    <AnalyzeCard prefs={DEFAULT_PREFS} onPref={onPref} check={f === null ? null : checkAt(curve, settings, f)}
+      sweep={[an.fmin, an.fmax]} thr={settings.thr} top={settings.top} />,
+  );
+
+  it("sends the typed frequency up", () => {
+    const onPref = vi.fn();
+    card(null, onPref);
+    fireEvent.change(screen.getByLabelText("Frequency"), { target: { value: "14.3" } });
+    expect(onPref).toHaveBeenCalledWith("freq", "14.3");
+    expect(document.getElementById("freqCheck")).toBeNull();
+  });
+
+  it("says you may transmit in your segment under Max SWR", () => {
+    card(14.3);
+    const r = document.getElementById("freqCheck")!;
+    expect(r).toHaveTextContent("You may transmit");
+    expect(r).toHaveTextContent("SWR 1.16");
+    expect(r).toHaveTextContent("20m · Phone/image");
+  });
+
+  it("says why not over Max SWR or outside your segments", () => {
+    card(11);
+    const r = document.getElementById("freqCheck")!;
+    expect(r).toHaveTextContent("Do not transmit");
+    expect(r).toHaveTextContent("over Max SWR 3");
+    expect(r).toHaveTextContent("Not in an amateur band");
+  });
+
+  it("gives no verdict where the sweep has no reading and the band plan allows it", () => {
+    card(50.5);
+    const r = document.getElementById("freqCheck")!;
+    expect(r).toHaveTextContent("Outside the sweep (3.000–30.000 MHz)");
+    expect(r).toHaveTextContent("6m · All modes");
+    expect(r).not.toHaveTextContent("transmit");
+  });
 });
 
 describe("Landing", () => {

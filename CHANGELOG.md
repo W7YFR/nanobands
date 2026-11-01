@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Added
+
+- **Frequency** in the Analyze card gives the SWR at one frequency, its band and segment, and whether you may transmit there. It says why not when the SWR is over **Max SWR** or your license class and mode have no segment there.
+
+### Development
+
+- Tests cover the frequency check and its result in the Analyze card.
+
 ## v1.6.1 — 2026-11-01
 
 ### Fixed
