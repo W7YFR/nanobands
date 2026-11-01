@@ -116,6 +116,11 @@ export function segsFor(b: Band, s: { cls: LicenseClass; mode: OperatingMode }):
   return b.priv[s.cls].filter((g) => s.mode === "any" || MODES[g[2]].modes.includes(s.mode));
 }
 
+/** Whether f lies in one of the segments the settings allow. */
+export function inSegment(f: number, s: { cls: LicenseClass; mode: OperatingMode }): boolean {
+  return BANDS.some((b) => f >= b.lo && f <= b.hi && segsFor(b, s).some((g) => f >= g[0] && f <= g[1]));
+}
+
 /** The bands that overlap [lo, hi]. */
 export function bandsInRange(lo: number, hi: number): readonly Band[] {
   return BANDS.filter((b) => b.hi > lo && b.lo < hi);
