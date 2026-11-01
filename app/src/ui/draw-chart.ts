@@ -232,7 +232,8 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     if (Number.isNaN(w)) continue;
     ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(X(m), Y(w), 4, 0, 7); ctx.fill();
     points.push({ kind: "pin", f: m, x: X(m), y: Y(w) });
-    tag(`${fmtF(m)} · ${w.toFixed(2)}`, X(m), Math.max(Y(w) - 14, y0 + 12), "#fff");
+    // The dot is white; the label takes the curve's color there, as a dip's does.
+    tag(`${fmtF(m)} · ${w.toFixed(2)}`, X(m), Math.max(Y(w) - 14, y0 + 12), curveColor(w, m, s));
   }
   // the typed frequency: a dashed line, a ring on the curve and its readout
   if (sc.probe != null && inView(sc.probe)) {

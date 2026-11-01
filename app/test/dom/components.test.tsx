@@ -182,4 +182,13 @@ describe("the tables", () => {
     render(<PointsTable an={an} settings={{ ...settings, cls: "E" }} manual={[]} swr={() => NaN} onRemove={() => undefined} />);
     expect(screen.getByText("Dip (best match)")).toHaveStyle({ color: OK });
   });
+
+  it("color a pin as the chart colors the curve there", () => {
+    // 14.3 MHz is in General's 20 m phone segment; 13.9 MHz is in no band.
+    const { unmount } = render(<PointsTable an={an} settings={settings} manual={[14.3]} swr={() => 1.5} onRemove={() => undefined} />);
+    expect(screen.getByText("Pinned")).toHaveStyle({ color: OK });
+    unmount();
+    render(<PointsTable an={an} settings={settings} manual={[13.9]} swr={() => 1.5} onRemove={() => undefined} />);
+    expect(screen.getByText("Pinned")).toHaveStyle({ color: MATCH });
+  });
 });

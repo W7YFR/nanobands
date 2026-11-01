@@ -91,6 +91,19 @@ describe("drawChart", () => {
     expect(name.l < xOf(g, 14.175) && name.r > xOf(g, 14.175)).toBe(true);
   });
 
+  it("colors a pin's label the way the curve is colored there", () => {
+    // On vee(13.8): 14.1 MHz is 2.4 in the CW/data segment, 13.6 MHz is 2.0 in no band.
+    for (const [f, col] of [[14.1, OK], [13.6, MATCH]] as const) {
+      const { ctx, g } = draw(vee(13.8), [f]);
+      const pin = g.points.find((p) => p.kind === "pin")!;
+      // The label's row, 14 px over the dot.
+      const d = ctx.getImageData(Math.round(pin.x) - 30, Math.round(pin.y) - 14, 60, 1).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (near(d.subarray(i, i + 3), col, 30)) n++;
+      expect(n, `pin at ${f}`).toBeGreaterThan(3);
+    }
+  });
+
   it("marks the typed frequency with a dashed line and a point to pin it by", () => {
     const dashes = (ctx: CanvasRenderingContext2D, g: ChartGeom, x: number): number => {
       const d = ctx.getImageData(x, g.y0, 1, g.y1 - g.y0).data;

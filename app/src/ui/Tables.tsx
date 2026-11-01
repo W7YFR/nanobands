@@ -84,7 +84,7 @@ export const PointsTable = memo(function PointsTable({ an, settings, manual, swr
   const rows: Row[] = [
     ...an.crossings.map((c): Row => ({ f: c.f, s: s.thr, kind: c.dir === "down" ? `Drops below ${s.thr}` : `Rises above ${s.thr}`, col: "#ff9a94" })),
     ...an.extrema.map((e): Row => ({ f: e.f, s: e.s, kind: e.type === "dip" ? "Dip (best match)" : "Peak", col: e.type === "dip" ? curveColor(e.s, e.f, s) : "#f2cc60", clipped: e.clipped })),
-    ...manual.map((m): Row => ({ f: m, s: swr(m), kind: "Pinned", col: "#fff", manual: true })),
+    ...manual.map((m): Row => ({ f: m, s: swr(m), kind: "Pinned", col: curveColor(swr(m), m, s), manual: true })),
   ].sort((a, b) => a.f - b.f);
   return (
     <table className="pts">

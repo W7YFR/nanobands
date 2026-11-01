@@ -11,9 +11,13 @@ them.
 
 - **Frequency** in the Analyze card gives the SWR, band and segment at a frequency, and whether you may transmit there and why not. The chart marks it until Enter, or a click on the mark, pins it.
 
+### Fixed
+
+- A pin's label on the chart and its row in **Key points** are no longer always white. They take the curve's color there, as a dip does.
+
 ### Development
 
-- Tests cover the frequency check, its result in the Analyze card, and its mark on the chart.
+- Tests cover the frequency check, its result in the Analyze card, and its mark on the chart, and a pin's color.
 
 ## v1.6.1 — 2026-11-01
 
