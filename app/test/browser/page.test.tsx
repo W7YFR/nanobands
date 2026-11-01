@@ -9,11 +9,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { fireEvent } from "@testing-library/react";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import "@/ui/base.css";
 import photo from "../data/random-wire-3-55mhz.jpg?url";
 import pkg from "../../../package.json";
 import { FakeNanoVNA } from "@/vna-fake";
+import { detectGrid } from "@/grid";
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string): T => document.querySelector<T>(sel)!;
 const has = (sel: string): boolean => document.querySelector(sel) !== null;
@@ -28,7 +29,30 @@ async function until(test: () => boolean, ms = 20000): Promise<void> {
 
 const device = new FakeNanoVNA();
 
+/** A pointer event at (x, y) on the page, from a mouse or a finger. */
+function point(el: Element, type: string, x: number, y: number, pointerType = "mouse", buttons = 1): void {
+  el.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, pointerType, buttons, bubbles: true, cancelable: true }));
+}
+/** A drag from x0 to x1 across `el` at height y, in steps. */
+function swipe(el: Element, x0: number, x1: number, y: number, pointerType = "mouse"): void {
+  point(el, "pointerdown", x0, y, pointerType);
+  for (let k = 1; k <= 5; k++) point(el, "pointermove", x0 + ((x1 - x0) * k) / 5, y, pointerType);
+  point(el, "pointerup", x1, y, pointerType, 0);
+}
+const tap = (el: Element, x: number, y: number): void => {
+  point(el, "pointerdown", x, y, "touch");
+  point(el, "pointerup", x, y, "touch", 0);
+};
+const frames = (n: number): Promise<void> =>
+  new Promise((r) => { let k = 0; const f = (): void => { if (++k >= n) r(); else requestAnimationFrame(f); }; requestAnimationFrame(f); });
+
+// Synthetic pointers have no real pointer to capture; capture is the
+// browser's business, not the page's, so let it pass.
+const capture = Element.prototype.setPointerCapture;
+afterAll(() => { Element.prototype.setPointerCapture = capture; });
+
 beforeAll(async () => {
+  Element.prototype.setPointerCapture = () => undefined;
   indexedDB.deleteDatabase("nanobands");
   localStorage.clear();
   window.Tesseract = {
@@ -103,6 +127,140 @@ describe("the page", () => {
     $("#collapseBtn").click();
     await until(() => !$("#photoCard").classList.contains("collapsed"));
     expect(has("#photo")).toBe(true);
+  });
+
+  it("puts Export last on a narrow screen", () => {
+    expect(window.innerWidth).toBeLessThanOrEqual(900);
+    expect($("#exportCard").getBoundingClientRect().top).toBeGreaterThan($("#ptCard").getBoundingClientRect().top);
+  });
+
+  describe("the chart, read by finger", () => {
+    const pins = (): number => document.querySelectorAll("#ptTable [data-del]").length;
+    const chip = (): string => $("#chips button.on")?.textContent ?? "";
+    const at = (u: number): [number, number] => {
+      const r = $("#chart").getBoundingClientRect();
+      return [r.left + r.width * u, r.top + r.height / 2];
+    };
+
+    it("reads the curve on a drag, keeps the reading, and clears it on the next tap", async () => {
+      const n = pins(), [x0, y] = at(0.3), [x1] = at(0.5), [x2] = at(0.6);
+      swipe($("#chart"), x0, x1, y, "touch");
+      await frames(2);
+      expect(chip()).toBe("Full sweep");
+      // A tap while the reading shows clears it and pins nothing.
+      tap($("#chart"), x2, y);
+      await frames(2);
+      expect(pins()).toBe(n);
+      // With no reading, a tap pins, and a second tap on the pin unpins.
+      tap($("#chart"), x2, y);
+      await until(() => pins() === n + 1);
+      await frames(2);
+      tap($("#chart"), x2, y);
+      await until(() => pins() === n);
+    });
+
+    it("zooms on a mouse drag", async () => {
+      const [x0, y] = at(0.3), [x1] = at(0.5);
+      swipe($("#chart"), x0, x1, y);
+      await until(() => chip() !== "Full sweep");
+      [...document.querySelectorAll<HTMLButtonElement>("#chips button")].find((b) => b.textContent === "Full sweep")!.click();
+      await until(() => chip() === "Full sweep");
+    });
+
+    it("zooms on a finger drag only after Zoom, and for one zoom", async () => {
+      const real = window.matchMedia;
+      window.matchMedia = ((q: string) => q.includes("coarse")
+        ? { matches: true, media: q, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false }
+        : real.call(window, q)) as typeof window.matchMedia;
+      try {
+        const [x0, y] = at(0.3), [x1] = at(0.5);
+        // Any update renders the card again, now on a touch screen.
+        point($("#chart"), "pointermove", x0, y, "mouse", 0);
+        await until(() => has("#chartZoom"));
+        $("#chartZoom").click();
+        await until(() => $("#chartZoom").classList.contains("on"));
+        swipe($("#chart"), x0, x1, y, "touch");
+        await until(() => chip() !== "Full sweep");
+        expect($("#chartZoom").classList.contains("on")).toBe(false);
+        [...document.querySelectorAll<HTMLButtonElement>("#chips button")].find((b) => b.textContent === "Full sweep")!.click();
+        await until(() => chip() === "Full sweep");
+      } finally {
+        window.matchMedia = real;
+      }
+    });
+  });
+
+  it("fills the window with the chart, and leaves on Escape or Done", async () => {
+    const root = document.documentElement;
+    $("#chartFull").click();
+    await until(() => $("#chartCard").classList.contains("full"));
+    expect(root.classList.contains("chart-full")).toBe(true);
+    expect($("#chartFull").textContent).toBe("Done");
+    expect($("#chart").getBoundingClientRect().height).toBeGreaterThan(window.innerHeight / 2);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await until(() => !$("#chartCard").classList.contains("full"));
+    expect(root.classList.contains("chart-full")).toBe(false);
+    $("#chartFull").click();
+    await until(() => $("#chartCard").classList.contains("full"));
+    $("#chartFull").click();
+    await until(() => !$("#chartCard").classList.contains("full") && !root.classList.contains("chart-full"));
+  });
+
+  it("drags a corner without redoing the page until release", async () => {
+    $("#straightBtn").click();
+    await until(() => $("#straightBtn").textContent === "Straighten");
+    // Where the page put the top right corner: the grid in the photo, scaled to the canvas.
+    const bmp = await createImageBitmap(await (await fetch(photo)).blob());
+    const sc = Math.min(1, 4000 / Math.max(bmp.width, bmp.height)), w = Math.round(bmp.width * sc), h = Math.round(bmp.height * sc);
+    const oc = new OffscreenCanvas(w, h), ox = oc.getContext("2d")!;
+    ox.drawImage(bmp, 0, 0, w, h);
+    const [cx, cy] = detectGrid(ox.getImageData(0, 0, w, h))!.corners[1];
+    const c = $("#photo"), r = c.getBoundingClientRect(), k = r.width / w;
+    const x = r.left + cx * k, y = r.top + cy * k, before = $("#ptTable").textContent;
+
+    point(c, "pointerdown", x, y);
+    expect(document.documentElement.classList.contains("photo-drag")).toBe(true);
+    for (let j = 1; j <= 4; j++) point(c, "pointermove", x - 10 * j, y);
+    await frames(2);
+    expect($("#ptTable").textContent).toBe(before);
+    point(c, "pointerup", x - 40, y, "mouse", 0);
+    expect(document.documentElement.classList.contains("photo-drag")).toBe(false);
+    await until(() => $("#ptTable").textContent !== before);
+  });
+
+  it("stretches the photo in the pen with a mouse, and scrolls it at the edge", async () => {
+    $("#photoPen").click();
+    await until(() => has("#photoStretch"));
+    const wrap = $("#photoWrap"), c = $("#photo");
+    expect($("#photoStretch").textContent).toBe("↔ 1×");
+    $("#photoStretch").click();
+    await until(() => wrap.classList.contains("wide"));
+    expect($("#photoStretch").textContent).toBe("↔ 2×");
+    expect(c.getBoundingClientRect().width).toBeGreaterThan(wrap.clientWidth * 1.5);
+
+    // A stroke held near the right edge scrolls the photo along.
+    wrap.scrollLeft = 0;
+    const r = wrap.getBoundingClientRect(), y = r.top + r.height / 2;
+    point(c, "pointerdown", r.left + r.width / 2, y);
+    point(c, "pointermove", r.right - 5, y);
+    await until(() => wrap.scrollLeft > 0);
+    point(c, "pointerup", r.right - 5, y, "mouse", 0);
+
+    $("#photoStretch").click();
+    await until(() => $("#photoStretch").textContent === "↔ 4×");
+    $("#photoStretch").click();
+    await until(() => $("#photoStretch").textContent === "↔ 1×" && !wrap.classList.contains("wide"));
+    // Stretched, then the pen off: the photo is back to its width.
+    $("#photoStretch").click();
+    await until(() => wrap.classList.contains("wide"));
+    $("#photoPen").click();
+    await until(() => !has("#photoStretch") && !wrap.classList.contains("wide"));
+    // The pen back on starts at the photo's width again.
+    $("#photoPen").click();
+    await until(() => has("#photoStretch"));
+    expect($("#photoStretch").textContent).toBe("↔ 1×");
+    $("#photoPen").click();
+    await until(() => !has("#photoStretch"));
   });
 
   it("starts over on Clear", async () => {
