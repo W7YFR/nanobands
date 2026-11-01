@@ -7,6 +7,7 @@ import { CalibrateCard, LoadCard } from "@/ui/Cards";
 import { Landing } from "@/ui/Landing";
 import { DEFAULT_FIELDS, DEFAULT_PREFS, settingsOf } from "@/ui/model";
 import { BandTable, PointsTable } from "@/ui/Tables";
+import { MATCH, OK } from "@/ui/colors";
 import type { Vna } from "@/ui/useVna";
 import type { NanoVNA } from "@/vna";
 
@@ -122,5 +123,14 @@ describe("the tables", () => {
     expect(screen.getByText("Rises above 3")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "remove" }));
     expect(onRemove).toHaveBeenCalledWith(7.1);
+  });
+
+  it("color a dip as the chart colors the curve there", () => {
+    // The dip at 14.2 MHz falls between General's 20 m segments, and in Extra's.
+    const { unmount } = render(<PointsTable an={an} settings={settings} manual={[]} swr={() => NaN} onRemove={() => undefined} />);
+    expect(screen.getByText("Dip (best match)")).toHaveStyle({ color: MATCH });
+    unmount();
+    render(<PointsTable an={an} settings={{ ...settings, cls: "E" }} manual={[]} swr={() => NaN} onRemove={() => undefined} />);
+    expect(screen.getByText("Dip (best match)")).toHaveStyle({ color: OK });
   });
 });
