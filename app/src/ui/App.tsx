@@ -26,7 +26,7 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
-  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, checkAt, curveOf, defaultCorners, loadImage, photoFrom, rectOf, settingsOf, swrOn, viewOf,
+  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, checkAt, curveOf, defaultCorners, loadImage, photoFrom, rectOf, settingsOf, swrOn, viewAround, viewOf,
   type Doc, type Fields, type Photo, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
@@ -361,6 +361,13 @@ export function App(): React.ReactElement {
     setProbePinned(true);
   }, [prefs.freq, curve]);
 
+  const onViewFreq = useCallback((): void => {
+    const f = parseFloat(prefs.freq);
+    if (!an || !(f > 0)) return;
+    setDoc((d) => ({ ...d, view: viewAround(an, f) }));
+    chartRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [prefs.freq, an]);
+
   /* ---------------- Exports ---------------- */
 
   const photoScene = view && doc.corners
@@ -426,7 +433,7 @@ export function App(): React.ReactElement {
                     onErase={() => setDoc((d) => ({ ...d, trace: null }))} sens={doc.fields.sens} onSens={onSens} retrace={doc.retrace} />
                 </>
               )}
-              <AnalyzeCard prefs={prefs} onPref={onPref} onPin={onPinFreq} check={check} sweep={sweep} thr={settings.thr} top={settings.top} />
+              <AnalyzeCard prefs={prefs} onPref={onPref} onPin={onPinFreq} onView={onViewFreq} check={check} sweep={sweep} thr={settings.thr} top={settings.top} />
               <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p} />
             </aside>
             <main>

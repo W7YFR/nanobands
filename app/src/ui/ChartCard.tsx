@@ -21,7 +21,7 @@ import { Help } from "./Help";
 import { bandTip, drawChart, freqAt, type ChartGeom, type KeyKind, type KeyPoint } from "./draw-chart";
 import { fitCanvas } from "./draw-photo";
 import type { Band } from "@/bands";
-import type { Curve, Settings } from "./model";
+import { fitView, type Curve, type Settings } from "./model";
 import { useNoSwipe } from "./useNoSwipe";
 
 function Chips({ an, view, onView }: { an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void }): React.ReactElement {
@@ -98,15 +98,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
     });
   };
 
-  /** A view of lo–hi, kept inside the sweep and no narrower than a
-   *  2000th of it. The whole sweep is no zoom at all. */
-  const fit = (lo: number, hi: number): [number, number] | null => {
-    if (!an) return null;
-    const full = an.fmax - an.fmin, span = Math.max(hi - lo, full / 2000);
-    if (span >= full * 0.999) return null;
-    const a = Math.min(Math.max(lo, an.fmin), an.fmax - span);
-    return [a, a + span];
-  };
+  const fit = (lo: number, hi: number): [number, number] | null => (an ? fitView(an, lo, hi) : null);
 
   /** The key point nearest (x, y), if one is close enough to snap to. */
   const snapAt = (x: number, y: number, finger: boolean): KeyPoint | null => {

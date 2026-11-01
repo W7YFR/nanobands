@@ -139,6 +139,27 @@ export function analysisOf(c: Curve | null, s: Settings): Analysis | null {
 
 export const swrOn = (c: Curve | null, fq: number): number => (c ? swrAt(c.f, c.s, fq) : NaN);
 
+/** A chart view of lo–hi, kept inside the sweep and no narrower than a
+ *  2000th of it. The whole sweep is no zoom at all, so null. */
+export function fitView(an: Analysis, lo: number, hi: number): [number, number] | null {
+  const full = an.fmax - an.fmin, span = Math.max(hi - lo, full / 2000);
+  if (span >= full * 0.999) return null;
+  const a = Math.min(Math.max(lo, an.fmin), an.fmax - span);
+  return [a, a + span];
+}
+
+/** A chart view around f: its band with a quarter of the band's width on
+ *  each side, or a 20th of the sweep centered on f outside the bands. */
+export function viewAround(an: Analysis, f: number): [number, number] | null {
+  const b = bandAt(f);
+  if (b) {
+    const pad = (b.hi - b.lo) / 4;
+    return fitView(an, b.lo - pad, b.hi + pad);
+  }
+  const half = (an.fmax - an.fmin) / 40;
+  return fitView(an, f - half, f + half);
+}
+
 /** What the curve and the band plan say about one frequency. */
 export interface FreqCheck {
   f: number;

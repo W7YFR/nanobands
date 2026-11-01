@@ -4,7 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 import { segmentAt } from "@/bands";
-import { DEFAULT_FIELDS, DEFAULT_PREFS, checkAt, settingsOf, type Curve, type Prefs } from "@/ui/model";
+import { analyze } from "@/analysis";
+import { DEFAULT_FIELDS, DEFAULT_PREFS, checkAt, fitView, settingsOf, viewAround, type Curve, type Prefs } from "@/ui/model";
 
 /** A V-shaped dip at 14.2 MHz across 3–30 MHz, with a gap at 20–21 MHz. */
 function vCurve(): Curve {
@@ -63,5 +64,28 @@ describe("checkAt", () => {
   it("marks an SWR at the top of the scale as clipped", () => {
     expect(checkAt(c, at(), 28.5).clipped).toBe(true);
     expect(checkAt(c, at(), 14.3).clipped).toBe(false);
+  });
+});
+
+describe("viewAround", () => {
+  const c = vCurve(), an = analyze(c.f, c.s, { thr: 3, prom: 0.2, top: 5 })!;
+
+  it("shows the band with a quarter of its width on each side", () => {
+    const [lo, hi] = viewAround(an, 14.3)!;
+    expect(lo).toBeCloseTo(14.0 - 0.0875, 6);
+    expect(hi).toBeCloseTo(14.35 + 0.0875, 6);
+  });
+
+  it("centers a 20th of the sweep on a frequency outside the bands", () => {
+    const [lo, hi] = viewAround(an, 12)!;
+    expect(hi - lo).toBeCloseTo(27 / 20, 6);
+    expect((lo + hi) / 2).toBeCloseTo(12, 6);
+  });
+
+  it("stays inside the sweep", () => {
+    const [lo, hi] = viewAround(an, 3.2)!;
+    expect(lo).toBeCloseTo(3, 6);
+    expect(hi).toBeCloseTo(3 + 27 / 20, 6);
+    expect(fitView(an, 0, 100)).toBeNull();
   });
 });

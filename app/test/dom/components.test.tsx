@@ -27,8 +27,8 @@ const vnaStub = (over: Partial<Vna> = {}): Vna => ({
 
 describe("AnalyzeCard", () => {
   const curve = (() => { const { f, s } = vSweep(); return { N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) }; })();
-  const card = (f: number | null, onPref = vi.fn(), onPin = vi.fn()) => render(
-    <AnalyzeCard prefs={DEFAULT_PREFS} onPref={onPref} onPin={onPin} check={f === null ? null : checkAt(curve, settings, f)}
+  const card = (f: number | null, onPref = vi.fn(), onPin = vi.fn(), onView = vi.fn()) => render(
+    <AnalyzeCard prefs={DEFAULT_PREFS} onPref={onPref} onPin={onPin} onView={onView} check={f === null ? null : checkAt(curve, settings, f)}
       sweep={[an.fmin, an.fmax]} thr={settings.thr} top={settings.top} />,
   );
 
@@ -65,12 +65,20 @@ describe("AnalyzeCard", () => {
     expect(r).toHaveTextContent("Not in an amateur band");
   });
 
+  it("offers View inside the sweep only", () => {
+    const onView = vi.fn();
+    card(14.3, vi.fn(), vi.fn(), onView);
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    expect(onView).toHaveBeenCalledOnce();
+  });
+
   it("gives no verdict where the sweep has no reading and the band plan allows it", () => {
     card(50.5);
     const r = document.getElementById("freqCheck")!;
     expect(r).toHaveTextContent("Outside the sweep (3.000–30.000 MHz)");
     expect(r).toHaveTextContent("6m · All modes");
     expect(r).not.toHaveTextContent("transmit");
+    expect(screen.queryByRole("button", { name: "View" })).toBeNull();
   });
 });
 
