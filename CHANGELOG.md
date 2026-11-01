@@ -7,6 +7,10 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- The small buttons, such as **Change**, **Done**, **View** and **Cancel**, are all one width. A button keeps its width when its label changes.
+
 ## v1.7.0 — 2026-11-01
 
 ### Added

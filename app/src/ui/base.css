@@ -29,7 +29,10 @@ header .div{width:1px;align-self:stretch;background:var(--line)}
 #clearAll{margin-left:auto}
 .ghost{visibility:hidden}
 /* A button in a card's header row, such as Collapse. */
-.card h2 button.small{text-transform:none;letter-spacing:0;font-size:12px;padding:3px 10px}
+/* A small button. Short labels all take the width of the longest, Collapse,
+   so a button keeps its size when its label changes. */
+button.small{font-size:12px;padding:3px 10px;min-width:74px}
+.card h2 button.small{text-transform:none;letter-spacing:0}
 /* The photo's buttons sit at the right of its header, and wrap together
    under the title on a phone rather than overflow. */
 #photoCard h2{flex-wrap:wrap}
@@ -112,7 +115,7 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
 .stats.check{margin:12px 0 0;padding:12px 0 0;border-bottom:none;border-top:1px solid var(--line)}
 /* The verdict, with View at the right. */
 .stat.verdict{align-items:center;min-height:24px}
-.stat.verdict button{margin-left:auto;font-size:12px;padding:3px 10px}
+.stat.verdict button{margin-left:auto}
 /* A button in a line of text: blue text, no box. */
 button.text{background:none;border:none;padding:0;color:var(--accent);font:inherit;cursor:pointer}
 button.text:hover,button.text:focus-visible{text-decoration:underline;outline:none}
