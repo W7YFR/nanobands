@@ -41,6 +41,17 @@ describe("AnalyzeCard", () => {
     expect(document.getElementById("freqCheck")).toBeNull();
   });
 
+  it("clears the frequency with its ×, and shows no × when empty", () => {
+    const onPref = vi.fn();
+    const { unmount } = render(<AnalyzeCard prefs={DEFAULT_PREFS} onPref={onPref} onPin={vi.fn()} onView={vi.fn()} check={null} sweep={null} thr={3} top={5} />);
+    expect(screen.queryByRole("button", { name: "Clear frequency" })).toBeNull();
+    unmount();
+    render(<AnalyzeCard prefs={{ ...DEFAULT_PREFS, freq: "14.3" }} onPref={onPref} onPin={vi.fn()} onView={vi.fn()} check={null} sweep={null} thr={3} top={5} />);
+    fireEvent.click(screen.getByRole("button", { name: "Clear frequency" }));
+    expect(onPref).toHaveBeenCalledWith("freq", "");
+    expect(screen.getByLabelText("Frequency")).toHaveFocus();
+  });
+
   it("pins the frequency on Enter", () => {
     const onPin = vi.fn();
     card(14.3, vi.fn(), onPin);

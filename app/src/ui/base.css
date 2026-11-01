@@ -146,10 +146,18 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 .help{position:relative;display:inline-grid;place-items:center;flex:none;width:18px;height:18px;padding:0;border-radius:50%;background:none;border:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:600;line-height:1;cursor:help;text-transform:none;letter-spacing:0}
 .help.shown,.help:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
 .help .tip{display:none;position:absolute;top:calc(100% + 6px);z-index:10;width:240px;max-width:calc(100vw - 16px);padding:8px 10px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);box-shadow:0 6px 18px rgba(0,0,0,.4);color:var(--text);font-size:12px;font-weight:400;line-height:1.45;text-align:left;pointer-events:none}
+/* The "?" trimmed to its cap height and baseline, so it sits in the middle of the circle. */
+.help .glyph{display:block;text-box:trim-both cap alphabetic}
 .help.end .tip{right:-4px}
 .help.start .tip{left:-4px}
 .help.shown .tip{display:block}
 .help .tip.up{top:auto;bottom:calc(100% + 6px)}
+/* A field with a round "×" inside its right edge, right of the number arrows, that clears it. It is drawn like the "?". */
+.clearable{position:relative;display:block;min-width:0}
+.clearable input{padding-right:28px}
+.clearable .clear{position:absolute;right:5px;top:50%;translate:0 -50%;display:inline-grid;place-items:center;width:18px;height:18px;padding:0;border-radius:50%;background:none;border:1px solid var(--line);color:var(--muted)}
+.clearable .clear svg{display:block;stroke:currentColor;stroke-width:1.4;stroke-linecap:round}
+.clearable .clear:hover,.clearable .clear:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
 .warn{color:var(--warn);font-size:12px}
 .drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;text-align:center;color:var(--muted);cursor:pointer;font-size:13px}
 .drop.over{border-color:var(--accent);color:var(--accent)}

@@ -2,7 +2,7 @@
  * They show settings and send changes up; the state lives in App.
  */
 
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { MODES, type LicenseClass, type OperatingMode } from "@/bands";
 import { fmtF } from "@/format";
 import type { Range } from "@/vna";
@@ -289,6 +289,7 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref, onPin, onV
   thr: number;
   top: number;
 }): React.ReactElement {
+  const freqIn = useRef<HTMLInputElement>(null);
   return (
     <div className="card">
       <h2><b className="step" /> Analyze</h2>
@@ -310,8 +311,14 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref, onPin, onV
         <input type="number" id="prom" step="0.05" value={prefs.prom} onChange={(e) => onPref("prom", e.target.value)} />
         <Help text="Smaller dips and peaks are not marked." />
         <label htmlFor="freq">Frequency</label>
-        <input type="number" id="freq" step="0.001" min="0" placeholder="MHz" value={prefs.freq} onChange={(e) => onPref("freq", e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") onPin(); }} />
+        <span className="clearable">
+          <input type="number" id="freq" ref={freqIn} step="0.001" min="0" placeholder="MHz" value={prefs.freq} onChange={(e) => onPref("freq", e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") onPin(); }} />
+          {prefs.freq && <button type="button" className="clear" id="freqClear" aria-label="Clear frequency"
+            onClick={() => { onPref("freq", ""); freqIn.current?.focus(); }}>
+            <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M1 1L7 7M7 1L1 7" /></svg>
+          </button>}
+        </span>
         <Help text="Marks this frequency in MHz on the chart and says whether you may transmit there; Enter, or a click on its mark, pins it." />
       </div>
       {check && <CheckResult c={check} sweep={sweep} thr={thr} top={top} onView={onView} />}

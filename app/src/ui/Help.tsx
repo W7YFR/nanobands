@@ -58,7 +58,7 @@ export function Help({ text, align = "end" }: {
       aria-label="More information" aria-expanded={open} aria-describedby={id} onClick={() => setOpen(!open)}
       onPointerEnter={(e) => { if (e.pointerType === "mouse") setHover(true); }}
       onPointerLeave={(e) => { if (e.pointerType === "mouse") setHover(false); }}>
-      ?
+      <span className="glyph">?</span>
       <span className="tip" role="tooltip" id={id} ref={tip}>{text}</span>
     </button>
   );
