@@ -381,8 +381,8 @@ export function App(): React.ReactElement {
   if (an && curve) {
     const res = ((an.fmax - an.fmin) / curve.N) * 1000;
     resNote = doc.source === "image"
-      ? `· traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point`
-      : `· ${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`;
+      ? `Traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point`
+      : `${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`;
   }
 
   return (
