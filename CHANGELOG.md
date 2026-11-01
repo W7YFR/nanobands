@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- A photo of a screen with an SWR scale other than 1–5 no longer reads its curve on a 1–5 scale. **Top SWR** and **Bottom SWR** now come from the scale labels on the photo.
+
+### Development
+
+- Tests cover reading the SWR scale from real OCR output of the three photos, and from a scale that does not start at 1.
+
 ## v1.8.0 — 2026-11-01
 
 ### Added

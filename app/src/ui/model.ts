@@ -26,7 +26,7 @@ export type Trace =
 /** What the text recognition said about the sweep. */
 export type OcrNote =
   | { kind: "looking" }
-  | { kind: "read"; start: number; stop: number; raw: string }
+  | { kind: "read"; start: number; stop: number; raw: string; scale?: { top: number; bot: number } }
   | { kind: "offer"; start: number; stop: number; raw: string }
   | { kind: "none" }
   | { kind: "failed" };

@@ -49,23 +49,30 @@ export function isSlashedZero(px: Pixels, box: OcrSymbol["bbox"]): boolean {
   return true;
 }
 
-/** The OCR text with slashed zeros put back. `scale` is OCR image pixels per
- *  photo pixel: OCR runs on a smaller copy. */
+/** A word OCR read, with slashed zeros put back, and its box in photo pixels. */
+export interface OcrWord {
+  text: string;
+  box: OcrSymbol["bbox"];
+}
+
+/** The OCR words line by line, with slashed zeros put back. `scale` is OCR
+ *  image pixels per photo pixel: OCR runs on a smaller copy. */
+export function fixedWords(data: OcrResult, px: Pixels, scale: number): OcrWord[][] {
+  const k = 1 / scale;
+  const toPhoto = (b: OcrSymbol["bbox"]): OcrSymbol["bbox"] => ({ x0: b.x0 * k, y0: b.y0 * k, x1: b.x1 * k, y1: b.y1 * k });
+  return (data.lines ?? []).map((l) =>
+    l.words.map((w) => {
+      const boxes = w.symbols.map((s) => toPhoto(s.bbox));
+      const text = w.symbols.map((s, i) => ("869B".includes(s.text) && isSlashedZero(px, boxes[i]!) ? "0" : s.text)).join("");
+      const box = boxes.reduce((a, b) => ({ x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) }),
+        { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
+      return { text, box };
+    }),
+  );
+}
+
+/** The OCR text with slashed zeros put back. */
 export function fixSlashedZeros(data: OcrResult, px: Pixels, scale: number): string {
   if (!data.lines?.length) return data.text;
-  const k = 1 / scale;
-  return data.lines
-    .map((l) =>
-      l.words
-        .map((w) =>
-          w.symbols
-            .map((s) => {
-              const b = { x0: s.bbox.x0 * k, y0: s.bbox.y0 * k, x1: s.bbox.x1 * k, y1: s.bbox.y1 * k };
-              return "869B".includes(s.text) && isSlashedZero(px, b) ? "0" : s.text;
-            })
-            .join(""),
-        )
-        .join(" "),
-    )
-    .join("\n");
+  return fixedWords(data, px, scale).map((l) => l.map((w) => w.text).join(" ")).join("\n");
 }

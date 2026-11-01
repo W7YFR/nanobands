@@ -124,7 +124,7 @@ function OcrStat({ note, onUse }: { note: OcrNote; onUse(): void }): React.React
   const f = (x: number): number => +x.toFixed(6);
   switch (note.kind) {
     case "looking": return <Stat ok={null} id="ocrNote">Reading the sweep from the photo</Stat>;
-    case "read": return <Stat ok id="ocrNote">Sweep read from the photo: {f(note.start)}–{f(note.stop)} MHz</Stat>;
+    case "read": return <Stat ok id="ocrNote">Sweep read from the photo: {f(note.start)}–{f(note.stop)} MHz{note.scale ? `, SWR ${f(note.scale.bot)}–${f(note.scale.top)}` : ""}</Stat>;
     case "offer": return <Stat ok={null} id="ocrNote">The photo says {f(note.start)}–{f(note.stop)} MHz. <TextButton id="ocrUse" onClick={onUse}>Use it</TextButton></Stat>;
     case "none": return <Stat ok={false} id="ocrNote">No sweep found on the photo. Enter it below.</Stat>;
     case "failed": return <Stat ok={false} id="ocrNote">Couldn't read the photo's text. Enter the sweep below.</Stat>;

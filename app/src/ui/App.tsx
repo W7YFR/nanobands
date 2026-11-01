@@ -11,8 +11,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { Band } from "@/bands";
 import { mappingFor, solveRefs, type Quad } from "@/geometry";
 import { detectGrid } from "@/grid";
-import { fixSlashedZeros } from "@/ocr-zeros";
+import { fixedWords } from "@/ocr-zeros";
 import { ocrCanvas, recognize } from "@/ocr";
+import { axisLabels, DIVISIONS, fitScale, parsePerDivision, type SwrScale } from "@/scale-text";
 import { openStore } from "@/store";
 import { parseSweepText } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
@@ -66,12 +67,23 @@ function traced(d: Doc): Doc {
   return { ...d, trace: { kind: "photo", N, v, auto: true, edited: false }, retrace: false };
 }
 
-/** A doc with the sweep read off the photo filled in. */
-function withSweep(d: Doc, r: { start: number; stop: number; raw: string }): Doc {
+/** A doc with the sweep read off the photo filled in, and the SWR scale when
+ *  that was read too. */
+function withSweep(d: Doc, r: { start: number; stop: number; raw: string; scale?: SwrScale | undefined }): Doc {
   return {
     ...d, fields: { ...d.fields, start: String(+r.start.toFixed(6)), stop: String(+r.stop.toFixed(6)) },
-    view: null, sweepTyped: false, ocr: { kind: "read", start: r.start, stop: r.stop, raw: r.raw },
+    view: null, sweepTyped: false, ocr: { kind: "read", start: r.start, stop: r.stop, raw: r.raw, ...(r.scale ? { scale: r.scale } : {}) },
   };
+}
+
+/** A doc with the SWR scale read off the photo, unless the user typed one.
+ *  The axis labels give both ends. Without them, the header's SWR per
+ *  division gives the top from the bottom in the field. */
+function withScale(d: Doc, sc: SwrScale | null, per: number | null): Doc {
+  if (d.fields.top !== DEFAULT_FIELDS.top || d.fields.bot !== DEFAULT_FIELDS.bot) return d;
+  if (sc) return { ...d, fields: { ...d.fields, top: String(sc.top), bot: String(sc.bot) } };
+  if (per) return { ...d, fields: { ...d.fields, top: String(+(+d.fields.bot + DIVISIONS * per).toFixed(4)) } };
+  return d;
 }
 
 /** The sweep solved from the frequency references, when there are two. */
@@ -146,11 +158,15 @@ export function App(): React.ReactElement {
       const { canvas, scale } = ocrCanvas(photo.src);
       const data = await recognize(canvas);
       if (job !== ocrJob.current) return;
-      const r = parseSweepText(fixSlashedZeros(data, photo.px, scale));
-      setDoc((d) => {
-        if (d.photo !== photo) return d;
+      const words = fixedWords(data, photo.px, scale);
+      const text = data.lines?.length ? words.map((l) => l.map((w) => w.text).join(" ")).join("\n") : data.text;
+      const r = parseSweepText(text), per = parsePerDivision(text);
+      setDoc((was) => {
+        if (was.photo !== photo) return was;
+        const labels = was.corners ? axisLabels(words.flat(), mappingFor(was.corners).back) : [];
+        const d = withScale(was, fitScale(labels, per), per), scaleRead = d !== was ? { top: +d.fields.top, bot: +d.fields.bot } : undefined;
         if (!r) return { ...d, ocr: { kind: "none" } };
-        return d.sweepTyped ? { ...d, ocr: { kind: "offer", start: r.start, stop: r.stop, raw: r.raw } } : withSweep(d, r);
+        return d.sweepTyped ? { ...d, ocr: { kind: "offer", start: r.start, stop: r.stop, raw: r.raw } } : withSweep(d, { ...r, scale: scaleRead });
       });
     } catch {
       if (job === ocrJob.current) setDoc((d) => (d.photo === photo ? { ...d, ocr: { kind: "failed" } } : d));
