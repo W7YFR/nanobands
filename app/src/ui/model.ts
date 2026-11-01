@@ -4,7 +4,7 @@
  */
 
 import { analyze, swrAt, type Analysis } from "@/analysis";
-import type { LicenseClass, OperatingMode } from "@/bands";
+import { MODE_NAMES, bandAt, segmentAt, type Band, type LicenseClass, type OperatingMode, type Segment } from "@/bands";
 import { mappingFor, type Mapping, type Point, type Quad } from "@/geometry";
 import type { Pixels } from "@/pixels";
 import { rectify, type Rectified } from "@/rectify";
@@ -50,11 +50,13 @@ export interface Prefs {
   cls: LicenseClass;
   mode: OperatingMode;
   prom: string;
+  /** The frequency to check, in MHz. */
+  freq: string;
   /** Whether the Key points table is open. It starts closed. */
   points: boolean;
 }
 
-export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", points: false };
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false };
 
 /** Everything about the loaded file. Clear resets it to EMPTY_DOC. */
 export interface Doc {
@@ -136,6 +138,54 @@ export function analysisOf(c: Curve | null, s: Settings): Analysis | null {
 }
 
 export const swrOn = (c: Curve | null, fq: number): number => (c ? swrAt(c.f, c.s, fq) : NaN);
+
+/** A chart view of lo–hi, kept inside the sweep and no narrower than a
+ *  2000th of it. The whole sweep is no zoom at all, so null. */
+export function fitView(an: Analysis, lo: number, hi: number): [number, number] | null {
+  const full = an.fmax - an.fmin, span = Math.max(hi - lo, full / 2000);
+  if (span >= full * 0.999) return null;
+  const a = Math.min(Math.max(lo, an.fmin), an.fmax - span);
+  return [a, a + span];
+}
+
+/** A chart view around f: its band with a quarter of the band's width on
+ *  each side, or a 20th of the sweep centered on f outside the bands. */
+export function viewAround(an: Analysis, f: number): [number, number] | null {
+  const b = bandAt(f);
+  if (b) {
+    const pad = (b.hi - b.lo) / 4;
+    return fitView(an, b.lo - pad, b.hi + pad);
+  }
+  const half = (an.fmax - an.fmin) / 40;
+  return fitView(an, f - half, f + half);
+}
+
+/** What the curve and the band plan say about one frequency. */
+export interface FreqCheck {
+  f: number;
+  /** The SWR at f. NaN where the sweep has no reading. */
+  swr: number;
+  /** The SWR is at the top of the scale, so its real value is unknown. */
+  clipped: boolean;
+  band: Band | undefined;
+  /** The segment at f that the license class may use in the mode. */
+  seg: Segment | undefined;
+  /** Why the band plan rules f out. Null when it allows f. */
+  why: string | null;
+  /** The SWR is known and at or under Max SWR, and f is in a segment. */
+  ok: boolean;
+}
+
+export function checkAt(c: Curve | null, s: Settings, f: number): FreqCheck {
+  const swr = calOK(s) ? swrOn(c, f) : NaN;
+  const band = bandAt(f), seg = segmentAt(f, s);
+  const licensed = !!band?.priv[s.cls].some((g) => f >= g[0] && f <= g[1]);
+  const why = seg ? null
+    : !band ? "Not in an amateur band"
+    : licensed ? `No ${MODE_NAMES[s.mode]} privileges here for this license class`
+    : "No privileges here for this license class";
+  return { f, swr, clipped: swr >= s.top - 0.03, band, seg, why, ok: !!seg && swr <= s.thr };
+}
 
 /* ---------------- The photo's views ---------------- */
 

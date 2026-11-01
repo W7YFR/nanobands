@@ -108,6 +108,11 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
 .stat .ic{flex:none;width:12px;text-align:center;font-weight:700}
 .stat.ok .ic{color:var(--ok)}
 .stat.bad .ic{color:var(--warn)}
+/* The frequency check, under the Analyze settings. */
+.stats.check{margin:12px 0 0;padding:12px 0 0;border-bottom:none;border-top:1px solid var(--line)}
+/* The verdict, with View at the right. */
+.stat.verdict{align-items:center;min-height:24px}
+.stat.verdict button{margin-left:auto;font-size:12px;padding:3px 10px}
 /* A button in a line of text: blue text, no box. */
 button.text{background:none;border:none;padding:0;color:var(--accent);font:inherit;cursor:pointer}
 button.text:hover,button.text:focus-visible{text-decoration:underline;outline:none}

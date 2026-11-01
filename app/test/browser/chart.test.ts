@@ -4,8 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 import { analyze } from "@/analysis";
-import { drawChart, type ChartGeom } from "@/ui/draw-chart";
-import { HIGH, MATCH, OK } from "@/ui/colors";
+import { drawChart, type ChartGeom, type ChartScene } from "@/ui/draw-chart";
+import { HIGH, MATCH, OK, PROBE } from "@/ui/colors";
 import type { Curve, Settings } from "@/ui/model";
 
 const W = 800, H = 460;
@@ -18,12 +18,12 @@ function vee(dip: number, slope = 4): Curve {
   return { N, f, s };
 }
 
-function draw(curve: Curve, manual: number[] = []): { ctx: CanvasRenderingContext2D; g: ChartGeom } {
+function draw(curve: Curve, manual: number[] = [], probe: number | null = null, hover: Partial<ChartScene> = {}): { ctx: CanvasRenderingContext2D; g: ChartGeom } {
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const ctx = c.getContext("2d", { willReadFrequently: true })!;
   const an = analyze(curve.f, curve.s, { thr: settings.thr, prom: settings.prom, top: settings.top });
-  const g = drawChart(ctx, W, H, 1, { settings, an, curve, range: [13.5, 14.5], manual, hoverF: null, drag: null })!;
+  const g = drawChart(ctx, W, H, 1, { settings, an, curve, range: [13.5, 14.5], manual, probe, hoverF: null, drag: null, ...hover })!;
   return { ctx, g };
 }
 
@@ -89,5 +89,67 @@ describe("drawChart", () => {
     expect(strip.l).toBeCloseTo(xOf(g, 14.025), -1);
     expect(strip.r).toBeCloseTo(xOf(g, 14.35), -1);
     expect(name.l < xOf(g, 14.175) && name.r > xOf(g, 14.175)).toBe(true);
+  });
+
+  it("colors a pin's label the way the curve is colored there", () => {
+    // On vee(13.8): 14.1 MHz is 2.4 in the CW/data segment, 13.6 MHz is 2.0 in no band.
+    for (const [f, col] of [[14.1, OK], [13.6, MATCH]] as const) {
+      const { ctx, g } = draw(vee(13.8), [f]);
+      const pin = g.points.find((p) => p.kind === "pin")!;
+      // The label's row, 14 px over the dot.
+      const d = ctx.getImageData(Math.round(pin.x) - 30, Math.round(pin.y) - 14, 60, 1).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (near(d.subarray(i, i + 3), col, 30)) n++;
+      expect(n, `pin at ${f}`).toBeGreaterThan(3);
+    }
+  });
+
+  it("shows only the hover's readout over a snapped pin, in the curve's color", () => {
+    /** Pixels of color col in a 120 px row centered on x. */
+    const count = (ctx: CanvasRenderingContext2D, x: number, y: number, col: string): number => {
+      const d = ctx.getImageData(Math.round(x) - 60, Math.round(y), 120, 1).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (near(d.subarray(i, i + 3), col, 30)) n++;
+      return n;
+    };
+    // Snapped: the readout sits 22 px over the dot, in green. The pin's own
+    // label, 14 px over the dot, is gone: its lower rows match a chart with no pin.
+    const on = draw(vee(13.8), [14.1], null, { hoverF: 14.1, snap: "pin" });
+    const pin = on.g.points.find((p) => p.kind === "pin")!;
+    expect(count(on.ctx, pin.x, pin.y - 22, OK)).toBeGreaterThan(3);
+    const bare = draw(vee(13.8));
+    expect(count(on.ctx, pin.x, pin.y - 12, OK)).toBe(count(bare.ctx, pin.x, pin.y - 12, OK));
+    // Not snapped: the pin keeps its label.
+    const off = draw(vee(13.8), [14.1]);
+    expect(count(off.ctx, pin.x, pin.y - 12, OK)).toBeGreaterThan(count(bare.ctx, pin.x, pin.y - 12, OK) + 3);
+    // A hover off any key point takes the curve's color too, never white.
+    // At 13.6 MHz the SWR is 2.0, outside the segments: its readout sits 18 px
+    // over the dot, in gray.
+    const gray = draw(vee(13.8), [], null, { hoverF: 13.6 });
+    const py0 = gray.g.y0 + 24, py1 = gray.g.y1 - 22, dotY = py1 - ((2.0 - 1) / (5 - 1)) * (py1 - py0);
+    let white = 0, inGray = 0;
+    for (let r = dotY - 22; r <= dotY - 14; r++) {
+      white += count(gray.ctx, xOf(gray.g, 13.6), r, "#e6edf3");
+      inGray += count(gray.ctx, xOf(gray.g, 13.6), r, MATCH);
+    }
+    expect(white).toBe(0);
+    expect(inGray).toBeGreaterThan(20);
+  });
+
+  it("marks the typed frequency with a dashed line and a point to pin it by", () => {
+    const dashes = (ctx: CanvasRenderingContext2D, g: ChartGeom, x: number): number => {
+      const d = ctx.getImageData(x, g.y0, 1, g.y1 - g.y0).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (blendOf(d.subarray(i, i + 3), PROBE)) n++;
+      return n;
+    };
+    const { ctx, g } = draw(vee(13.8), [], 14.2);
+    expect(dashes(ctx, g, xOf(g, 14.2))).toBeGreaterThan(50);
+    const probe = g.points.find((p) => p.kind === "probe")!;
+    expect(probe.f).toBe(14.2);
+    expect(Math.round(probe.x)).toBe(xOf(g, 14.2));
+    expect(g.points.map((p) => p.kind)).not.toContain("pin");
+    const none = draw(vee(13.8));
+    expect(dashes(none.ctx, none.g, xOf(none.g, 14.2))).toBeLessThan(5);
   });
 });

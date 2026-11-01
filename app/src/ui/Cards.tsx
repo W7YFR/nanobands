@@ -3,9 +3,10 @@
  */
 
 import { memo, useEffect, useState } from "react";
-import type { LicenseClass, OperatingMode } from "@/bands";
+import { MODES, type LicenseClass, type OperatingMode } from "@/bands";
+import { fmtF } from "@/format";
 import type { Range } from "@/vna";
-import type { Doc, Fields, GridNote, OcrNote, Prefs } from "./model";
+import type { Doc, FreqCheck, Fields, GridNote, OcrNote, Prefs } from "./model";
 import { Help } from "./Help";
 import type { Vna } from "./useVna";
 
@@ -244,9 +245,49 @@ export function TraceCard({ trace, mode, onAutoTrace, onPen, onErase, sens, onSe
   );
 }
 
-export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref }: {
+/** The SWR at the checked frequency and whether you may transmit there. A
+ *  missing SWR leaves the verdict to the band plan alone. */
+function CheckResult({ c, sweep, thr, top, onView }: {
+  c: FreqCheck;
+  sweep: [number, number] | null;
+  thr: number;
+  top: number;
+  onView(): void;
+}): React.ReactElement {
+  const known = !Number.isNaN(c.swr);
+  const over = known && c.swr > thr;
+  const swrText = !sweep ? "No sweep loaded"
+    : c.f < sweep[0] || c.f > sweep[1] ? `Outside the sweep (${fmtF(sweep[0])}–${fmtF(sweep[1])} MHz)`
+    : !known ? "No reading here"
+    : `SWR ${c.clipped ? "≥ " + top : c.swr.toFixed(2)}${over ? `, over Max SWR ${thr}` : ""}`;
+  const planText = c.seg ? `${c.band!.name} · ${MODES[c.seg[2]].label}` : (c.band ? `${c.band.name} · ` : "") + c.why;
+  const verdict = c.ok ? "ok" : c.why || over ? "no" : null;
+  const inSweep = !!sweep && c.f >= sweep[0] && c.f <= sweep[1];
+  return (
+    <div className="stats check" id="freqCheck">
+      {(verdict || inSweep) && (
+        <p className="stat verdict">
+          {verdict && <span className={"pill " + verdict}>{verdict === "ok" ? "You may transmit" : "Do not transmit"}</span>}
+          {inSweep && <button id="freqView" className="small" onClick={onView}>View</button>}
+        </p>
+      )}
+      <p className={"stat" + (known ? (over ? " bad" : " ok") : "")}><span className="ic">{known ? (over ? "✗" : "✓") : "–"}</span>{swrText}</p>
+      <p className={"stat" + (c.seg ? " ok" : " bad")}><span className="ic">{c.seg ? "✓" : "✗"}</span>{planText}</p>
+    </div>
+  );
+}
+
+export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref, onPin, onView, check, sweep, thr, top }: {
   prefs: Prefs;
   onPref<K extends keyof Prefs>(k: K, v: Prefs[K]): void;
+  /** Enter in Frequency: pin it to the chart. */
+  onPin(): void;
+  /** View: zoom the chart to the frequency. */
+  onView(): void;
+  check: FreqCheck | null;
+  sweep: [number, number] | null;
+  thr: number;
+  top: number;
 }): React.ReactElement {
   return (
     <div className="card">
@@ -268,7 +309,12 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref }: {
         <label htmlFor="prom">Dip/peak min.</label>
         <input type="number" id="prom" step="0.05" value={prefs.prom} onChange={(e) => onPref("prom", e.target.value)} />
         <Help text="Smaller dips and peaks are not marked." />
+        <label htmlFor="freq">Frequency</label>
+        <input type="number" id="freq" step="0.001" min="0" placeholder="MHz" value={prefs.freq} onChange={(e) => onPref("freq", e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") onPin(); }} />
+        <Help text="Marks this frequency in MHz on the chart and says whether you may transmit there; Enter, or a click on its mark, pins it." />
       </div>
+      {check && <CheckResult c={check} sweep={sweep} thr={thr} top={top} onView={onView} />}
     </div>
   );
 });

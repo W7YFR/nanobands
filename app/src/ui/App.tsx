@@ -26,7 +26,7 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
-  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, curveOf, defaultCorners, loadImage, photoFrom, rectOf, settingsOf, swrOn, viewOf,
+  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, checkAt, curveOf, defaultCorners, loadImage, photoFrom, rectOf, settingsOf, swrOn, viewAround, viewOf,
   type Doc, type Fields, type Photo, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
@@ -103,6 +103,16 @@ export function App(): React.ReactElement {
   const rect = useMemo(() => (doc.straight && doc.photo && doc.corners ? rectOf(doc.photo, doc.corners) : null), [doc.photo, doc.straight, doc.corners]);
   const view = useMemo(() => (doc.photo ? viewOf(doc.photo, map, rect) : null), [doc.photo, map, rect]);
   const swr = useCallback((f: number) => swrOn(curve, f), [curve]);
+  const check = useMemo(() => {
+    const f = parseFloat(prefs.freq);
+    return f > 0 ? checkAt(curve, settings, f) : null;
+  }, [curve, settings, prefs.freq]);
+  /** Enter pinned the typed frequency, so the chart no longer marks it. A new
+   *  frequency marks again. */
+  const [probePinned, setProbePinned] = useState(false);
+  useEffect(() => setProbePinned(false), [prefs.freq]);
+  const probe = check && !probePinned && !doc.manual.includes(check.f) ? check.f : null;
+  const sweep = useMemo((): [number, number] | null => (an ? [an.fmin, an.fmax] : null), [an]);
 
   /* ---------------- Loading ---------------- */
 
@@ -335,12 +345,28 @@ export function App(): React.ReactElement {
   const onPref = useCallback(<K extends keyof Prefs>(k: K, v: Prefs[K]): void => setPrefs((p) => ({ ...p, [k]: v })), []);
   const onRemovePin = useCallback((f: number): void => setDoc((d) => ({ ...d, manual: d.manual.filter((m) => m !== f) })), []);
 
-  const onTogglePin = (f: number, tol: number): void =>
+  const onTogglePin = (f: number, tol: number): void => {
+    if (f === probe) setProbePinned(true);
     setDoc((d) => {
       const hit = d.manual.findIndex((m) => Math.abs(m - f) < tol);
       if (hit >= 0) return { ...d, manual: d.manual.filter((_, j) => j !== hit) };
       return Number.isNaN(swrOn(curve, f)) ? d : { ...d, manual: [...d.manual, f] };
     });
+  };
+
+  const onPinFreq = useCallback((): void => {
+    const f = parseFloat(prefs.freq);
+    if (!(f > 0) || Number.isNaN(swrOn(curve, f))) return;
+    setDoc((d) => (d.manual.includes(f) ? d : { ...d, manual: [...d.manual, f] }));
+    setProbePinned(true);
+  }, [prefs.freq, curve]);
+
+  const onViewFreq = useCallback((): void => {
+    const f = parseFloat(prefs.freq);
+    if (!an || !(f > 0)) return;
+    setDoc((d) => ({ ...d, view: viewAround(an, f) }));
+    chartRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [prefs.freq, an]);
 
   /* ---------------- Exports ---------------- */
 
@@ -407,7 +433,7 @@ export function App(): React.ReactElement {
                     onErase={() => setDoc((d) => ({ ...d, trace: null }))} sens={doc.fields.sens} onSens={onSens} retrace={doc.retrace} />
                 </>
               )}
-              <AnalyzeCard prefs={prefs} onPref={onPref} />
+              <AnalyzeCard prefs={prefs} onPref={onPref} onPin={onPinFreq} onView={onViewFreq} check={check} sweep={sweep} thr={settings.thr} top={settings.top} />
               <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p} />
             </aside>
             <main>
@@ -422,7 +448,7 @@ export function App(): React.ReactElement {
                   onCorners={onCorners} onPen={onPen} onRef={onRef} onHover={setHoverF} />
               )}
               <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
-                manual={doc.manual} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote} />
+                manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote} />
               <div className="card">
                 <h2>Band segments you can use</h2>
                 <div id="bandTable"><BandTable an={an} settings={settings} /></div>

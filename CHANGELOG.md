@@ -7,6 +7,22 @@ them.
 
 ## Unreleased
 
+## v1.7.0 — 2026-11-01
+
+### Added
+
+- **Frequency** in the Analyze card gives the SWR, band and segment at a frequency, and whether you may transmit there and why not. The chart marks it until Enter, or a click on the mark, pins it.
+- **View** under **Frequency** zooms the chart to the frequency's band, or close around it outside the bands.
+
+### Fixed
+
+- A pin's label on the chart and its row in **Key points** are no longer always white. They take the curve's color there, as a dip does.
+- Over a pin, the chart shows one label, not two. The hover's readout takes the curve's color too.
+
+### Development
+
+- Tests cover the frequency check, its result in the Analyze card, its mark on the chart and **View**, and the colors of a pin and the hover's readout.
+
 ## v1.6.1 — 2026-11-01
 
 ### Fixed

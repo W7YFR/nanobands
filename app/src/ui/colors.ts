@@ -7,6 +7,8 @@ export const BAD = "#f85149";
 export const TRACE = "#4dd0ff";
 /** The curve under Max SWR but outside the segments the settings allow. */
 export const MATCH = "#93a1b3";
+/** The frequency typed in the Analyze card, before Enter pins it. */
+export const PROBE = "#6aa9ff";
 /** The curve over Max SWR. */
 export const HIGH = "#e3c84a";
 

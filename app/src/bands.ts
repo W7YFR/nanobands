@@ -121,6 +121,12 @@ export function inSegment(f: number, s: { cls: LicenseClass; mode: OperatingMode
   return BANDS.some((b) => f >= b.lo && f <= b.hi && segsFor(b, s).some((g) => f >= g[0] && f <= g[1]));
 }
 
+/** The segment at f that the settings allow, if any. */
+export function segmentAt(f: number, s: { cls: LicenseClass; mode: OperatingMode }): Segment | undefined {
+  const b = bandAt(f);
+  return b && segsFor(b, s).find((g) => f >= g[0] && f <= g[1]);
+}
+
 /** The bands that overlap [lo, hi]. */
 export function bandsInRange(lo: number, hi: number): readonly Band[] {
   return BANDS.filter((b) => b.hi > lo && b.lo < hi);

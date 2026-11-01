@@ -7,7 +7,7 @@ import { segUsable, type Analysis } from "@/analysis";
 import { MODES, bandAt, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import { swrOn, type Curve, type Settings } from "./model";
-import { BAD, HIGH, MATCH, OK, curveColor } from "./colors";
+import { BAD, HIGH, MATCH, OK, PROBE, curveColor } from "./colors";
 
 /** Where the plot sits, for turning a pointer position into a frequency. */
 export interface ChartGeom {
@@ -23,7 +23,8 @@ export interface ChartGeom {
   bands: { band: Band; l: number; r: number; t: number; b: number }[];
 }
 
-export type KeyKind = "dip" | "peak" | "crossing" | "pin";
+/** `probe` is the frequency typed in the Analyze card, not pinned yet. */
+export type KeyKind = "dip" | "peak" | "crossing" | "pin" | "probe";
 export interface KeyPoint { kind: KeyKind; f: number; x: number; y: number }
 
 export const freqAt = (g: ChartGeom, x: number): number => g.lo + ((x - g.x0) / (g.x1 - g.x0)) * (g.hi - g.lo);
@@ -34,6 +35,8 @@ export interface ChartScene {
   curve: Curve | null;
   range: [number, number] | null;
   manual: readonly number[];
+  /** The frequency typed in the Analyze card, marked until Enter pins it. */
+  probe?: number | null;
   hoverF: number | null;
   /** A zoom being dragged, in CSS pixels. */
   drag: { x0: number; x1: number } | null;
@@ -223,13 +226,31 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "right";
   ctx.fillText(`≤${s.thr}:1`, x0 - 6, stripY + stripH + 20);
   // pinned markers
+  // A point the hover snapped to drops its own label: the hover's readout takes its place.
+  const snappedTo = (kind: KeyKind, f: number): boolean => !sc.drag && sc.snap === kind && sc.hoverF === f;
   for (const m of sc.manual) {
     if (!inView(m)) continue;
     const w = swr(m);
     if (Number.isNaN(w)) continue;
     ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(X(m), Y(w), 4, 0, 7); ctx.fill();
     points.push({ kind: "pin", f: m, x: X(m), y: Y(w) });
-    tag(`${fmtF(m)} · ${w.toFixed(2)}`, X(m), Math.max(Y(w) - 14, y0 + 12), "#fff");
+    // The dot is white; the label takes the curve's color there, as a dip's does.
+    if (!snappedTo("pin", m)) tag(`${fmtF(m)} · ${w.toFixed(2)}`, X(m), Math.max(Y(w) - 14, y0 + 12), curveColor(w, m, s));
+  }
+  // the typed frequency: a dashed line, a ring on the curve and its readout
+  if (sc.probe != null && inView(sc.probe)) {
+    const f = sc.probe, x = X(f), w = swr(f);
+    ctx.strokeStyle = PROBE; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); ctx.setLineDash([]);
+    if (!Number.isNaN(w)) {
+      ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, Y(w), 5, 0, 7); ctx.stroke();
+      points.push({ kind: "probe", f, x, y: Y(w) });
+    }
+    const txt = `${fmtF(f)} · ${Number.isNaN(w) ? "—" : w >= yTop ? "≥" + yTop : w.toFixed(2)}`;
+    // Above the ring, or below it where above is off the plot or taken.
+    const up = Y(w) - 18, down = Math.min(Y(w) + 18, y1 - 10);
+    const ly = Number.isNaN(w) ? y0 + 10 : up >= y0 + 10 && (clear(txt, x, up) || !clear(txt, x, down)) ? up : down;
+    if (!snappedTo("probe", f)) tag(txt, x, ly, PROBE);
   }
   // drag-zoom selection
   const d = sc.drag;
@@ -254,7 +275,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     // Rides with the dot, above it, or below it where above would leave the plot.
     const dy = snapped ? snapped.y : Y(w), off = snapped ? 22 : 18;
     const ly = Number.isNaN(dy) ? y0 + 10 : dy - off >= y0 + 10 ? dy - off : Math.min(dy + off, y1 - 10);
-    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : w >= yTop ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, "#e6edf3");
+    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : w >= yTop ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s));
   }
   return { x0, x1, y0, y1, lo, hi, points, bands: bandBoxes };
 }
