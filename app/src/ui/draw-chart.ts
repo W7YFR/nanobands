@@ -226,6 +226,8 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "right";
   ctx.fillText(`≤${s.thr}:1`, x0 - 6, stripY + stripH + 20);
   // pinned markers
+  // A point the hover snapped to drops its own label: the hover's readout takes its place.
+  const snappedTo = (kind: KeyKind, f: number): boolean => !sc.drag && sc.snap === kind && sc.hoverF === f;
   for (const m of sc.manual) {
     if (!inView(m)) continue;
     const w = swr(m);
@@ -233,7 +235,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(X(m), Y(w), 4, 0, 7); ctx.fill();
     points.push({ kind: "pin", f: m, x: X(m), y: Y(w) });
     // The dot is white; the label takes the curve's color there, as a dip's does.
-    tag(`${fmtF(m)} · ${w.toFixed(2)}`, X(m), Math.max(Y(w) - 14, y0 + 12), curveColor(w, m, s));
+    if (!snappedTo("pin", m)) tag(`${fmtF(m)} · ${w.toFixed(2)}`, X(m), Math.max(Y(w) - 14, y0 + 12), curveColor(w, m, s));
   }
   // the typed frequency: a dashed line, a ring on the curve and its readout
   if (sc.probe != null && inView(sc.probe)) {
@@ -248,7 +250,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     // Above the ring, or below it where above is off the plot or taken.
     const up = Y(w) - 18, down = Math.min(Y(w) + 18, y1 - 10);
     const ly = Number.isNaN(w) ? y0 + 10 : up >= y0 + 10 && (clear(txt, x, up) || !clear(txt, x, down)) ? up : down;
-    tag(txt, x, ly, PROBE);
+    if (!snappedTo("probe", f)) tag(txt, x, ly, PROBE);
   }
   // drag-zoom selection
   const d = sc.drag;
@@ -273,7 +275,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     // Rides with the dot, above it, or below it where above would leave the plot.
     const dy = snapped ? snapped.y : Y(w), off = snapped ? 22 : 18;
     const ly = Number.isNaN(dy) ? y0 + 10 : dy - off >= y0 + 10 ? dy - off : Math.min(dy + off, y1 - 10);
-    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : w >= yTop ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, "#e6edf3");
+    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : w >= yTop ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s));
   }
   return { x0, x1, y0, y1, lo, hi, points, bands: bandBoxes };
 }
