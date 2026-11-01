@@ -10,9 +10,13 @@ change to a build input merges to `main`.
 ## Workflow
 
 The contributor runs the release steps, and may ask Claude to run `make pr`,
-merge the pull request or run `make release`. Claude works on the branch
-that is checked out. It creates, switches or splits branches only when the
-contributor asks for it. Claude commits only when the contributor
+merge the pull request or run `make release`. No work happens on `main`, and
+no commit goes to it: every change reaches `main` through a pull request and
+CI. When `main` is checked out and work starts, Claude branches from `main`
+before the first edit, with the type prefix the change calls for, and says
+so. It does not ask. On any other branch, Claude works on the branch that is
+checked out. It switches or splits branches only when the contributor asks
+for it. Claude commits only when the contributor
 asks for a commit in that message, never on its own: every commit needs human
 review first. An earlier ask does not carry over. Claude runs `make pr`,
 merges the pull request and runs `make release` on the same terms: only when
