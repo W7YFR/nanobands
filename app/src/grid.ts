@@ -3,8 +3,9 @@
  * Grid lines are long, straight and bluish-white. Vote for near-horizontal and
  * near-vertical lines, each allowed its own small tilt since photos are
  * skewed. Refine each at full resolution, drop rows of text (their strokes are
- * far thicker than a grid line), keep the outermost on each side, and
- * intersect them for the four corners.
+ * far thicker than a grid line), and keep the outermost on each side. Past
+ * each, look for a border too dim to vote. Intersect the four for the
+ * corners.
  */
 
 import type { Quad } from "./geometry";
@@ -113,13 +114,68 @@ export function detectGrid(px: Pixels): GridResult | null {
   };
   const Hs = keep(Hraw, true), Vs = keep(Vraw, false);
   if (Hs.length < 2 || Vs.length < 2) return null;
-  const top = Hs[0]!, bot = Hs[Hs.length - 1]!, lft = Vs[0]!, rgt = Vs[Vs.length - 1]!;
   const meet = (hl: Line, vl: Line): [number, number] => {
     const x = (vl.off + vl.t * hl.off) / (1 - vl.t * hl.t);
     return [x, hl.off + hl.t * x];
   };
+
+  /* A border too dim to pass the color test. A screen seen at an angle fades
+     toward one side, and the NanoVNA draws its frequency lines at round
+     frequencies, so the last line found is not always the border. Look past
+     each outermost line for a fainter line that runs the length of the plot:
+     up to the widest spacing for a frequency line, and about one spacing for
+     an SWR line, since those are evenly spaced. */
+  const lum = (x: number, y: number): number => {
+    x = Math.round(x); y = Math.round(y);
+    if (x < 0 || y < 0 || x >= iw || y >= ih) return 0;
+    const i = (y * iw + x) * 4, d = px.data;
+    return (d[i]! + d[i + 1]! + d[i + 2]!) / 3;
+  };
+  const bluish = (x: number, y: number): boolean => {
+    x = Math.round(x); y = Math.round(y);
+    if (x < 0 || y < 0 || x >= iw || y >= ih) return false;
+    const i = (y * iw + x) * 4, d = px.data;
+    return d[i + 2]! >= d[i]! && d[i + 2]! + 10 >= d[i + 1]!;
+  };
+  const side = Math.max(4, Math.round(iw * 0.004));
+  const beyond = (lines: Refined[], horiz: boolean, dir: 1 | -1, ends: [number, number]): Line | null => {
+    const mid = horiz ? iw / 2 : ih / 2, pos = lines.map((l) => at(l, mid));
+    const outer = dir > 0 ? lines[lines.length - 1]! : lines[0]!, p0 = at(outer, mid);
+    let far = 0;
+    for (let k = 1; k < pos.length; k++) far = Math.max(far, pos[k]! - pos[k - 1]!);
+    const step = dir > 0 ? pos[pos.length - 1]! - pos[pos.length - 2]! : pos[1]! - pos[0]!;
+    const [near, reach] = horiz ? [0.85 * step, 1.15 * step] : [2 * maxThick, far];
+    // Slope changes across a photo with perspective: extrapolate it.
+    const first = lines[0]!, last = lines[lines.length - 1]!, span = pos[pos.length - 1]! - pos[0]!;
+    const tAt = (p: number): number => first.t + ((last.t - first.t) * (p - pos[0]!)) / (span || 1);
+    const pt = (q: number, p: number): [number, number] => (horiz ? [q, p] : [p, q]);
+    const len = ends[1] - ends[0], q0 = ends[0] + len * 0.03, q1 = ends[1] - len * 0.03;
+    let best: Line | null = null, bestScore = 0.5;
+    for (let dp = Math.round(near); dp <= reach; dp++) {
+      const pm = p0 + dir * dp, tp = tAt(pm);
+      for (let k = -3; k <= 3; k++) {
+        const t = tp + k * 0.002, off = pm - mid * t;
+        let hits = 0, n = 0;
+        for (let q = q0; q < q1; q += 8) {
+          const p = off + q * t, c = lum(...pt(q, p));
+          n++;
+          if (c > 30 && bluish(...pt(q, p)) && c > 1.5 * Math.max(lum(...pt(q, p - side)), lum(...pt(q, p + side)))) hits++;
+        }
+        if (n && hits / n > bestScore) { bestScore = hits / n; best = { off, t }; }
+      }
+    }
+    return best;
+  };
+  let top: Line = Hs[0]!, bot: Line = Hs[Hs.length - 1]!, lft: Line = Vs[0]!, rgt: Line = Vs[Vs.length - 1]!;
+  const qs = (a: [number, number], b: [number, number], horiz: boolean): [number, number] =>
+    horiz ? [Math.min(a[0], b[0]), Math.max(a[0], b[0])] : [Math.min(a[1], b[1]), Math.max(a[1], b[1])];
+  const newL = beyond(Vs, false, -1, qs(meet(top, lft), meet(bot, lft), false));
+  const newR = beyond(Vs, false, 1, qs(meet(top, rgt), meet(bot, rgt), false));
+  const newT = beyond(Hs, true, -1, qs(meet(top, lft), meet(top, rgt), true));
+  const newB = beyond(Hs, true, 1, qs(meet(bot, lft), meet(bot, rgt), true));
+  lft = newL ?? lft; rgt = newR ?? rgt; top = newT ?? top; bot = newB ?? bot;
   const corners: Quad = [meet(top, lft), meet(top, rgt), meet(bot, rgt), meet(bot, lft)];
   const area = Math.abs((corners[1][0] - corners[0][0]) * (corners[3][1] - corners[0][1]));
   if (!corners.flat().every(Number.isFinite) || area < 0.12 * iw * ih) return null;
-  return { corners, horizontal: Hs.length, vertical: Vs.length };
+  return { corners, horizontal: Hs.length + (newT ? 1 : 0) + (newB ? 1 : 0), vertical: Vs.length + (newL ? 1 : 0) + (newR ? 1 : 0) };
 }

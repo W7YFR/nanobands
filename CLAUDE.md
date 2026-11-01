@@ -10,14 +10,20 @@ change to a build input merges to `main`.
 ## Workflow
 
 The contributor runs the release steps, and may ask Claude to run `make pr`,
-merge the pull request or run `make release`. Claude may create the branch,
-since starting a task starts there. Claude commits only when the contributor
+merge the pull request or run `make release`. Claude works on the branch
+that is checked out. It creates, switches or splits branches only when the
+contributor asks for it. Claude commits only when the contributor
 asks for a commit in that message, never on its own: every commit needs human
 review first. An earlier ask does not carry over. Claude runs `make pr`,
 merges the pull request and runs `make release` on the same terms: only when
 the contributor asks for it in that message. Claude merges only when CI is
 green. Otherwise Claude never pushes, and never opens, edits or merges a pull
 request. Claude never runs `make bump` or `make tag`.
+
+Before Claude commits a photo or other file the contributor supplied, it
+asks for explicit consent for that file and waits for a yes. It strips the
+file's metadata first and checks that none is left. Consent to commit does
+not cover a push: Claude asks again before `make pr` publishes the file.
 
 `make release` asks to delete the local branch, and it cannot read an answer
 when Claude runs it. After it fails at that prompt, Claude deletes the merged

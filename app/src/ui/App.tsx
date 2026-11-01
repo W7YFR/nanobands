@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { mappingFor, solveRefs, type Point, type Quad } from "@/geometry";
+import { mappingFor, solveRefs, type Quad } from "@/geometry";
 import { detectGrid } from "@/grid";
 import { fixSlashedZeros } from "@/ocr-zeros";
 import { ocrCanvas, recognize } from "@/ocr";
@@ -270,15 +270,12 @@ export function App(): React.ReactElement {
     setMode((cur) => (cur === m ? "idle" : m));
   };
 
-  const onCornerMove = (j: number, p: Point): void =>
+  /** A corner drag ended: the new corners, and the trace again for them. */
+  const onCorners = (q: Quad): void =>
     setDoc((d) => {
-      if (!d.corners) return d;
-      const c = [...d.corners] as Quad;
-      c[j] = p;
-      return { ...d, corners: c };
+      const n: Doc = { ...d, corners: q };
+      return n.trace?.kind !== "photo" ? n : n.trace.auto && !n.trace.edited ? traced(n) : { ...n, retrace: true };
     });
-  const onCornerDrop = (): void =>
-    setDoc((d) => (d.trace?.kind !== "photo" ? d : d.trace.auto && !d.trace.edited ? traced(d) : { ...d, retrace: true }));
 
   const penLast = useRef<[number, number] | null>(null);
   /** Each pen stroke: the trace before it, and the trace it left. */
@@ -384,8 +381,8 @@ export function App(): React.ReactElement {
   if (an && curve) {
     const res = ((an.fmax - an.fmin) / curve.N) * 1000;
     resNote = doc.source === "image"
-      ? `· traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point`
-      : `· ${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`;
+      ? `Traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point`
+      : `${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`;
   }
 
   return (
@@ -422,7 +419,7 @@ export function App(): React.ReactElement {
               ) : photoScene && (
                 <PhotoCard scene={photoScene} kRef={kRef} collapsed={doc.collapsed} onCollapse={() => setCollapsed(!doc.collapsed)}
                   onStraight={onStraight} mode={mode} onPenMode={() => toggleMode("pen")} onUndo={onUndo} canUndo={canUndo} onClearMarks={onClearMarks} canClear={canClear}
-                  onCornerMove={onCornerMove} onCornerDrop={onCornerDrop} onPen={onPen} onRef={onRef} onHover={setHoverF} />
+                  onCorners={onCorners} onPen={onPen} onRef={onRef} onHover={setHoverF} />
               )}
               <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
                 manual={doc.manual} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote} />

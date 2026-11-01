@@ -3,13 +3,21 @@
  * Click to pin a frequency or unpin one, drag to zoom, double-click to zoom
  * back out. The frequency under the pointer goes up to App, so the photo can
  * show the same point.
+ *
+ * On a touch screen a finger has no hover, so a drag reads the curve under
+ * it instead of zooming. Zoom turns a drag into a zoom, for one zoom. The
+ * reading stays when the finger lifts, and the next tap clears it.
+ *
+ * Full screen fills the window with the card, and the page behind stays put.
+ * Done, Back or Escape leave it.
  */
 
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import type { Analysis } from "@/analysis";
 import { bandsInRange } from "@/bands";
 import { Help } from "./Help";
 import { drawChart, freqAt, type ChartGeom } from "./draw-chart";
+import { fitCanvas } from "./draw-photo";
 import type { Curve, Settings } from "./model";
 import { useNoSwipe } from "./useNoSwipe";
 
@@ -41,16 +49,40 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   onHover(f: number | null): void;
   resNote: string;
 }): React.ReactElement {
-  const geom = useRef<ChartGeom | null>(null), drag = useRef<{ x0: number; x1: number } | null>(null);
+  const geom = useRef<ChartGeom | null>(null), drag = useRef<{ x0: number; x1: number; zoom: boolean; finger: boolean; t0: number; showing: boolean } | null>(null);
   const range: [number, number] | null = an ? view ?? [an.fmin, an.fmax] : null;
+  /** On a touch screen: the next drag zooms instead of reading the curve. */
+  const [zoomDrag, setZoomDrag] = useState(false);
+  const touch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+  const [full, setFull] = useState(false);
+
+  // Full screen: the page behind does not scroll, and Back or Escape leave.
+  // Back on a phone is an edge swipe a page cannot stop, so full screen keeps
+  // a step in the history for it to take; Done takes that step back off.
+  useEffect(() => {
+    if (!full) return;
+    const root = document.documentElement;
+    root.classList.add("chart-full");
+    history.pushState({ chartFull: true }, "");
+    let popped = false;
+    const onPop = (): void => { popped = true; setFull(false); };
+    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") setFull(false); };
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      root.classList.remove("chart-full");
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("keydown", onKey);
+      if (!popped && (history.state as { chartFull?: boolean } | null)?.chartFull) history.back();
+    };
+  }, [full]);
 
   const draw = (): void => {
     const c = canvasRef.current, ctx = c?.getContext("2d");
     if (!c || !ctx) return;
     const dpr = window.devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
-    c.width = W * dpr;
-    c.height = H * dpr;
-    geom.current = drawChart(ctx, W, H, dpr, { settings, an, curve, range, manual, hoverF, drag: drag.current });
+    fitCanvas(c, ctx, Math.round(W * dpr), Math.round(H * dpr));
+    geom.current = drawChart(ctx, W, H, dpr, { settings, an, curve, range, manual, hoverF, drag: drag.current?.zoom ? drag.current : null });
   };
   const drawRef = useRef(draw);
   useLayoutEffect(() => { drawRef.current = draw; draw(); });
@@ -63,11 +95,27 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
 
   const xOf = (e: React.PointerEvent): number => e.clientX - e.currentTarget.getBoundingClientRect().left;
   return (
-    <div className="card">
-      <h2>SWR vs. frequency <Help align="start" text="Click the chart to pin your own marker; click it again to remove it. Drag across the chart to zoom, double-click to reset." /> <span id="resNote" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{resNote}</span></h2>
+    <div className={"card" + (full ? " full" : "")} id="chartCard">
+      <h2>SWR vs. frequency <Help align="start" text={touch
+        ? "Drag along the chart to read the SWR; tap to clear the reading. Tap to pin your own marker; tap it again to remove it. Zoom, then drag across a range, to zoom in."
+        : "Click the chart to pin your own marker; click it again to remove it. Drag across the chart to zoom, double-click to reset."} /> {resNote && <span id="resNote">{resNote}</span>}
+        <span className="tools">
+          {touch && an && <button id="chartZoom" className={"small" + (zoomDrag ? " on" : "")} onClick={() => setZoomDrag(!zoomDrag)}>Zoom</button>}
+          {full
+            ? <button id="chartFull" className="small on" onClick={() => setFull(false)}>Done</button>
+            : <button id="chartFull" className="small" onClick={() => setFull(true)}>⤢ Full screen</button>}
+        </span>
+      </h2>
       {an && <Chips an={an} view={view} onView={onView} />}
       <canvas id="chart" ref={canvasRef}
-        onPointerDown={(e) => { if (!geom.current) return; drag.current = { x0: xOf(e), x1: xOf(e) }; e.currentTarget.setPointerCapture(e.pointerId); }}
+        onPointerDown={(e) => {
+          if (!geom.current) return;
+          // A finger reads the curve, and only zooms when Zoom is on.
+          const finger = e.pointerType !== "mouse";
+          drag.current = { x0: xOf(e), x1: xOf(e), zoom: !finger || zoomDrag, finger, t0: e.timeStamp, showing: hoverF !== null };
+          e.currentTarget.setPointerCapture(e.pointerId);
+          if (!drag.current.zoom) { const g = geom.current, x = xOf(e); onHover(x >= g.x0 && x <= g.x1 ? freqAt(g, x) : null); }
+        }}
         onPointerMove={(e) => {
           const x = xOf(e), g = geom.current;
           if (drag.current) drag.current.x1 = x;
@@ -75,15 +123,22 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
           if (f !== hoverF) onHover(f);
           else draw();
         }}
-        onPointerUp={() => {
+        onPointerUp={(e) => {
           const g = geom.current, d = drag.current;
           drag.current = null;
           if (!d || !g) return;
-          if (Math.abs(d.x1 - d.x0) > 6) onView([freqAt(g, Math.min(d.x0, d.x1)), freqAt(g, Math.max(d.x0, d.x1))]);
-          else if (d.x0 >= g.x0 && d.x0 <= g.x1) onTogglePin(freqAt(g, d.x0), (6 * (g.hi - g.lo)) / (g.x1 - g.x0));
+          const moved = Math.abs(d.x1 - d.x0) > 6;
+          if (moved && d.zoom) { onView([freqAt(g, Math.min(d.x0, d.x1)), freqAt(g, Math.max(d.x0, d.x1))]); setZoomDrag(false); }
+          else if (d.finger && !d.zoom && (moved || e.timeStamp - d.t0 > 350)) { draw(); return; } // a reading: it stays
+          else if (d.finger && d.showing) onHover(null); // a tap clears the reading
+          else if (!moved && d.x0 >= g.x0 && d.x0 <= g.x1) {
+            onTogglePin(freqAt(g, d.x0), (6 * (g.hi - g.lo)) / (g.x1 - g.x0));
+            if (d.finger) onHover(null);
+          }
           draw();
         }}
-        onPointerLeave={() => onHover(null)}
+        // A finger has no hover: its reading stays until the next tap.
+        onPointerLeave={(e) => { if (e.pointerType === "mouse") onHover(null); }}
         onDoubleClick={() => onView(null)}
       />
       <div className="legend">

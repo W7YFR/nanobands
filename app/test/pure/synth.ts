@@ -40,10 +40,19 @@ export interface Screen {
   curve(u: number): number;
 }
 
-/** A plot grid of `cols` × `rows` cells with a curve through it. `skew` tilts
- *  the grid the way a photo taken off axis does: the right edge drops by that
- *  many pixels and the bottom shifts right by half of it. */
-export function screen(opts: { skew?: number; clutter?: boolean } = {}): Screen {
+/** The yellow of a trace too bright for the camera: red and green clip, and
+ *  blue climbs after them. */
+export const CLIPPED: readonly [number, number, number] = [255, 255, 190];
+
+/** A plot grid with a curve through it. `skew` tilts the grid the way a photo
+ *  taken off axis does: the right edge drops by that many pixels and the
+ *  bottom shifts right by half of it.
+ *
+ *  `fade` draws the frequency lines where a 3–55 MHz sweep has them, at 10,
+ *  20 … 50 MHz, and the right border too dim for the grid's color test.
+ *  `dip` swaps the curve for a flat one with a narrow, deep dip, drawn with a
+ *  clipped core, and with a marker's solid box on the dip's left side. */
+export function screen(opts: { skew?: number; clutter?: boolean; fade?: boolean; dip?: boolean } = {}): Screen {
   const px = blank(1200, 900);
   const skew = opts.skew ?? 0;
   const corners: Screen["corners"] = [[100, 80], [1100, 80 + skew], [1100 + skew / 2, 820 + skew], [100 + skew / 2, 820]];
@@ -53,14 +62,24 @@ export function screen(opts: { skew?: number; clutter?: boolean } = {}): Screen 
     tl[0] + (tr[0] - tl[0]) * u + (bl[0] - tl[0]) * v + (tl[0] - tr[0] + br[0] - bl[0]) * u * v,
     tl[1] + (tr[1] - tl[1]) * u + (bl[1] - tl[1]) * v + (tl[1] - tr[1] + br[1] - bl[1]) * u * v,
   ];
-  for (let c = 0; c <= 10; c++) { const [a, b] = [at(c / 10, 0), at(c / 10, 1)]; px.line(a[0], a[1], b[0], b[1], GRID, 1); }
+  const cols = opts.fade ? [0, 7, 17, 27, 37, 47].map((f) => f / 52) : Array.from({ length: 11 }, (_, c) => c / 10);
+  for (const u of cols) { const [a, b] = [at(u, 0), at(u, 1)]; px.line(a[0], a[1], b[0], b[1], GRID, 1); }
+  if (opts.fade) { const [a, b] = [at(1, 0), at(1, 1)]; px.line(a[0], a[1], b[0], b[1], [85, 90, 115], 1); }
   for (let r = 0; r <= 8; r++) { const [a, b] = [at(0, r / 8), at(1, r / 8)]; px.line(a[0], a[1], b[0], b[1], GRID, 1); }
-  const curve = (u: number): number => 0.5 + 0.32 * Math.sin(2 * Math.PI * 2 * u);
+  const curve = opts.dip
+    ? (u: number): number => 0.3 + 0.5 * Math.cos(Math.min(1, Math.abs(u - 0.45) / 0.015) * Math.PI / 2) ** 2
+    : (u: number): number => 0.5 + 0.32 * Math.sin(2 * Math.PI * 2 * u);
   let prev = at(0, curve(0));
   for (let k = 1; k <= 2000; k++) {
     const u = k / 2000, p = at(u, curve(u));
-    px.line(prev[0], prev[1], p[0], p[1], YELLOW, 1.5);
+    px.line(prev[0], prev[1], p[0], p[1], YELLOW, opts.dip ? 2.5 : 1.5);
+    if (opts.dip) px.line(prev[0], prev[1], p[0], p[1], CLIPPED, 1.5);
     prev = p;
+  }
+  if (opts.dip) {
+    // M1's box, like the NanoVNA's, solid yellow, on the dip's left side.
+    const [x, y] = at(0.45 - 0.015 * 0.6, curve(0.45 - 0.015 * 0.6));
+    for (let yy = y - 16; yy <= y; yy++) px.line(x - 6, yy, x + 6, yy, YELLOW, 0.5);
   }
   if (opts.clutter) {
     // A row of "characters" over the curve's second peak, like the NanoVNA's

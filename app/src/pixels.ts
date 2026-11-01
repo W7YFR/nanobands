@@ -12,7 +12,10 @@ export function isYellowAt(px: Pixels, x: number, y: number, sens: number): bool
   if (x < 0 || y < 0 || x >= px.width || y >= px.height) return false;
   const i = ((y | 0) * px.width + (x | 0)) * 4, d = px.data;
   const r = d[i]!, g = d[i + 1]!, b = d[i + 2]!, m = Math.min(r, g);
-  return m > 100 && m - b > sens && Math.abs(r - g) < 90;
+  // A bright trace clips toward white at its core: red and green saturate
+  // and blue climbs after them. Ask less of blue there.
+  const need = m >= 245 ? sens * 0.6 : sens;
+  return m > 100 && m - b > need && Math.abs(r - g) < 90;
 }
 
 /** Whether a pixel is part of the screen's bluish-white plot grid. */

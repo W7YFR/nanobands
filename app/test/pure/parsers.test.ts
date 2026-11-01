@@ -52,6 +52,11 @@ describe("parseSweepText", () => {
     expect(parseSweepText("START 3.000 000 MHz\nBW:1000Hz 401p\nSTOP 55.000 000 MH=")).toMatchObject({ start: 3, stop: 55 });
   });
 
+  it("reads slashed zeros that OCR saw as A, and MHz as Miz", () => {
+    // Real OCR output from a brighter photo of the same screen.
+    expect(parseSweepText("START\n3.000 A0A MHz\nBlU:1000H= 4001p\nSTOP 55.000 aaa Miz")).toMatchObject({ start: 3, stop: 55 });
+  });
+
   it("reads CENTER and SPAN, with the span in kHz", () => {
     const r = parseSweepText("CENTER 14.175 000 MHz SPAN 500.000 kHz")!;
     expect(r.start).toBeCloseTo(13.925);
@@ -61,6 +66,7 @@ describe("parseSweepText", () => {
   it("takes O, D and B for the digits OCR mistook them for", () => {
     expect(cleanFreq("3.OOO OOO")).toBe(3);
     expect(cleanFreq("1B.D00")).toBe(18);
+    expect(cleanFreq("55.000 AAA")).toBe(55);
   });
 
   it("keeps a sweep that does not start on a round number", () => {

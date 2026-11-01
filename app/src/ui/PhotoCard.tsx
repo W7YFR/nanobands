@@ -11,11 +11,15 @@
  * trace; with neither on it moves freely. Two fingers zoom and pan, and never
  * draw. Only the photo and its trace show there, and Stretch widens the photo
  * so a steep stretch of curve leans over.
+ *
+ * With a mouse, the pen stays in the card. Stretch works there too: the photo
+ * scrolls sideways in the card, shows only the photo and its trace, and
+ * scrolls on its own while a stroke runs into either edge.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Point } from "@/geometry";
-import { drawMagnifier, drawPenView, drawPhoto, type PhotoScene } from "./draw-photo";
+import type { Point, Quad } from "@/geometry";
+import { drawCornerDrag, drawMagnifier, drawPenView, drawPhoto, fitCanvas, type PhotoScene } from "./draw-photo";
 import { calOK } from "./model";
 import type { Mode } from "./Cards";
 import { useNoSwipe } from "./useNoSwipe";
@@ -26,6 +30,8 @@ const MAX_ZOOM = 8;
 const STRETCHES = [1, 2, 4] as const;
 /** How close the cursor comes to the screen's edge, as a share of it, before the view follows. */
 const EDGE_ROOM = 0.3;
+/** With a mouse: how close to the card's edge a stroke comes, in CSS pixels, before the photo scrolls, and its fastest scroll per frame. */
+const SCROLL_ROOM = 60, SCROLL_SPEED = 24;
 
 /** How far to slide the view along one axis so a cursor at `at` stays at
  *  least `room` inside [0, size], without sliding past either end of the
@@ -38,7 +44,7 @@ function follow(at: number, size: number, room: number, lo: number, hi: number):
 
 const touchScreen = (): boolean => window.matchMedia?.("(pointer: coarse)").matches ?? false;
 
-export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode, onPenMode, onUndo, canUndo, onClearMarks, canClear, onCornerMove, onCornerDrop, onPen, onRef, onHover }: {
+export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode, onPenMode, onUndo, canUndo, onClearMarks, canClear, onCorners, onPen, onRef, onHover }: {
   /** Everything to draw, except the corner being dragged, which is the card's own. */
   scene: Omit<PhotoScene, "dragCorner">;
   /** CSS pixels per view pixel, for the PNG export. */
@@ -55,8 +61,8 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
   /** Takes back every pen mark. */
   onClearMarks(): void;
   canClear: boolean;
-  onCornerMove(j: number, p: Point): void;
-  onCornerDrop(): void;
+  /** A corner drag ended with the corners at `q`. */
+  onCorners(q: Quad): void;
   /** A pen stroke reached (x, y) in view pixels; `start` begins a new stroke, and `erase` wipes instead of drawing. */
   onPen(x: number, y: number, start: boolean, erase?: boolean): void;
   onRef(x: number, y: number): void;
@@ -64,6 +70,12 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
 }): React.ReactElement {
   const wrap = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
   const hover = useRef<Point | null>(null), drag = useRef(-1), pen = useRef(false);
+  /** The corners during a drag. The card keeps them until release, so a
+   *  move redraws the photo alone, not the page. */
+  const dragQuad = useRef<Quad | null>(null);
+  /** During a drag: the photo shrunk once to the canvas, so each move copies
+   *  it instead of scaling the full photo down again. */
+  const small = useRef<HTMLCanvasElement | null>(null);
   const vw = scene.view;
   const focus = mode === "pen" && !collapsed && touchScreen();
 
@@ -81,6 +93,11 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
   const [stretch, setStretch] = useState<(typeof STRETCHES)[number]>(1);
   /** In focus: where the steering finger was, in client pixels. */
   const steer = useRef<Point | null>(null);
+  /** With a mouse and the photo stretched: the pointer during a stroke, in client pixels, for the scroll at the edges. */
+  const stroke = useRef<Point | null>(null);
+  /** With a mouse: the photo point at the middle of the card before a new stretch, to keep it there after. */
+  const anchor = useRef<number | null>(null);
+  const wide = !focus && mode === "pen" && stretch > 1;
 
   const draw = (): void => {
     const c = canvas.current, ctx = c?.getContext("2d"), w = wrap.current;
@@ -102,17 +119,17 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
       ox = zm.ox;
       oy = zm.oy;
     } else {
-      s = sx = Math.min(w.clientWidth / vw.w, (window.innerHeight * 0.72) / vw.h);
+      s = Math.min(w.clientWidth / vw.w, (window.innerHeight * 0.72) / vw.h);
+      sx = wide ? s * stretch : s;
       kRef.current = s;
       ox = oy = 0;
-      cw = vw.w * s;
+      cw = vw.w * sx;
       ch = vw.h * s;
     }
     geo.current = { s, sx, ox, oy };
     c.style.width = cw + "px";
     c.style.height = ch + "px";
-    c.width = Math.round(cw * dpr);
-    c.height = Math.round(ch * dpr);
+    fitCanvas(c, ctx, Math.round(cw * dpr), Math.round(ch * dpr));
     const sc: PhotoScene = { ...scene, dragCorner: drag.current };
     if (focus) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cw, ch);
@@ -126,13 +143,36 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
       drawMagnifier(ctx, dpr, s, sc, cursor.current, ox, oy, cw, sx);
       return;
     }
+    if (wide) {
+      // Stretched: the photo and its trace only, as in focus. The magnifier
+      // turns before the card's visible edge, not the canvas's.
+      drawPenView(ctx, dpr, sc, sx, s, 0, 0);
+      if (hover.current) drawMagnifier(ctx, dpr, s, sc, hover.current, 0, 0, w.scrollLeft + w.clientWidth, sx);
+      return;
+    }
     ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy);
+    if (dragQuad.current) {
+      const W = c.width, H = c.height;
+      if (small.current?.width !== W || small.current.height !== H) {
+        small.current = document.createElement("canvas");
+        small.current.width = W;
+        small.current.height = H;
+        small.current.getContext("2d")!.drawImage(vw.src, 0, 0, W, H);
+      }
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(small.current, 0, 0);
+      ctx.restore();
+      drawCornerDrag(ctx, 1 / s, dragQuad.current, drag.current);
+      if (hover.current) drawMagnifier(ctx, dpr, s, { ...sc, trace: null }, hover.current, ox, oy, cw);
+      return;
+    }
     drawPhoto(ctx, 1 / s, sc, false);
     if (hover.current && (drag.current >= 0 || mode !== "idle")) drawMagnifier(ctx, dpr, s, sc, hover.current, ox, oy, cw);
   };
   const drawRef = useRef(draw);
   useLayoutEffect(() => { drawRef.current = draw; draw(); });
-  useNoSwipe(canvas, !collapsed);
+  useNoSwipe(canvas, !collapsed && !wide);
   useLayoutEffect(() => {
     const ro = new ResizeObserver(() => drawRef.current());
     if (wrap.current) ro.observe(wrap.current);
@@ -181,12 +221,62 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
   // Undo and Clear marks end the stroke first, so the next move does not carry on with it.
   const undo = (): void => { setTool("move"); onUndo(); };
   const clearMarks = (): void => { setTool("move"); onClearMarks(); };
-  /** The next width, keeping the cursor where it is on the screen. */
+  /** The next width, keeping the cursor where it is on the screen, or with a
+   *  mouse the middle of the card. */
   const nextStretch = (): void => {
     const n = STRETCHES[(STRETCHES.indexOf(stretch) + 1) % STRETCHES.length]!, g = geo.current, x = cursor.current[0];
     zoom.current.ox = g.ox + x * g.sx - x * (g.sx / stretch) * n;
+    const w = wrap.current;
+    if (!focus && w) anchor.current = (w.scrollLeft + w.clientWidth / 2) / g.sx;
     setStretch(n);
   };
+  useLayoutEffect(() => {
+    const w = wrap.current, a = anchor.current;
+    anchor.current = null;
+    if (w && a !== null) w.scrollLeft = a * geo.current.sx - w.clientWidth / 2;
+  }, [stretch]);
+  // The pen off, the photo goes back to its width.
+  useEffect(() => { if (mode !== "pen") setStretch(1); }, [mode]);
+
+  // With the photo stretched, a sideways swipe scrolls it. It never reaches
+  // the page, so it never goes back or forward a page at either end.
+  useEffect(() => {
+    const w = wrap.current;
+    if (!w || !wide) return;
+    const take = (e: WheelEvent): void => {
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      w.scrollLeft += e.deltaX;
+    };
+    w.addEventListener("wheel", take, { passive: false });
+    return () => w.removeEventListener("wheel", take);
+  }, [wide]);
+
+  // With the photo stretched, a stroke held near the card's edge scrolls the
+  // photo, and the stroke follows the photo under the still pointer.
+  const penTo = useRef(onPen);
+  useLayoutEffect(() => { penTo.current = onPen; });
+  useEffect(() => {
+    if (!wide) return;
+    let raf = 0;
+    const tick = (): void => {
+      raf = requestAnimationFrame(tick);
+      const w = wrap.current, c = canvas.current, p = stroke.current;
+      if (!w || !c || !p || !pen.current) return;
+      const r = w.getBoundingClientRect();
+      const into = Math.max(0, p[0] - (r.right - SCROLL_ROOM)) - Math.max(0, r.left + SCROLL_ROOM - p[0]);
+      if (!into) return;
+      const before = w.scrollLeft;
+      w.scrollLeft += SCROLL_SPEED * Math.max(-1, Math.min(1, into / SCROLL_ROOM));
+      if (w.scrollLeft === before) return;
+      const cr = c.getBoundingClientRect(), g = geo.current;
+      const x = Math.min(vw.w, Math.max(0, (p[0] - cr.left) / g.sx)), y = (p[1] - cr.top) / g.s;
+      hover.current = [x, y];
+      penTo.current(x, y, false);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [wide, vw.w]);
 
   /** Focus: one finger steers the cursor, two fingers zoom and pan. */
   const focusDown = (e: React.PointerEvent<HTMLCanvasElement>): void => {
@@ -237,10 +327,27 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
 
   const at = (e: React.PointerEvent): Point => {
     const r = e.currentTarget.getBoundingClientRect(), g = geo.current;
-    return [(e.clientX - r.left - g.ox) / g.s, (e.clientY - r.top - g.oy) / g.s];
+    return [(e.clientX - r.left - g.ox) / g.sx, (e.clientY - r.top - g.oy) / g.s];
   };
+  /** A corner drag or a pen stroke holds the page still: nothing on it is
+   *  selected, and no long-press menu opens, until the pointer lets go. */
+  const hold = (e: React.PointerEvent<HTMLCanvasElement>): void => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    window.getSelection()?.removeAllRanges();
+    document.documentElement.classList.add("photo-drag");
+  };
+  const release = (): void => document.documentElement.classList.remove("photo-drag");
+  const endDrag = (): void => {
+    const q = dragQuad.current;
+    drag.current = -1;
+    dragQuad.current = null;
+    small.current = null;
+    if (q) onCorners(q);
+  };
+  useEffect(() => release, []);
   const nearCorner = (x: number, y: number): number =>
-    vw.straight ? -1 : scene.corners.findIndex(([cx, cy]) => Math.hypot(cx - x, cy - y) * geo.current.s < 14);
+    vw.straight || wide ? -1 : scene.corners.findIndex(([cx, cy]) => Math.hypot(cx - x, cy - y) * geo.current.s < 14);
 
   /** Two fingers: how far apart they are, and the point between them, in canvas pixels. */
   const spread = (r: DOMRect): { d: number; mid: Point } => {
@@ -259,6 +366,7 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
   ) : (
     <span className="tools">
       {!collapsed && <button id="photoPen" className={"small" + (mode === "pen" ? " on" : "")} onClick={onPenMode}>✎ Pen</button>}
+      {!collapsed && mode === "pen" && <button id="photoStretch" className={"small" + (stretch > 1 ? " on" : "")} title="Stretch the photo wider, so steep curves lean over." onClick={nextStretch}>↔ {stretch}×</button>}
       {!collapsed && <button id="straightBtn" className="small" onClick={onStraight}>{vw.straight ? "Edit corners" : "Straighten"}</button>}
       <button id="collapseBtn" className="small" onClick={onCollapse}>{collapsed ? "Expand" : "Collapse"}</button>
     </span>
@@ -268,15 +376,15 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
     <div className={"card" + (collapsed ? " collapsed" : "") + (focus ? " focus" : "")} id="photoCard">
       <h2>{focus ? <>✎ Pen <span className="focus-hint">Drag to move the cursor. Two fingers zoom.</span></> : "Photo"}{tools}</h2>
       {!collapsed && (
-        <div id="photoWrap" ref={wrap}>
+        <div id="photoWrap" ref={wrap} className={wide ? "wide" : undefined} onScroll={wide ? () => drawRef.current() : undefined}>
           <canvas id="photo" ref={canvas}
             onPointerDown={(e) => {
               if (focus) { focusDown(e); return; }
               const [x, y] = at(e);
               hover.current = [x, y];
               const hit = nearCorner(x, y);
-              if (hit >= 0) { drag.current = hit; e.currentTarget.setPointerCapture(e.pointerId); draw(); return; }
-              if (mode === "pen") { pen.current = true; e.currentTarget.setPointerCapture(e.pointerId); onPen(x, y, true); draw(); return; }
+              if (hit >= 0) { drag.current = hit; dragQuad.current = [...scene.corners] as Quad; hold(e); draw(); return; }
+              if (mode === "pen") { pen.current = true; stroke.current = [e.clientX, e.clientY]; hold(e); onPen(x, y, true); draw(); return; }
               if (mode === "ref") onRef(x, y);
             }}
             onPointerMove={(e) => {
@@ -284,8 +392,8 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
               const [x, y] = at(e);
               hover.current = [x, y];
               e.currentTarget.style.cursor = nearCorner(x, y) >= 0 ? "grab" : "crosshair";
-              if (drag.current >= 0) { onCornerMove(drag.current, [x, y]); return; }
-              if (mode === "pen" && pen.current && e.buttons & 1) { onPen(x, y, false); return; }
+              if (drag.current >= 0 && dragQuad.current) { dragQuad.current[drag.current] = [x, y]; draw(); return; }
+              if (mode === "pen" && pen.current && e.buttons & 1) { stroke.current = [e.clientX, e.clientY]; onPen(Math.min(vw.w, Math.max(0, x)), y, false); return; }
               const s = scene.settings;
               let f: number | null = null;
               if (calOK(s) && scene.trace) {
@@ -297,14 +405,19 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
             }}
             onPointerUp={(e) => {
               if (focus) { focusUp(e); return; }
+              release();
               pen.current = false;
-              if (drag.current >= 0) { drag.current = -1; onCornerDrop(); }
+              stroke.current = null;
+              if (drag.current >= 0) endDrag();
               // A finger has no hover: the magnifier goes when it lifts.
               if (e.pointerType !== "mouse") { hover.current = null; draw(); }
             }}
             onPointerCancel={(e) => {
               if (focus) { focusUp(e); return; }
+              release();
               pen.current = false;
+              stroke.current = null;
+              if (drag.current >= 0) endDrag();
               hover.current = null;
               draw();
             }}
