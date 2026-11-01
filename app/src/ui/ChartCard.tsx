@@ -5,7 +5,8 @@
  * show the same point.
  *
  * On a touch screen a finger has no hover, so a drag reads the curve under
- * it instead of zooming. Zoom turns a drag into a zoom, for one zoom.
+ * it instead of zooming. Zoom turns a drag into a zoom, for one zoom. The
+ * reading stays when the finger lifts, and the next tap clears it.
  *
  * Full screen fills the window with the card, and the page behind stays put.
  * Done, Back or Escape leave it.
@@ -48,7 +49,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   onHover(f: number | null): void;
   resNote: string;
 }): React.ReactElement {
-  const geom = useRef<ChartGeom | null>(null), drag = useRef<{ x0: number; x1: number; zoom: boolean } | null>(null);
+  const geom = useRef<ChartGeom | null>(null), drag = useRef<{ x0: number; x1: number; zoom: boolean; finger: boolean; t0: number; showing: boolean } | null>(null);
   const range: [number, number] | null = an ? view ?? [an.fmin, an.fmax] : null;
   /** On a touch screen: the next drag zooms instead of reading the curve. */
   const [zoomDrag, setZoomDrag] = useState(false);
@@ -96,7 +97,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   return (
     <div className={"card" + (full ? " full" : "")} id="chartCard">
       <h2>SWR vs. frequency <Help align="start" text={touch
-        ? "Drag along the chart to read the SWR. Tap to pin your own marker; tap it again to remove it. Zoom, then drag across a range, to zoom in."
+        ? "Drag along the chart to read the SWR; tap to clear the reading. Tap to pin your own marker; tap it again to remove it. Zoom, then drag across a range, to zoom in."
         : "Click the chart to pin your own marker; click it again to remove it. Drag across the chart to zoom, double-click to reset."} /> {resNote && <span id="resNote">{resNote}</span>}
         <span className="tools">
           {touch && an && <button id="chartZoom" className={"small" + (zoomDrag ? " on" : "")} onClick={() => setZoomDrag(!zoomDrag)}>Zoom</button>}
@@ -110,7 +111,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         onPointerDown={(e) => {
           if (!geom.current) return;
           // A finger reads the curve, and only zooms when Zoom is on.
-          drag.current = { x0: xOf(e), x1: xOf(e), zoom: e.pointerType === "mouse" || zoomDrag };
+          const finger = e.pointerType !== "mouse";
+          drag.current = { x0: xOf(e), x1: xOf(e), zoom: !finger || zoomDrag, finger, t0: e.timeStamp, showing: hoverF !== null };
           e.currentTarget.setPointerCapture(e.pointerId);
           if (!drag.current.zoom) { const g = geom.current, x = xOf(e); onHover(x >= g.x0 && x <= g.x1 ? freqAt(g, x) : null); }
         }}
@@ -121,16 +123,22 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
           if (f !== hoverF) onHover(f);
           else draw();
         }}
-        onPointerUp={() => {
+        onPointerUp={(e) => {
           const g = geom.current, d = drag.current;
           drag.current = null;
           if (!d || !g) return;
-          if (Math.abs(d.x1 - d.x0) > 6) {
-            if (d.zoom) { onView([freqAt(g, Math.min(d.x0, d.x1)), freqAt(g, Math.max(d.x0, d.x1))]); setZoomDrag(false); }
-          } else if (d.x0 >= g.x0 && d.x0 <= g.x1) onTogglePin(freqAt(g, d.x0), (6 * (g.hi - g.lo)) / (g.x1 - g.x0));
+          const moved = Math.abs(d.x1 - d.x0) > 6;
+          if (moved && d.zoom) { onView([freqAt(g, Math.min(d.x0, d.x1)), freqAt(g, Math.max(d.x0, d.x1))]); setZoomDrag(false); }
+          else if (d.finger && !d.zoom && (moved || e.timeStamp - d.t0 > 350)) { draw(); return; } // a reading: it stays
+          else if (d.finger && d.showing) onHover(null); // a tap clears the reading
+          else if (!moved && d.x0 >= g.x0 && d.x0 <= g.x1) {
+            onTogglePin(freqAt(g, d.x0), (6 * (g.hi - g.lo)) / (g.x1 - g.x0));
+            if (d.finger) onHover(null);
+          }
           draw();
         }}
-        onPointerLeave={() => onHover(null)}
+        // A finger has no hover: its reading stays until the next tap.
+        onPointerLeave={(e) => { if (e.pointerType === "mouse") onHover(null); }}
         onDoubleClick={() => onView(null)}
       />
       <div className="legend">

@@ -12,7 +12,7 @@ them.
 - With a mouse, **↔** next to **✎ Pen** stretches the photo wider, so steep curves lean over. The photo scrolls sideways in its card, and a stroke held at either edge scrolls it along.
 - On a phone or tablet turned sideways, **✎ Pen** puts **✎ Draw** and **⌫ Erase** on the right, so the photo uses the full height.
 - On a phone, **Export** sits at the bottom of the page, under the tables.
-- On a phone or tablet, a drag along the chart reads the SWR under the finger. **Zoom** makes the next drag zoom in instead.
+- On a phone or tablet, a drag along the chart reads the SWR under the finger, and the reading stays until the next tap. **Zoom** makes the next drag zoom in instead.
 - **⤢ Full screen** fills the window with the chart, and the page behind stays put. **Done**, Back or Esc closes it.
 - On a phone, the chart's resolution sits on its own line under the title, and the band chips scroll sideways in one row.
 
