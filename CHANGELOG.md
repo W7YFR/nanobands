@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.7.0 — 2026-11-01
+
 ### Added
 
 - **Frequency** in the Analyze card gives the SWR, band and segment at a frequency, and whether you may transmit there and why not. The chart marks it until Enter, or a click on the mark, pins it.
