@@ -77,7 +77,7 @@ beforeAll(async () => {
   window.Tesseract = {
     createWorker: async () => ({
       setParameters: async () => undefined,
-      recognize: async () => ({ data: { text: "START 3.000 000 MHz\nBW:1000Hz 401p\nSTOP 55.000 000 MHz", lines: null } }),
+      recognize: async () => ({ data: { text: "YSTL SUR 500n/ 2.970\nSTART 3.000 000 MHz\nBW:1000Hz 401p\nSTOP 55.000 000 MHz", lines: null } }),
       terminate: async () => undefined,
     }),
   };
@@ -115,7 +115,7 @@ describe("the page", () => {
     expect($("#fileName").textContent).toBe("random-wire.jpg");
     expect($("#gridNote").textContent).toContain("Grid found");
     expect($("#calSummary").textContent).toBe("3–55 MHz · SWR 1–5");
-    expect($("#ocrNote").textContent).toContain("3–55 MHz");
+    expect($("#ocrNote").textContent).toContain("3–55 MHz, SWR 1–5");
     expect($<HTMLInputElement>("#fStart").value).toBe("3");
     expect($("#straightBtn").textContent).toBe("Edit corners");
     expect($("#clearAll").classList.contains("ghost")).toBe(false);

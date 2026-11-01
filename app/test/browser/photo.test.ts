@@ -100,4 +100,12 @@ describe("a photo whose screen fades toward the right", () => {
     within(dips.map((e) => e.f), [5.74, 15.21, 19.93, 30.61, 41.79], 0.1);
     within(dips.map((e) => e.s), [1.44, 1.28, 2.43, 1.16, 1.12], 0.05);
   });
+
+  it("counts none of the flat line along the top as usable, with Max SWR at the top", async () => {
+    const { usable } = (await run(topThree, 3, 3)).an;
+    // The curve runs flat along the top at these frequencies.
+    for (const f of [3.3, 10, 24, 36, 47.5]) expect(usable.some(([a, b]) => f >= a && f <= b), `${f} MHz`).toBe(false);
+    // Each dip is usable at its bottom.
+    for (const f of [5.74, 15.21, 19.93, 30.61, 41.79]) expect(usable.some(([a, b]) => f >= a && f <= b), `${f} MHz`).toBe(true);
+  });
 });

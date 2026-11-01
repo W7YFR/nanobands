@@ -3,7 +3,7 @@
  * the components share one description of it.
  */
 
-import { analyze, swrAt, type Analysis } from "@/analysis";
+import { analyze, atTop, swrAt, usableSwr, type Analysis } from "@/analysis";
 import { MODE_NAMES, bandAt, segmentAt, type Band, type LicenseClass, type OperatingMode, type Segment } from "@/bands";
 import { mappingFor, type Mapping, type Point, type Quad } from "@/geometry";
 import type { Pixels } from "@/pixels";
@@ -26,7 +26,7 @@ export type Trace =
 /** What the text recognition said about the sweep. */
 export type OcrNote =
   | { kind: "looking" }
-  | { kind: "read"; start: number; stop: number; raw: string }
+  | { kind: "read"; start: number; stop: number; raw: string; scale?: { top: number; bot: number } }
   | { kind: "offer"; start: number; stop: number; raw: string }
   | { kind: "none" }
   | { kind: "failed" };
@@ -136,7 +136,7 @@ export function curveOf(t: Trace | null, s: Settings): Curve | null {
 
 export function analysisOf(c: Curve | null, s: Settings): Analysis | null {
   if (!c || !calOK(s)) return null;
-  return analyze(c.f, c.s, { thr: s.thr, prom: s.prom, top: s.top });
+  return analyze(c.f, c.s, { thr: s.thr, prom: s.prom, top: s.top, bot: s.bot });
 }
 
 export const swrOn = (c: Curve | null, fq: number): number => (c ? swrAt(c.f, c.s, fq) : NaN);
@@ -212,7 +212,7 @@ export interface FreqCheck {
   seg: Segment | undefined;
   /** Why the band plan rules f out. Null when it allows f. */
   why: string | null;
-  /** The SWR is known and at or under Max SWR, and f is in a segment. */
+  /** The SWR is known, at or under Max SWR and under the top of the scale, and f is in a segment. */
   ok: boolean;
 }
 
@@ -224,7 +224,7 @@ export function checkAt(c: Curve | null, s: Settings, f: number): FreqCheck {
     : !band ? "Not in an amateur band"
     : licensed ? `No ${MODE_NAMES[s.mode]} privileges here for this license class`
     : "No privileges here for this license class";
-  return { f, swr, clipped: swr >= s.top - 0.03, band, seg, why, ok: !!seg && swr <= s.thr };
+  return { f, swr, clipped: atTop(swr, s), band, seg, why, ok: !!seg && usableSwr(swr, s) };
 }
 
 /* ---------------- The photo's views ---------------- */

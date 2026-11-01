@@ -124,7 +124,7 @@ function OcrStat({ note, onUse }: { note: OcrNote; onUse(): void }): React.React
   const f = (x: number): number => +x.toFixed(6);
   switch (note.kind) {
     case "looking": return <Stat ok={null} id="ocrNote">Reading the sweep from the photo</Stat>;
-    case "read": return <Stat ok id="ocrNote">Sweep read from the photo: {f(note.start)}–{f(note.stop)} MHz</Stat>;
+    case "read": return <Stat ok id="ocrNote">Sweep read from the photo: {f(note.start)}–{f(note.stop)} MHz{note.scale ? `, SWR ${f(note.scale.bot)}–${f(note.scale.top)}` : ""}</Stat>;
     case "offer": return <Stat ok={null} id="ocrNote">The photo says {f(note.start)}–{f(note.stop)} MHz. <TextButton id="ocrUse" onClick={onUse}>Use it</TextButton></Stat>;
     case "none": return <Stat ok={false} id="ocrNote">No sweep found on the photo. Enter it below.</Stat>;
     case "failed": return <Stat ok={false} id="ocrNote">Couldn't read the photo's text. Enter the sweep below.</Stat>;
@@ -255,11 +255,13 @@ function CheckResult({ c, sweep, thr, top, onView }: {
   onView(): void;
 }): React.ReactElement {
   const known = !Number.isNaN(c.swr);
-  const over = known && c.swr > thr;
+  // An SWR at the top of the scale may be any higher, so it never passes.
+  const over = known && (c.swr > thr || c.clipped);
   const swrText = !sweep ? "No sweep loaded"
     : c.f < sweep[0] || c.f > sweep[1] ? `Outside the sweep (${fmtF(sweep[0])}–${fmtF(sweep[1])} MHz)`
     : !known ? "No reading here"
-    : `SWR ${c.clipped ? "≥ " + top : c.swr.toFixed(2)}${over ? `, over Max SWR ${thr}` : ""}`;
+    : c.clipped ? `SWR ≥ ${top}, off the top of the scale`
+    : `SWR ${c.swr.toFixed(2)}${over ? `, over Max SWR ${thr}` : ""}`;
   const planText = c.seg ? `${c.band!.name} · ${MODES[c.seg[2]].label}` : (c.band ? `${c.band.name} · ` : "") + c.why;
   const verdict = c.ok ? "ok" : c.why || over ? "no" : null;
   const inSweep = !!sweep && c.f >= sweep[0] && c.f <= sweep[1];

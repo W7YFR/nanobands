@@ -77,6 +77,16 @@ describe("AnalyzeCard", () => {
     expect(r).toHaveTextContent("Not in an amateur band");
   });
 
+  it("says not to transmit at the top of the scale, even with the top at Max SWR", () => {
+    const s3 = settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30", top: "3" }, DEFAULT_PREFS);
+    const flat = { ...curve, s: curve.s.map((w) => Math.min(3, w)) };
+    render(<AnalyzeCard prefs={DEFAULT_PREFS} onPref={vi.fn()} onPin={vi.fn()} onView={vi.fn()} check={checkAt(flat, s3, 21.3)}
+      sweep={[an.fmin, an.fmax]} thr={3} top={3} />);
+    const r = document.getElementById("freqCheck")!;
+    expect(r).toHaveTextContent("Do not transmit");
+    expect(r).toHaveTextContent("SWR ≥ 3, off the top of the scale");
+  });
+
   it("offers View inside the sweep only", () => {
     const onView = vi.fn();
     card(14.3, vi.fn(), vi.fn(), onView);

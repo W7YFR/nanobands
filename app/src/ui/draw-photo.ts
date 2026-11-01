@@ -2,7 +2,7 @@
  * its key points, the corner handles and the magnifier.
  */
 
-import { segUsable, type Analysis } from "@/analysis";
+import { atTop, segUsable, type Analysis } from "@/analysis";
 import { MODES, bandsInRange, segsFor } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import type { Point, Quad } from "@/geometry";
@@ -154,7 +154,7 @@ export function drawPhoto(ctx: CanvasRenderingContext2D, U: number, sc: PhotoSce
         const [x, y] = pt(sc.hoverF, sw);
         ctx.fillStyle = curveColor(sw, sc.hoverF, s); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2 * U;
         ctx.beginPath(); ctx.arc(x, y, 6 * U, 0, 7); ctx.fill(); ctx.stroke();
-        label(ctx, `${fmtF(sc.hoverF)} MHz · SWR ${sw >= s.top ? "≥" + s.top : sw.toFixed(2)}`, x, y - 20 * U, U, "#e6edf3");
+        label(ctx, `${fmtF(sc.hoverF)} MHz · SWR ${atTop(sw, s) ? "≥" + s.top : sw.toFixed(2)}`, x, y - 20 * U, U, "#e6edf3");
       }
     }
   }

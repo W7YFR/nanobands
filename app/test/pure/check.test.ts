@@ -65,6 +65,13 @@ describe("checkAt", () => {
     expect(checkAt(c, at(), 28.5).clipped).toBe(true);
     expect(checkAt(c, at(), 14.3).clipped).toBe(false);
   });
+
+  it("does not let you transmit at the top of the scale, even with the top at Max SWR", () => {
+    const s = settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30", top: "3" }, { ...DEFAULT_PREFS, thr: "3" });
+    const flat: Curve = { ...c, s: c.s.map((w) => Math.min(3, w)) };
+    expect(checkAt(flat, s, 21.3)).toMatchObject({ clipped: true, ok: false });
+    expect(checkAt(flat, s, 14.3)).toMatchObject({ clipped: false, ok: true });
+  });
 });
 
 describe("viewAround", () => {

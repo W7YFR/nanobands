@@ -3,7 +3,7 @@
  * readout.
  */
 
-import { segUsable, type Analysis } from "@/analysis";
+import { atTop, segUsable, usableLimit, type Analysis } from "@/analysis";
 import { MODES, bandAt, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import { swrOn, type Curve, type Settings } from "./model";
@@ -127,31 +127,42 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "right";
   ctx.fillText("bands", x0 - 6, stripY + stripH / 2);
 
-  // threshold
-  ctx.strokeStyle = BAD; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.moveTo(x0, Y(s.thr)); ctx.lineTo(x1, Y(s.thr)); ctx.stroke(); ctx.setLineDash([]);
-
   // curve: yellow above the threshold; under it, green inside your segments
-  // and gray outside them, where a good match still does not let you transmit
+  // and gray outside them, where a good match still does not let you transmit.
+  // With Max SWR at or over the top of the scale, Max SWR's line lies along
+  // the top, so the curve is left out where it runs flat along it: the line
+  // shows those stretches alone.
+  const thrAtTop = atTop(s.thr, s);
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
   const path = new Path2D();
-  let pen = false;
+  let pen = false, prevTop = false;
   for (let i = 0; i < t.N; i++) {
     const fi = t.f[i]!, si = t.s[i]!;
     if (Number.isNaN(si) || Number.isNaN(fi)) { pen = false; continue; }
     if (fi < lo - (hi - lo) * 0.02 || fi > hi + (hi - lo) * 0.02) { pen = false; continue; }
+    const top = thrAtTop && atTop(si, s);
+    // A step from the top or onto it is drawn, so the curve meets the line.
+    if (top && prevTop) pen = false;
+    prevTop = top;
     if (pen) path.lineTo(X(fi), Y(si));
     else path.moveTo(X(fi), Y(si));
     pen = true;
   }
   ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.strokeStyle = HIGH; ctx.stroke(path);
-  ctx.beginPath(); ctx.rect(x0, Y(s.thr), x1 - x0, y1 - Y(s.thr) + 2); ctx.clip();
+  // Under the usable limit, not Max SWR: a flat line along the top of the
+  // scale stays yellow even where the top is at or under Max SWR.
+  const yLim = Y(usableLimit(s));
+  ctx.beginPath(); ctx.rect(x0, yLim, x1 - x0, y1 - yLim + 2); ctx.clip();
   ctx.strokeStyle = MATCH; ctx.stroke(path);
   ctx.beginPath();
   for (const b of bandsInRange(lo, hi)) for (const seg of segsFor(b, s)) ctx.rect(X(seg[0]), y0, Math.max(1, X(seg[1]) - X(seg[0])), y1 - y0);
   ctx.clip();
   ctx.strokeStyle = OK; ctx.stroke(path);
   ctx.restore();
+
+  // Max SWR's line, over the curve. Max SWR over the top of the scale draws at the top.
+  ctx.strokeStyle = BAD; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(x0, Y(s.thr)); ctx.lineTo(x1, Y(s.thr)); ctx.stroke(); ctx.setLineDash([]);
 
   const inView = (f: number): boolean => f >= lo && f <= hi;
   // Each label drawn, as a box. On a narrow chart a dip's or peak's label
@@ -175,6 +186,8 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     ctx.fillStyle = "rgba(26,31,39,.85)"; ctx.fillRect(x - w / 2 - 3, y - 8, w + 6, 16);
     ctx.fillStyle = color; ctx.textAlign = "center"; ctx.fillText(txt, x, y);
   };
+  // Max SWR's line is named at its right end, before the other labels, so they keep clear of it.
+  tag(`Max SWR ${s.thr}`, x1, Y(s.thr) - 11, BAD);
   // extrema
   for (const e of an.extrema) {
     if (!inView(e.f)) continue;
@@ -246,7 +259,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
       ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, Y(w), 5, 0, 7); ctx.stroke();
       points.push({ kind: "probe", f, x, y: Y(w) });
     }
-    const txt = `${fmtF(f)} · ${Number.isNaN(w) ? "—" : w >= yTop ? "≥" + yTop : w.toFixed(2)}`;
+    const txt = `${fmtF(f)} · ${Number.isNaN(w) ? "—" : atTop(w, s) ? "≥" + yTop : w.toFixed(2)}`;
     // Above the ring, or below it where above is off the plot or taken.
     const up = Y(w) - 18, down = Math.min(Y(w) + 18, y1 - 10);
     const ly = Number.isNaN(w) ? y0 + 10 : up >= y0 + 10 && (clear(txt, x, up) || !clear(txt, x, down)) ? up : down;
@@ -275,7 +288,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     // Rides with the dot, above it, or below it where above would leave the plot.
     const dy = snapped ? snapped.y : Y(w), off = snapped ? 22 : 18;
     const ly = Number.isNaN(dy) ? y0 + 10 : dy - off >= y0 + 10 ? dy - off : Math.min(dy + off, y1 - 10);
-    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : w >= yTop ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s));
+    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : atTop(w, s) ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s));
   }
   return { x0, x1, y0, y1, lo, hi, points, bands: bandBoxes };
 }
@@ -290,7 +303,7 @@ export function bandTip(b: Band, s: Settings, an: Analysis, t: Curve): { name: s
     take(swrOn(t, lo)); take(swrOn(t, hi));
     for (let i = 0; i < t.N; i++) if (t.f[i]! >= lo && t.f[i]! <= hi) take(t.s[i]!);
   }
-  const fmt = (w: number): string => (w >= s.top ? "≥" + s.top : w.toFixed(2));
+  const fmt = (w: number): string => (atTop(w, s) ? "≥" + s.top : w.toFixed(2));
   const total = segs.reduce((a, g) => a + g[1] - g[0], 0);
   const uses = segs.map((g) => segUsable(g, an));
   const frac = total ? uses.reduce((a, u, j) => a + u.frac * (segs[j]![1] - segs[j]![0]), 0) / total : 0;
