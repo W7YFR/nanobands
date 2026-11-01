@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.5.0 — 2026-11-01
+
 ### Added
 
 - With a mouse, **↔** next to **✎ Pen** stretches the photo wider. The photo scrolls sideways in its card, and a stroke held at either edge scrolls it along.
