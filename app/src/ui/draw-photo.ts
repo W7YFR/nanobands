@@ -7,7 +7,7 @@ import { MODES, bandsInRange, segsFor } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import type { Point, Quad } from "@/geometry";
 import { calOK, swrOn, type Curve, type Settings, type Trace, type View } from "./model";
-import { BAD, OK, TRACE } from "./colors";
+import { BAD, TRACE, curveColor } from "./colors";
 
 export interface PhotoScene {
   view: View;
@@ -126,7 +126,7 @@ export function drawPhoto(ctx: CanvasRenderingContext2D, U: number, sc: PhotoSce
       ctx.fillStyle = BAD; ctx.beginPath(); ctx.arc(x, y, 4 * U, 0, 7); ctx.fill();
     }
     for (const e of an.extrema) {
-      const [x, y] = pt(e.f, e.s), col = e.type === "dip" ? OK : "#f2cc60";
+      const [x, y] = pt(e.f, e.s), col = e.type === "dip" ? curveColor(e.s, e.f, s) : "#f2cc60";
       ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 4.5 * U, 0, 7); ctx.fill();
       label(ctx, `${fmtF(e.f)} · ${e.clipped ? "≥" + s.top : e.s.toFixed(2)}`, x, y + (e.type === "dip" ? 16 : -16) * U, U, col);
     }
@@ -152,7 +152,7 @@ export function drawPhoto(ctx: CanvasRenderingContext2D, U: number, sc: PhotoSce
       ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 1 * U; lineUV(ctx, vw, u, 0, u, 1); ctx.stroke();
       if (!Number.isNaN(sw)) {
         const [x, y] = pt(sc.hoverF, sw);
-        ctx.fillStyle = sw <= s.thr ? OK : "#e3c84a"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2 * U;
+        ctx.fillStyle = curveColor(sw, sc.hoverF, s); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2 * U;
         ctx.beginPath(); ctx.arc(x, y, 6 * U, 0, 7); ctx.fill(); ctx.stroke();
         label(ctx, `${fmtF(sc.hoverF)} MHz · SWR ${sw >= s.top ? "≥" + s.top : sw.toFixed(2)}`, x, y - 20 * U, U, "#e6edf3");
       }

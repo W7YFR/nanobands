@@ -4,10 +4,10 @@
  */
 
 import { segUsable, type Analysis } from "@/analysis";
-import { MODES, bandAt, bandsInRange, segsFor } from "@/bands";
+import { MODES, bandAt, bandsInRange, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import { swrOn, type Curve, type Settings } from "./model";
-import { BAD, OK } from "./colors";
+import { BAD, HIGH, MATCH, OK, curveColor } from "./colors";
 
 /** Where the plot sits, for turning a pointer position into a frequency. */
 export interface ChartGeom {
@@ -17,7 +17,14 @@ export interface ChartGeom {
   y1: number;
   lo: number;
   hi: number;
+  /** The key points in view, where their dots sit, for the hover to snap to. */
+  points: KeyPoint[];
+  /** Each band's boxes in the strip and its name over the plot, for its tooltip. */
+  bands: { band: Band; l: number; r: number; t: number; b: number }[];
 }
+
+export type KeyKind = "dip" | "peak" | "crossing" | "pin";
+export interface KeyPoint { kind: KeyKind; f: number; x: number; y: number }
 
 export const freqAt = (g: ChartGeom, x: number): number => g.lo + ((x - g.x0) / (g.x1 - g.x0)) * (g.hi - g.lo);
 
@@ -30,6 +37,10 @@ export interface ChartScene {
   hoverF: number | null;
   /** A zoom being dragged, in CSS pixels. */
   drag: { x0: number; x1: number } | null;
+  /** The key point the hover snapped to, if any. */
+  snap?: KeyKind | null;
+  /** Added to the hover readout, such as how to unpin a snapped pin. */
+  hoverNote?: string | undefined;
 }
 
 /** Draw the chart at W × H CSS pixels. Returns the plot's geometry, or null
@@ -54,6 +65,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   const X = (f: number): number => x0 + ((f - lo) / (hi - lo)) * (x1 - x0);
   const Y = (w: number): number => py1 - ((Math.min(w, yTop) - yBot) / (yTop - yBot)) * (py1 - py0);
   const stripY = y1 + 22, stripH = 12;
+  const points: KeyPoint[] = [], bandBoxes: ChartGeom["bands"] = [];
 
   // grid
   ctx.strokeStyle = "#262d37"; ctx.lineWidth = 1; ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif";
@@ -82,6 +94,10 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   let lastLbl = -1e9;
   for (const b of bandsInRange(lo, hi)) {
     const segs = segsFor(b, s), bx0 = X(b.lo), bx1 = X(b.hi);
+    if (segs.length) {
+      const sl = X(segs[0]![0]), sr = X(segs[segs.length - 1]![1]), sm = (sl + sr) / 2, sw = Math.max(8, sr - sl);
+      bandBoxes.push({ band: b, l: Math.max(x0, sm - sw / 2), r: Math.min(x1, sm + sw / 2), t: stripY - 3, b: stripY + stripH + 3 });
+    }
     ctx.fillStyle = "rgba(255,255,255,.035)"; ctx.fillRect(bx0, y0, Math.max(1.5, bx1 - bx0), y1 - y0);
     for (const seg of segs) {
       const a = X(seg[0]), c = X(seg[1]), w = Math.max(2, c - a), m = (a + c) / 2;
@@ -99,7 +115,10 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     const lw = ctx.measureText(b.name).width;
     // Over the band, but inside the plot, so a band at the edge keeps its whole name.
     const lx = Math.min(Math.max((bx0 + bx1) / 2, x0 + lw / 2), x1 - lw / 2);
-    if (lx - lw / 2 > lastLbl + 4) { ctx.fillStyle = segs.length ? "#e6edf3" : "#6e7681"; ctx.fillText(b.name, lx, y0 - 12); lastLbl = lx + lw / 2; }
+    if (lx - lw / 2 > lastLbl + 4) {
+      ctx.fillStyle = segs.length ? "#e6edf3" : "#6e7681"; ctx.fillText(b.name, lx, y0 - 12); lastLbl = lx + lw / 2;
+      if (segs.length) bandBoxes.push({ band: b, l: lx - lw / 2 - 3, r: lx + lw / 2 + 3, t: y0 - 22, b: y0 - 2 });
+    }
   }
   ctx.restore();
   ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "right";
@@ -109,7 +128,8 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   ctx.strokeStyle = BAD; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.moveTo(x0, Y(s.thr)); ctx.lineTo(x1, Y(s.thr)); ctx.stroke(); ctx.setLineDash([]);
 
-  // curve: yellow above the threshold, green at or under it
+  // curve: yellow above the threshold; under it, green inside your segments
+  // and gray outside them, where a good match still does not let you transmit
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
   const path = new Path2D();
   let pen = false;
@@ -121,8 +141,12 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     else path.moveTo(X(fi), Y(si));
     pen = true;
   }
-  ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.strokeStyle = "#e3c84a"; ctx.stroke(path);
+  ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.strokeStyle = HIGH; ctx.stroke(path);
   ctx.beginPath(); ctx.rect(x0, Y(s.thr), x1 - x0, y1 - Y(s.thr) + 2); ctx.clip();
+  ctx.strokeStyle = MATCH; ctx.stroke(path);
+  ctx.beginPath();
+  for (const b of bandsInRange(lo, hi)) for (const seg of segsFor(b, s)) ctx.rect(X(seg[0]), y0, Math.max(1, X(seg[1]) - X(seg[0])), y1 - y0);
+  ctx.clip();
   ctx.strokeStyle = OK; ctx.stroke(path);
   ctx.restore();
 
@@ -151,15 +175,20 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   // extrema
   for (const e of an.extrema) {
     if (!inView(e.f)) continue;
-    const x = X(e.f), y = Y(e.s), col = e.type === "dip" ? OK : "#f2cc60";
+    const x = X(e.f), y = Y(e.s), col = e.type === "dip" ? curveColor(e.s, e.f, s) : "#f2cc60";
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
+    points.push({ kind: e.type, f: e.f, x, y });
     const val = e.clipped ? "≥" + s.top : e.s.toFixed(2);
     if (e.type === "dip") tag(`${fmtF(e.f)} · ${val}`, x, Math.min(y + 14, y1 - 8), col, true);
     else tag(`${fmtF(e.f)} · ${val}`, x, Math.max(y - 13, y0 + 12), col, true);
   }
   // crossings: dots on the threshold line
   ctx.fillStyle = BAD;
-  for (const c of an.crossings) if (inView(c.f)) { ctx.beginPath(); ctx.arc(X(c.f), Y(s.thr), 3.5, 0, 7); ctx.fill(); }
+  for (const c of an.crossings) {
+    if (!inView(c.f)) continue;
+    ctx.beginPath(); ctx.arc(X(c.f), Y(s.thr), 3.5, 0, 7); ctx.fill();
+    points.push({ kind: "crossing", f: c.f, x: X(c.f), y: Y(s.thr) });
+  }
   // stretches where SWR <= max: a bracket each with its start–end, staggered into two rows
   for (const [a, b] of an.usable) {
     if (b < lo || a > hi) continue;
@@ -182,6 +211,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     const w = swr(m);
     if (Number.isNaN(w)) continue;
     ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(X(m), Y(w), 4, 0, 7); ctx.fill();
+    points.push({ kind: "pin", f: m, x: X(m), y: Y(w) });
     tag(`${fmtF(m)} · ${w.toFixed(2)}`, X(m), Math.max(Y(w) - 14, y0 + 12), "#fff");
   }
   // drag-zoom selection
@@ -194,14 +224,41 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   if (sc.hoverF !== null && !d && sc.hoverF >= lo && sc.hoverF <= hi) {
     const f = sc.hoverF, x = X(f), w = swr(f);
     ctx.strokeStyle = "rgba(255,255,255,.3)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
-    if (!Number.isNaN(w)) {
-      ctx.fillStyle = w <= s.thr ? OK : "#e3c84a"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+    // A snapped hover rings the key point itself.
+    const snapped = sc.snap ? points.find((p) => p.f === f && p.kind === sc.snap) : undefined;
+    if (snapped) {
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(snapped.x, snapped.y, 8, 0, 7); ctx.stroke();
+    } else if (!Number.isNaN(w)) {
+      ctx.fillStyle = curveColor(w, f, s); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, Y(w), 5.5, 0, 7); ctx.fill(); ctx.stroke();
     }
     const band = bandAt(f);
     // Rides with the dot, above it, or below it where above would leave the plot.
-    const ly = Number.isNaN(w) ? y0 + 10 : Y(w) - 18 >= y0 + 10 ? Y(w) - 18 : Math.min(Y(w) + 18, y1 - 10);
-    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : w >= yTop ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}`, x, ly, "#e6edf3");
+    const dy = snapped ? snapped.y : Y(w), off = snapped ? 22 : 18;
+    const ly = Number.isNaN(dy) ? y0 + 10 : dy - off >= y0 + 10 ? dy - off : Math.min(dy + off, y1 - 10);
+    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : w >= yTop ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, "#e6edf3");
   }
-  return { x0, x1, y0, y1, lo, hi };
+  return { x0, x1, y0, y1, lo, hi, points, bands: bandBoxes };
+}
+
+/** What a band's tooltip says: its name, the lowest and highest SWR over
+ *  your segments in it, and how much of them is usable. */
+export function bandTip(b: Band, s: Settings, an: Analysis, t: Curve): { name: string; swr: string; usable: string; ok: "all" | "part" | "none" } {
+  const segs = segsFor(b, s);
+  let min = Infinity, max = -Infinity;
+  const take = (w: number): void => { if (!Number.isNaN(w)) { min = Math.min(min, w); max = Math.max(max, w); } };
+  for (const [lo, hi] of segs) {
+    take(swrOn(t, lo)); take(swrOn(t, hi));
+    for (let i = 0; i < t.N; i++) if (t.f[i]! >= lo && t.f[i]! <= hi) take(t.s[i]!);
+  }
+  const fmt = (w: number): string => (w >= s.top ? "≥" + s.top : w.toFixed(2));
+  const total = segs.reduce((a, g) => a + g[1] - g[0], 0);
+  const uses = segs.map((g) => segUsable(g, an));
+  const frac = total ? uses.reduce((a, u, j) => a + u.frac * (segs[j]![1] - segs[j]![0]), 0) / total : 0;
+  const measured = total ? uses.reduce((a, u, j) => a + u.measured * (segs[j]![1] - segs[j]![0]), 0) / total : 0;
+  const ok = frac > 0.995 ? "all" : frac > 0.005 ? "part" : "none";
+  const usable = (ok === "all" ? "All usable" : ok === "part" ? `Partial: ${Math.round(frac * 100)}% usable` : "None usable") +
+    (measured < 0.999 ? " (partly outside sweep)" : "");
+  return { name: b.name, swr: min <= max ? (min === max ? `SWR ${fmt(min)}` : `SWR ${fmt(min)}–${fmt(max)}`) : "SWR —", usable, ok };
 }

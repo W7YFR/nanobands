@@ -43,6 +43,25 @@ const tap = (el: Element, x: number, y: number): void => {
   point(el, "pointerdown", x, y, "touch");
   point(el, "pointerup", x, y, "touch", 0);
 };
+/** The first row, in page coordinates, of the chart's plot in page column x
+ *  whose pixel `hit` accepts, searched from the top or from the bottom. */
+function scanChart(x: number, hit: (p: Uint8ClampedArray) => boolean, from: "top" | "bottom"): number | null {
+  const c = $<HTMLCanvasElement>("#chart"), r = c.getBoundingClientRect(), k = c.width / r.width;
+  // The plot spans 30 px from the top to 86 px from the bottom.
+  const top = Math.round(30 * k), bot = Math.round((r.height - 86) * k);
+  const d = c.getContext("2d")!.getImageData(Math.round((x - r.left) * k), top, 1, bot - top).data;
+  const rows = [...Array(bot - top).keys()];
+  if (from === "bottom") rows.reverse();
+  const row = rows.find((i) => hit(d.subarray(i * 4, i * 4 + 3)));
+  return row === undefined ? null : r.top + (top + row) / k;
+}
+/** Where a pin's dot sits in column x: the lowest pure white there, as only pins are drawn in it. */
+const pinY = (x: number): number | null => {
+  const y = scanChart(x, (p) => p[0]! > 250 && p[1]! > 250 && p[2]! > 250, "bottom");
+  return y === null ? null : y - 3;
+};
+const wheel = (el: Element, x: number, y: number, deltaY: number, shiftKey = false): boolean =>
+  el.dispatchEvent(new WheelEvent("wheel", { clientX: x, clientY: y, deltaY, shiftKey, bubbles: true, cancelable: true }));
 const frames = (n: number): Promise<void> =>
   new Promise((r) => { let k = 0; const f = (): void => { if (++k >= n) r(); else requestAnimationFrame(f); }; requestAnimationFrame(f); });
 
@@ -155,7 +174,7 @@ describe("the page", () => {
       tap($("#chart"), x2, y);
       await until(() => pins() === n + 1);
       await frames(2);
-      tap($("#chart"), x2, y);
+      tap($("#chart"), x2, pinY(x2)!);
       await until(() => pins() === n);
     });
 
@@ -187,6 +206,114 @@ describe("the page", () => {
       } finally {
         window.matchMedia = real;
       }
+    });
+  });
+
+  describe("the chart, by mouse", () => {
+    const pins = (): number => document.querySelectorAll("#ptTable [data-del]").length;
+    const chip = (): string => $("#chips button.on")?.textContent ?? "";
+    const pick = async (name: string): Promise<void> => {
+      [...document.querySelectorAll<HTMLButtonElement>("#chips button")].find((b) => b.textContent === name)!.click();
+      await until(() => chip() === name);
+    };
+    const at = (u: number): [number, number] => {
+      const r = $("#chart").getBoundingClientRect();
+      return [r.left + r.width * u, r.top + r.height / 2];
+    };
+    /** The page x of frequency f, with the chart showing lo–hi. */
+    const xAt = (f: number, lo: number, hi: number): number => {
+      const r = $("#chart").getBoundingClientRect(), x0 = 46, x1 = r.width - 14;
+      return r.left + x0 + ((f - lo) / (hi - lo)) * (x1 - x0);
+    };
+    /** A click with the mouse, and the hover moved off to the side so its dot is not in column x. */
+    const click = async (x: number, y: number): Promise<void> => {
+      point($("#chart"), "pointerdown", x, y);
+      point($("#chart"), "pointerup", x, y, "mouse", 0);
+      point($("#chart"), "pointermove", at(0.08)[0], at(0.08)[1], "mouse", 0);
+      await frames(2);
+    };
+
+    it("zooms on the wheel, and never scrolls the page over the chart", async () => {
+      const [x, y] = at(0.5);
+      // Zoomed all the way out, a scroll down does nothing, and the page stays put.
+      expect(wheel($("#chart"), x, y, 100)).toBe(false);
+      await frames(2);
+      expect(chip()).toBe("Full sweep");
+      expect(wheel($("#chart"), x, y, -300)).toBe(false);
+      await until(() => chip() === "");
+      // Zooming back out stops at the whole sweep.
+      expect(wheel($("#chart"), x, y, 2000)).toBe(false);
+      await until(() => chip() === "Full sweep");
+    });
+
+    it("pans a zoom with Shift + scroll and with a middle-button drag", async () => {
+      const [x, y] = at(0.5);
+      await pick("20m");
+      expect(wheel($("#chart"), x, y, 100, true)).toBe(false);
+      await until(() => chip() === "");
+      await pick("20m");
+      const c = $("#chart"), press = (type: string, px: number, buttons: number): boolean =>
+        c.dispatchEvent(new PointerEvent(type, { clientX: px, clientY: y, pointerId: 1, pointerType: "mouse", button: type === "pointermove" ? -1 : 1, buttons, bubbles: true, cancelable: true }));
+      press("pointerdown", x, 4);
+      for (let k = 1; k <= 5; k++) press("pointermove", x + 20 * k, 4);
+      press("pointerup", x + 100, 0);
+      await until(() => chip() === "");
+      // A middle-button drag pins nothing, and leaves the zoom in place.
+      expect(chip()).toBe("");
+      await pick("Full sweep");
+    });
+
+    it("sums up a band in a tooltip over its strip or its name", async () => {
+      await pick("20m");
+      // The 20m chip shows the band with a third of its width each side.
+      const lo = 14 - 0.35 * 0.35, hi = 14.35 + 0.35 * 0.35, r = $("#chart").getBoundingClientRect();
+      const move = (x: number, y: number): void => point($("#chart"), "pointermove", x, y, "mouse", 0);
+      move(xAt(14.1, lo, hi), r.bottom - 58);
+      await until(() => has(".chartTip"));
+      expect($(".chartTip").textContent).toMatch(/^20m · SWR [\d.≥–]+/);
+      expect($(".chartTip .pill").textContent).toMatch(/usable/);
+      move(xAt(14.1, lo, hi), r.top + r.height / 2);
+      await until(() => !has(".chartTip"));
+      move(xAt(14.175, lo, hi), r.top + 18);
+      await until(() => has(".chartTip"));
+      move(xAt(14.1, lo, hi), r.top + r.height / 2);
+      await until(() => !has(".chartTip"));
+      await pick("Full sweep");
+    });
+
+    it("unpins only a click that snaps to the pin", async () => {
+      const n = pins(), [x, y] = at(0.62);
+      await click(x, y);
+      await until(() => pins() === n + 1);
+      const py = pinY(x)!;
+      expect(py).not.toBeNull();
+      // Well clear of the pin, a click pins again rather than unpinning.
+      const away = py - 60 > $("#chart").getBoundingClientRect().top + 60 ? py - 60 : py + 60;
+      await click(x, away);
+      await until(() => pins() === n + 2);
+      // On the dot, the first pin comes off and the second stays.
+      await click(x + 3, py + 3);
+      await until(() => pins() === n + 1);
+      $<HTMLButtonElement>("#ptTable [data-del]").click();
+      await until(() => pins() === n);
+    });
+
+    it("pins a dip itself when a click snaps to it", async () => {
+      const rows = (kind: string): Element[] => [...document.querySelectorAll("#ptTable tr")].filter((tr) => tr.children[2]?.textContent === kind);
+      const freq = (tr: Element): string => tr.children[0]!.textContent!;
+      const dip = rows("Dip (best match)").find((tr) => +freq(tr) > 15 && +freq(tr) < 16)!;
+      // Where the chart puts the dip's dot: the trace runs from about 3.2 MHz,
+      // where the photo's dim edge starts, to 55 MHz, and the SWR scale spans
+      // 54 px from the top to 108 px from the bottom.
+      const r = $("#chart").getBoundingClientRect();
+      const top = +$<HTMLInputElement>("#swrTop").value, bot = +$<HTMLInputElement>("#swrBot").value, w = +dip.children[1]!.textContent!;
+      const x = xAt(+freq(dip), 3.2, 55), py0 = r.top + 54, py1 = r.bottom - 108;
+      const y = py1 - ((w - bot) / (top - bot)) * (py1 - py0);
+      await click(x + 5, y - 4);
+      await until(() => rows("Pinned").length === 1);
+      expect(rows("Pinned").map(freq)).toEqual([freq(dip)]);
+      $<HTMLButtonElement>("#ptTable [data-del]").click();
+      await until(() => rows("Pinned").length === 0);
     });
   });
 

@@ -7,6 +7,21 @@ them.
 
 ## Unreleased
 
+### Added
+
+- The scroll wheel zooms the chart about the pointer, and never scrolls the page while over it. When zoomed, Shift + scroll, a sideways scroll or a middle-button drag pans.
+- Over a band in the strip under the chart, or over its name, a tooltip gives the band's lowest and highest SWR and how much of it is usable.
+- Near a dip, peak, crossing or pin, the chart's hover snaps to it. A click there pins the key point itself.
+
+### Changed
+
+- The curve is gray where the SWR is under **Max SWR** outside your segments. A dip takes the curve's color. Green is only where you may transmit.
+- A click on a pin removes it only when the hover has snapped to the pin. The readout says **click to unpin**.
+
+### Development
+
+- The browser tests cover the chart's wheel zoom, pan, band tooltip, snap and unpin, and its curve and dip colors on a real canvas.
+
 ## v1.5.0 — 2026-11-01
 
 ### Added

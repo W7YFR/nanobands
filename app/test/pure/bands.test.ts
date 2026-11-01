@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { BANDS, MODES, bandAt, bandsInRange, segsFor, type LicenseClass, type OperatingMode } from "@/bands";
+import { BANDS, MODES, bandAt, bandsInRange, inSegment, segsFor, type LicenseClass, type OperatingMode } from "@/bands";
 
 const band = (name: string) => {
   const b = BANDS.find((x) => x.name === name);
@@ -117,5 +117,17 @@ describe("the bands themselves", () => {
     expect(bandAt(14.2)?.name).toBe("20m");
     expect(bandAt(12)).toBeUndefined();
     expect(bandsInRange(3, 55).map((b) => b.name)).toEqual(["80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m"]);
+  });
+});
+
+describe("inSegment", () => {
+  it("is true only inside a segment the class and mode allow", () => {
+    expect(inSegment(14.1, { cls: "G", mode: "any" })).toBe(true);
+    expect(inSegment(14.01, { cls: "G", mode: "any" })).toBe(false);
+    expect(inSegment(14.01, { cls: "E", mode: "any" })).toBe(true);
+    expect(inSegment(14.1, { cls: "G", mode: "phone" })).toBe(false);
+    expect(inSegment(14.3, { cls: "G", mode: "phone" })).toBe(true);
+    expect(inSegment(15.35, { cls: "E", mode: "any" })).toBe(false);
+    expect(inSegment(14.1, { cls: "T", mode: "any" })).toBe(false);
   });
 });
