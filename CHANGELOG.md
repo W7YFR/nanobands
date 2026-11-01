@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.8.0 — 2026-11-01
+
 ### Added
 
 - With the pointer over a band in **Band segments**, the chart shows that band. A click keeps it there, and a second click goes back to the view before.
