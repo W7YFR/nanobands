@@ -22,6 +22,7 @@ import { toTouchstone } from "@/vna";
 import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type Mode } from "./Cards";
 import { ChartCard } from "./ChartCard";
 import { drawChart } from "./draw-chart";
+import { Disclaimer } from "./Disclaimer";
 import { drawPhoto } from "./draw-photo";
 import { Flight } from "./Flight";
 import { Footer } from "./Footer";
@@ -449,6 +450,7 @@ export function App(): React.ReactElement {
         <Header nameRef={nameRef} subRef={subRef} onClear={doc.source ? clear : null} />
         <input type="file" id="file" ref={fileIn} accept="image/*,.s1p,.s2p,.txt" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+        {!landing && doc.source === "image" && <div className="page-top"><Disclaimer id="photoDisclaimer" /></div>}
         {landing ? (
           <Landing heroRef={heroRef} onConnect={() => void vna.connect()} unsupported={vna.unsupported} note={vna.note} onOpen={() => fileIn.current?.click()} />
         ) : (

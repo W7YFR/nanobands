@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Added
+
+- While a photo is open, the top of the page warns that its reading is best effort and that you transmit at your own risk.
+
+### Development
+
+- Tests cover where the photo warning shows.
+
 ## v1.8.1 — 2026-11-01
 
 ### Added

@@ -302,3 +302,9 @@ header h1{position:relative;z-index:5}
 /* A bar's tooltip: the piece of the bar under the pointer. */
 .barTip{max-width:none;white-space:nowrap;font-variant-numeric:tabular-nums}
 .barTip i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+/* The warning to check a photo's reading: quiet text with a yellow edge,
+   across the top of the page over both columns, with the side gutters of .wrap. */
+.page-top{padding:16px max(0px, calc(16px - var(--sb, 0px))) 0 16px}
+.disclaimer{margin:0;padding:8px 12px;border-left:3px solid var(--warn);background:color-mix(in srgb, var(--warn) 6%, transparent);border-radius:0 6px 6px 0;color:var(--muted);font-size:12px;line-height:1.5}
+.disclaimer b{color:var(--text);font-weight:600}
+.disclaimer .line{display:block}
