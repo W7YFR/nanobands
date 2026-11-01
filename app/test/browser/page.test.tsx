@@ -138,6 +138,53 @@ describe("the page", () => {
     await until(() => !$("#bandTable").textContent!.includes("No phone privileges"));
   });
 
+  describe("the Band segments table", () => {
+    const chip = (): string => $("#chips button.on")?.textContent ?? "";
+    const rows = (name: string): HTMLElement => $(`#bandTable tbody[data-band="${name}"]`);
+    /** The mouse comes onto a band's rows from outside them, or leaves them. */
+    const enter = (name: string): boolean => rows(name).querySelector("td")!.dispatchEvent(new PointerEvent("pointerover", { pointerType: "mouse", bubbles: true }));
+    const leave = (name: string): boolean => rows(name).querySelector("td")!.dispatchEvent(new PointerEvent("pointerout", { pointerType: "mouse", bubbles: true, relatedTarget: document.body }));
+
+    it("shows a band on the chart while the mouse is over its rows", async () => {
+      expect(chip()).toBe("Full sweep");
+      enter("20m");
+      await until(() => chip() === "20m");
+      expect(rows("20m").classList.contains("on")).toBe(false);
+      leave("20m");
+      await until(() => chip() === "Full sweep");
+    });
+
+    it("keeps a band on the chart on a click, and goes back to the view before on a second", async () => {
+      [...document.querySelectorAll<HTMLButtonElement>("#chips button")].find((b) => b.textContent === "40m")!.click();
+      await until(() => chip() === "40m");
+      enter("20m");
+      rows("20m").querySelector("td")!.click();
+      await until(() => chip() === "20m" && rows("20m").classList.contains("on"));
+      // Clicked, the band stays when the mouse leaves.
+      leave("20m");
+      await frames(2);
+      expect(chip()).toBe("20m");
+      // From 20 m to 17 m, then off 17 m: back to the view before 20 m.
+      rows("17m").querySelector("td")!.click();
+      await until(() => chip() === "17m");
+      rows("17m").querySelector("td")!.click();
+      await until(() => chip() === "40m" && $("#bandTable tbody.on")?.dataset.band === "40m");
+      [...document.querySelectorAll<HTMLButtonElement>("#chips button")].find((b) => b.textContent === "Full sweep")!.click();
+      await until(() => chip() === "Full sweep");
+    });
+
+    it("lists only the usable bands on Usable", async () => {
+      const button = (label: string): HTMLButtonElement => [...document.querySelectorAll<HTMLButtonElement>("#bandsShown button")].find((b) => b.textContent === label)!;
+      expect(button("All").getAttribute("aria-pressed")).toBe("true");
+      button("Usable").click();
+      await until(() => !has('#bandTable tbody[data-band="40m"]'));
+      expect(button("Usable").getAttribute("aria-pressed")).toBe("true");
+      expect(has('#bandTable tbody[data-band="20m"]')).toBe(true);
+      button("All").click();
+      await until(() => has('#bandTable tbody[data-band="40m"]'));
+    });
+  });
+
   it("collapses and expands the photo", async () => {
     $("#collapseBtn").click();
     await until(() => $("#photoCard").classList.contains("collapsed"));

@@ -21,20 +21,14 @@ import { Help } from "./Help";
 import { bandTip, drawChart, freqAt, type ChartGeom, type KeyKind, type KeyPoint } from "./draw-chart";
 import { fitCanvas } from "./draw-photo";
 import type { Band } from "@/bands";
-import { fitView, type Curve, type Settings } from "./model";
+import { bandView, fitView, sameView, type Curve, type Settings } from "./model";
 import { useNoSwipe } from "./useNoSwipe";
 
 function Chips({ an, view, onView }: { an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void }): React.ReactElement {
-  const same = (v: [number, number] | null): boolean =>
-    (!v && !view) || !!(v && view && Math.abs(v[0] - view[0]) < 1e-9 && Math.abs(v[1] - view[1]) < 1e-9);
-  const chips: [string, [number, number] | null][] = [["Full sweep", null]];
-  for (const b of bandsInRange(an.fmin, an.fmax)) {
-    const pad = Math.max((b.hi - b.lo) * 0.35, 0.02);
-    chips.push([b.name, [Math.max(an.fmin, b.lo - pad), Math.min(an.fmax, b.hi + pad)]]);
-  }
+  const chips: [string, [number, number] | null][] = [["Full sweep", null], ...bandsInRange(an.fmin, an.fmax).map((b): [string, [number, number]] => [b.name, bandView(an, b)])];
   return (
     <div className="chips" id="chips">
-      {chips.map(([name, v]) => <button key={name} className={same(v) ? "on" : ""} onClick={() => onView(v)}>{name}</button>)}
+      {chips.map(([name, v]) => <button key={name} className={sameView(v, view) ? "on" : ""} onClick={() => onView(v)}>{name}</button>)}
     </div>
   );
 }

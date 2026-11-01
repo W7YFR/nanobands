@@ -54,9 +54,11 @@ export interface Prefs {
   freq: string;
   /** Whether the Key points table is open. It starts closed. */
   points: boolean;
+  /** Which bands the Band segments table lists: all of them, or only those with a usable part. */
+  bands: "all" | "usable";
 }
 
-export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false };
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false, bands: "all" };
 
 /** Everything about the loaded file. Clear resets it to EMPTY_DOC. */
 export interface Doc {
@@ -146,6 +148,44 @@ export function fitView(an: Analysis, lo: number, hi: number): [number, number] 
   if (span >= full * 0.999) return null;
   const a = Math.min(Math.max(lo, an.fmin), an.fmax - span);
   return [a, a + span];
+}
+
+/** Whether two chart views are the same. null is the full sweep. */
+export function sameView(a: [number, number] | null, b: [number, number] | null): boolean {
+  return (!a && !b) || !!(a && b && Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9);
+}
+
+/** A chart view of one band: the band with 35% of its width on each side.
+ *  A band chip and a row of the Band segments table show it. */
+export function bandView(an: Analysis, b: Band): [number, number] {
+  const pad = Math.max((b.hi - b.lo) * 0.35, 0.02);
+  return [Math.max(an.fmin, b.lo - pad), Math.min(an.fmax, b.hi + pad)];
+}
+
+/** A band picked from the Band segments table: its view, and the view before it. */
+export interface Picked { view: [number, number]; before: [number, number] | null }
+
+/** A click on a band's row. The chart shows the band, and keeps the view
+ *  from before it. A click on the band the chart shows goes back to that
+ *  view, or to the full sweep when no row picked the band. */
+export function pickBand(view: [number, number] | null, picked: Picked | null, bv: [number, number]): { view: [number, number] | null; picked: Picked | null } {
+  if (sameView(view, bv)) return { view: picked && sameView(picked.view, bv) ? picked.before : null, picked: null };
+  // From one picked band to the next, the view before stays the first one's.
+  const before = picked && sameView(view, picked.view) ? picked.before : view;
+  return { view: bv, picked: { view: bv, before } };
+}
+
+/** A segment's bar, piece by piece: usable or not, low to high. */
+export function barPieces(lo: number, hi: number, parts: readonly (readonly [number, number])[]): { lo: number; hi: number; ok: boolean }[] {
+  const out: { lo: number; hi: number; ok: boolean }[] = [];
+  let at = lo;
+  for (const [a, b] of [...parts].sort((x, y) => x[0] - y[0])) {
+    if (a > at) out.push({ lo: at, hi: a, ok: false });
+    out.push({ lo: a, hi: b, ok: true });
+    at = b;
+  }
+  if (hi > at) out.push({ lo: at, hi, ok: false });
+  return out;
 }
 
 /** A chart view around f: its band with a quarter of the band's width on

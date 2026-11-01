@@ -218,10 +218,10 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
    the mode and range on one line, the bar, and what is usable under it. */
 @media (max-width:600px){
   .bands,.bands tbody{display:block}
-  .bands tr.head{display:none}
+  .bands thead{display:none}
   .bands tr.seg{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:4px 0 6px}
   .bands tr.seg.first{border-top:1px solid var(--line);padding-top:10px}
-  .bands tr.seg.first:first-of-type,.bands tr.head+tr.seg.first{border-top:none}
+  .bands tbody:first-of-type tr.seg.first{border-top:none}
   .bands tr.seg td{display:block;padding:0;border:none}
   .bands td.band{grid-column:1 / -1;display:flex!important;align-items:center;gap:8px;margin-bottom:2px}
   .bands td.band .pill{margin-top:0}
@@ -276,3 +276,21 @@ header h1{position:relative;z-index:5}
 /* One column on a narrow screen. The sidebar's cards join it, so Export can
    go last, under the tables, where the results it saves are. */
 @media (max-width:900px){.wrap{flex-direction:column;align-items:stretch}aside{display:contents}#exportCard{order:1}}
+/* Two or three buttons joined into one choice, the one in force pressed, as in cwt. */
+.modeswitch{display:inline-flex}
+.modeswitch button{border-radius:0;font-size:12px;padding:3px 10px}
+.modeswitch button+button{border-left-width:0}
+.modeswitch button:first-child{border-radius:6px 0 0 6px}
+.modeswitch button:last-child{border-radius:0 6px 6px 0}
+.modeswitch button[aria-pressed="true"]{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
+/* A joined button has no left border: a hovered or pressed one draws that edge as a shadow. */
+.modeswitch button+button:hover,.modeswitch button+button[aria-pressed="true"]{box-shadow:-1px 0 0 var(--accent)}
+.card h2 .modeswitch button{text-transform:none;letter-spacing:0}
+/* A band's rows: the pointer over them shows the band on the chart, a click keeps it there. */
+.bands tbody.band{cursor:pointer}
+.bands tbody.band:hover td{background:rgba(255,255,255,.03)}
+.bands tbody.band.on td{background:#1c2a40}
+.bands tbody.band.on td.band b{color:var(--accent)}
+/* A bar's tooltip: the piece of the bar under the pointer. */
+.barTip{max-width:none;white-space:nowrap;font-variant-numeric:tabular-nums}
+.barTip i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}

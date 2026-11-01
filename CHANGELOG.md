@@ -7,6 +7,20 @@ them.
 
 ## Unreleased
 
+### Added
+
+- With the pointer over a band in **Band segments**, the chart shows that band. A click keeps it there, and a second click goes back to the view before.
+- **All** and **Usable** in **Band segments** list every band, or only the bands with a usable part.
+- Over a segment's bar, a tooltip gives the range of the usable or unusable stretch under the pointer. Between 60 m's channels, it says you may not transmit there.
+
+### Changed
+
+- The band table's title is **Band segments**.
+
+### Development
+
+- Tests cover the band table's hover, click, **All** and **Usable**, and the bar's tooltip.
+
 ## v1.7.1 — 2026-11-01
 
 ### Fixed

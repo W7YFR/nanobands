@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { Band } from "@/bands";
 import { mappingFor, solveRefs, type Quad } from "@/geometry";
 import { detectGrid } from "@/grid";
 import { fixSlashedZeros } from "@/ocr-zeros";
@@ -26,11 +27,12 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
-  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, checkAt, curveOf, defaultCorners, loadImage, photoFrom, rectOf, settingsOf, swrOn, viewAround, viewOf,
-  type Doc, type Fields, type Photo, type Prefs, type Trace,
+  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, loadImage, photoFrom, pickBand, rectOf, settingsOf, swrOn, viewAround, viewOf,
+  type Doc, type Fields, type Photo, type Picked, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
 import { applySnapshot, snapshotOf, type Snapshot } from "./session";
+import { Switch } from "./Switch";
 import { BandTable, PointsTable } from "./Tables";
 import { useFileDrop } from "./useFileDrop";
 import { useVna } from "./useVna";
@@ -83,6 +85,10 @@ export function App(): React.ReactElement {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const [mode, setMode] = useState<Mode>("idle");
   const [hoverF, setHoverF] = useState<number | null>(null);
+  /** The chart's view while the pointer is over a band's rows in Band segments. */
+  const [peek, setPeek] = useState<[number, number] | null>(null);
+  /** The band a click in Band segments put on the chart, and the view before it. */
+  const picked = useRef<Picked | null>(null);
   /** The name of a photo being opened, while its grid and trace are worked out. */
   const [opening, setOpening] = useState<string | null>(null);
   // Until the saved session is read back, show neither the landing nor the page.
@@ -368,6 +374,16 @@ export function App(): React.ReactElement {
     chartRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [prefs.freq, an]);
 
+  const onPeekBand = useCallback((b: Band | null): void => setPeek(b && an ? bandView(an, b) : null), [an]);
+  const onPickBand = useCallback((b: Band): void => {
+    if (!an) return;
+    const r = pickBand(doc.view, picked.current, bandView(an, b));
+    picked.current = r.picked;
+    // The pick shows at once. The hover shows again when the pointer comes back.
+    setPeek(null);
+    setDoc((d) => ({ ...d, view: r.view }));
+  }, [an, doc.view]);
+
   /* ---------------- Exports ---------------- */
 
   const photoScene = view && doc.corners
@@ -447,11 +463,15 @@ export function App(): React.ReactElement {
                   onStraight={onStraight} mode={mode} onPenMode={() => toggleMode("pen")} onUndo={onUndo} canUndo={canUndo} onClearMarks={onClearMarks} canClear={canClear}
                   onCorners={onCorners} onPen={onPen} onRef={onRef} onHover={setHoverF} />
               )}
-              <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
+              <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={peek ?? doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
                 manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote} />
-              <div className="card">
-                <h2>Band segments you can use</h2>
-                <div id="bandTable"><BandTable an={an} settings={settings} /></div>
+              <div className="card" id="bandCard">
+                <h2>Band segments
+                  <span style={{ flex: 1 }}></span>
+                  <Switch id="bandsShown" label="Bands shown" value={prefs.bands} onChange={(v) => onPref("bands", v)}
+                    options={[{ value: "all", label: "All" }, { value: "usable", label: "Usable" }]} />
+                </h2>
+                <div id="bandTable"><BandTable an={an} settings={settings} shown={prefs.bands} view={doc.view} onPeek={onPeekBand} onPick={onPickBand} /></div>
                 <p className="hint">US privileges per 47 CFR §97.301/305, checked against the ARRL frequency-allocations chart. 60 m is four 2.8 kHz channels plus the 5351.5–5366.5 kHz segment (USB/CW/data). Power limits and new rule changes aren't modeled, so check the current ARRL chart before you transmit.</p>
               </div>
               <div className={"card" + (prefs.points ? "" : " collapsed")} id="ptCard">
