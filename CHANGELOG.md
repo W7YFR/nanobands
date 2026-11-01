@@ -7,15 +7,18 @@ them.
 
 ## Unreleased
 
+### Added
+
+- The chart labels its red dashed line with Max SWR, such as Max SWR 3.
+
 ### Fixed
 
-- A photo of a screen with an SWR scale other than 1–5 no longer reads its curve on a 1–5 scale. **Top SWR** and **Bottom SWR** now come from the scale labels on the photo.
-- A curve flat along the top of the scale is no longer usable when **Max SWR** is at or above **Top SWR**. It shows as SWR ≥ the top, in yellow.
+- A photo with an SWR scale other than 1–5 no longer reads its curve on a 1–5 scale. **Top SWR** and **Bottom SWR** now come from the scale labels on the photo, and the Calibrate card shows the scale it read.
+- A curve flat along the top of the scale no longer counts as usable when **Max SWR** is at or above **Top SWR**. The chart shows those stretches as the red dashed line alone, and readouts show SWR ≥ the top.
 
 ### Development
 
-- Tests cover reading the SWR scale from real OCR output of the three photos, and from a scale that does not start at 1.
-- Tests cover a curve flat along the top of the scale, on the 1–3 photo and in the frequency check.
+- Tests cover reading the SWR scale from real OCR output and from a scale that does not start at 1, and a curve flat along the top of the scale.
 
 ## v1.8.0 — 2026-11-01
 
