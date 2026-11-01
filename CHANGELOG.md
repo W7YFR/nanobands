@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.8.1 — 2026-11-01
+
 ### Added
 
 - The chart labels its red dashed line with Max SWR, such as Max SWR 3.
