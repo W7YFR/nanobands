@@ -19,6 +19,7 @@ them.
 ### Fixed
 
 - Dragging a corner or drawing with **✎ Pen** on the photo no longer selects text on the page or opens a long-press menu.
+- On a phone or tablet, a press anywhere on the page no longer selects text.
 - Dragging a corner keeps up with the pointer. The band plan, the trace and the key points hide during the drag and come back on release.
 
 ## v1.4.0 — 2026-10-31

@@ -47,6 +47,13 @@ header .div{width:1px;align-self:stretch;background:var(--line)}
    long-press menu anywhere on the page. */
 html.pen-focus{overflow:hidden;overscroll-behavior:none}
 html.pen-focus,html.pen-focus *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* On a touch screen nothing on the page is selectable and a long press opens
+   no menu: a press means a control, the chart or the photo. Fields still take
+   typing. */
+@media (pointer:coarse){
+  html,html *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  input,textarea{-webkit-user-select:text;user-select:text}
+}
 /* The same while a corner is dragged or a pen stroke is drawn in the card,
    and on the photo itself, where a long press would select or open a menu. */
 html.photo-drag,html.photo-drag *,#photo{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
