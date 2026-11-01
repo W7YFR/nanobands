@@ -7,20 +7,22 @@ them.
 
 ## Unreleased
 
+### Added
+
+- With a mouse, **↔** next to **✎ Pen** stretches the photo wider. The photo scrolls sideways in its card, and a stroke held at either edge scrolls it along.
+- **⤢ Full screen** fills the window with the chart, and the page behind stays put. **Done**, Back or Esc closes it.
+
 ### Changed
 
-- With a mouse, **↔** next to **✎ Pen** stretches the photo wider, so steep curves lean over. The photo scrolls sideways in its card, and a stroke held at either edge scrolls it along.
 - On a phone or tablet turned sideways, **✎ Pen** puts **✎ Draw** and **⌫ Erase** on the right, so the photo uses the full height.
 - On a phone, **Export** sits at the bottom of the page, under the tables.
 - On a phone or tablet, a drag along the chart reads the SWR under the finger, and the reading stays until the next tap. **Zoom** makes the next drag zoom in instead.
-- **⤢ Full screen** fills the window with the chart, and the page behind stays put. **Done**, Back or Esc closes it.
 - On a phone, the chart's resolution sits on its own line under the title, and the band chips scroll sideways in one row.
 
 ### Fixed
 
-- Dragging a corner or drawing with **✎ Pen** on the photo no longer selects text on the page or opens a long-press menu.
-- On a phone or tablet, a press anywhere on the page no longer selects text.
-- Dragging a corner keeps up with the pointer. The band plan, the trace and the key points hide during the drag and come back on release.
+- A corner drag or a pen stroke no longer selects text on the page. On a phone or tablet, nothing on the page selects or opens a long-press menu.
+- Dragging a corner no longer lags. The band plan, the trace and the key points hide during the drag and come back on release.
 
 ## v1.4.0 — 2026-10-31
 
