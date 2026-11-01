@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.6.1 — 2026-11-01
+
 ### Fixed
 
 - The **Key points** table no longer shows every dip in green. A dip takes the chart's color for it: gray outside your segments, yellow over **Max SWR**.
