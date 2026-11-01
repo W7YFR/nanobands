@@ -98,6 +98,7 @@ describe("the page", () => {
   it("starts on the landing, with no Clear and no page", () => {
     expect(has(".app.no-data")).toBe(true);
     expect(has("#landing")).toBe(true);
+    expect(has("#photoDisclaimer")).toBe(false);
     expect(has(".wrap")).toBe(false);
     expect($("#clearAll").classList.contains("ghost")).toBe(true);
     expect(getComputedStyle($("header h1")).visibility).toBe("hidden");
@@ -120,6 +121,9 @@ describe("the page", () => {
     expect($("#straightBtn").textContent).toBe("Edit corners");
     expect($("#clearAll").classList.contains("ghost")).toBe(false);
     expect(has("#landing")).toBe(false);
+    expect($("#photoDisclaimer").textContent).toContain("Check before you transmit.");
+    // At the top of the page, over both columns.
+    expect($("#photoDisclaimer").getBoundingClientRect().bottom).toBeLessThanOrEqual($(".wrap").getBoundingClientRect().top);
     expect(getComputedStyle($("header h1")).visibility).toBe("visible");
 
     const rows = [...document.querySelectorAll<HTMLTableRowElement>("#ptTable tr")].map((r) => r.textContent ?? "");
@@ -454,6 +458,7 @@ describe("a connected NanoVNA", () => {
     expect($("#vnaBtn").textContent).toBe("Disconnect");
     expect($("#resNote").textContent).toContain("401 points from the NanoVNA");
     expect(has("#photoCard")).toBe(false);
+    expect(has("#photoDisclaimer")).toBe(false);
     expect(has("#expS1p")).toBe(true);
     expect(device.log).toContain("scan 3000000 55000000 401 3");
   });
