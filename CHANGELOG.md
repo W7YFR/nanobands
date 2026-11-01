@@ -15,12 +15,12 @@ them.
 
 ### Changed
 
-- The curve is gray where the SWR is under **Max SWR** outside your segments. A dip takes the curve's color. Green is only where you may transmit.
+- The curve is gray where the SWR is under **Max SWR** outside your segments. A dip and the bracket under a stretch take the curve's color. Green is only where you may transmit.
 - A click on a pin removes it only when the hover has snapped to the pin. The readout says **click to unpin**.
 
 ### Development
 
-- The browser tests cover the chart's wheel zoom, pan, band tooltip, snap and unpin, and its curve and dip colors on a real canvas.
+- The browser tests cover the chart's wheel zoom, pan, band tooltip, snap and unpin, and its curve, dip and bracket colors on a real canvas.
 
 ## v1.5.0 — 2026-11-01
 

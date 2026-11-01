@@ -4,7 +4,7 @@
  */
 
 import { segUsable, type Analysis } from "@/analysis";
-import { MODES, bandAt, bandsInRange, segsFor, type Band } from "@/bands";
+import { MODES, bandAt, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import { swrOn, type Curve, type Settings } from "./model";
 import { BAD, HIGH, MATCH, OK, curveColor } from "./colors";
@@ -199,9 +199,26 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     // Band segments table still give the range.
     const r = [0, 1].find((i) => clear(txt, cx, rowY(i) + 10));
     const by = rowY(r ?? 0);
-    ctx.strokeStyle = OK; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(xa, by - 4); ctx.lineTo(xa, by); ctx.lineTo(xb, by); ctx.lineTo(xb, by - 4); ctx.stroke();
-    if (r !== undefined) tag(txt, cx, by + 10, OK);
+    // Gray, like the curve, outside your segments; green over the parts inside them.
+    const inside: [number, number][] = [];
+    for (const band of bandsInRange(a, b)) for (const [p, q] of segsFor(band, s)) if (Math.min(b, q) > Math.max(a, p)) inside.push([Math.max(a, p, lo), Math.min(b, q, hi)]);
+    inside.sort((p, q) => p[0] - q[0]);
+    ctx.lineWidth = 1.5;
+    const piece = (p: number, q: number, col: string): void => {
+      if (q <= p) return;
+      ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(p, by); ctx.lineTo(q, by); ctx.stroke();
+    };
+    let at = xa;
+    for (const [p, q] of inside) {
+      const pa = Math.max(X(p), at), pb = Math.max(X(q), pa + 1.5);
+      piece(at, pa, MATCH); piece(pa, Math.min(pb, xb), OK); at = Math.min(pb, xb);
+    }
+    piece(at, xb, MATCH);
+    for (const [f, x] of [[Math.max(a, lo), xa], [Math.min(b, hi), xb]] as const) {
+      ctx.strokeStyle = inSegment(f, s) ? OK : MATCH;
+      ctx.beginPath(); ctx.moveTo(x, by - 4); ctx.lineTo(x, by); ctx.stroke();
+    }
+    if (r !== undefined) tag(txt, cx, by + 10, inside.length ? OK : MATCH);
   }
   ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "right";
   ctx.fillText(`≤${s.thr}:1`, x0 - 6, stripY + stripH + 20);
