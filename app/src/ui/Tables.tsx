@@ -7,7 +7,7 @@ import { segUsable, type Analysis, type SegmentUse } from "@/analysis";
 import { MODES, MODE_NAMES, bandAt, bandsInRange, segsFor, type Band, type Segment } from "@/bands";
 import { fmtF } from "@/format";
 import type { Settings } from "./model";
-import { BAD, OK } from "./colors";
+import { BAD, OK, curveColor } from "./colors";
 
 const Empty = ({ children = "No data yet." }: { children?: React.ReactNode }): React.ReactElement => <div className="empty">{children}</div>;
 
@@ -83,7 +83,7 @@ export const PointsTable = memo(function PointsTable({ an, settings, manual, swr
   const s = settings;
   const rows: Row[] = [
     ...an.crossings.map((c): Row => ({ f: c.f, s: s.thr, kind: c.dir === "down" ? `Drops below ${s.thr}` : `Rises above ${s.thr}`, col: "#ff9a94" })),
-    ...an.extrema.map((e): Row => ({ f: e.f, s: e.s, kind: e.type === "dip" ? "Dip (best match)" : "Peak", col: e.type === "dip" ? OK : "#f2cc60", clipped: e.clipped })),
+    ...an.extrema.map((e): Row => ({ f: e.f, s: e.s, kind: e.type === "dip" ? "Dip (best match)" : "Peak", col: e.type === "dip" ? curveColor(e.s, e.f, s) : "#f2cc60", clipped: e.clipped })),
     ...manual.map((m): Row => ({ f: m, s: swr(m), kind: "Pinned", col: "#fff", manual: true })),
   ].sort((a, b) => a.f - b.f);
   return (

@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- The **Key points** table no longer shows every dip in green. A dip takes the chart's color for it: gray outside your segments, yellow over **Max SWR**.
+
+### Development
+
+- The README explains how to read the chart: its colors, the band tooltip, and zooming, panning and pinning.
+
 ## v1.6.0 — 2026-11-01
 
 ### Added

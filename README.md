@@ -31,6 +31,28 @@ Live at [w7yfr.com/nanobands](https://www.w7yfr.com/nanobands/).
 An `.s1p` file skips steps 2 and 3 and gives exact data instead of a traced
 curve. NanoVNA-Saver writes one with **Files → Save 1-port file (S11)**.
 
+### Reading the chart
+
+The curve is green where you may transmit: inside your segments, at or under
+**Max SWR**. It is gray where the SWR is under **Max SWR** outside your
+segments, and yellow over it. Dips, and the brackets that mark each stretch
+under **Max SWR**, take the same colors. The dashed red line is **Max SWR**,
+and the red dots are where the curve crosses it.
+
+The strip under the axis shows your segments, green where they are usable and
+red where the SWR is too high. Hover over a band in the strip, or over its
+name, for its lowest and highest SWR and how much of it is usable.
+
+With a mouse, hover to read the SWR. Near a dip, a peak, a crossing or a pin,
+the reading snaps to it. Click to pin a frequency, and click a pin to remove
+it. Scroll or drag across the chart to zoom. When zoomed, Shift + scroll or a
+middle-button drag pans. Double-click, or **Full sweep**, zooms back out. The
+band chips zoom to one band.
+
+On a phone or tablet, drag along the chart to read the SWR, and tap to pin.
+**Zoom** makes the next drag zoom in. **⤢ Full screen** fills the window with
+the chart.
+
 ### A connected NanoVNA
 
 In desktop Chrome or Edge, **Connect NanoVNA** reads the sweep straight off the
