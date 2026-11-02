@@ -16,8 +16,21 @@ export type Mode = "idle" | "pen" | "ref";
 const mhz = (hz: number): number => +(hz / 1e6).toFixed(6);
 const rangeText = (r: Range): string => `${mhz(r.start)}–${mhz(r.stop)} MHz · ${r.points} points`;
 
-/** Two ways in: the NanoVNA and a file. A connected NanoVNA shows its panel,
- *  with a file drop under it. An open file marks the step done. */
+/** The Shell window's state. It lives in the Load card, which stays while the
+ *  page shows, so the window keeps its lines and stays open when the device
+ *  panel goes, as when the NanoVNA disconnects. */
+function useShell(vna: Vna): { show(): void; window: React.ReactNode } {
+  const [open, setOpen] = useState(false);
+  const [entries, setEntries] = useState<ShellEntry[]>([]);
+  const history = useRef<string[]>([]);
+  const show = (): void => { vna.setLive(false); setOpen(true); };
+  const close = useCallback((): void => { setOpen(false); void vna.reread(); }, [vna]);
+  return { show, window: open && <ShellWindow vna={vna} entries={entries} onEntries={setEntries} history={history.current} onClose={close} /> };
+}
+
+/** Two ways in: the NanoVNA and a file. Either one marks the step done: a
+ *  connected NanoVNA keeps its panel in view, and an open file shrinks the
+ *  card to its name. Change brings back the other way in, and Disconnect. */
 export function LoadCard({ source, fileName, over, onBrowse, vna }: {
   source: Doc["source"];
   fileName: string | null;
@@ -30,16 +43,21 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
   // A sweep from the NanoVNA has a file name for its export, but no file was opened.
   const opened = source === "vna" ? null : fileName;
   const [changing, setChanging] = useState(false);
-  // A newly opened file closes the choices again.
-  useEffect(() => setChanging(false), [opened]);
+  // A newly opened file, or a new connection, closes the choices again.
+  useEffect(() => setChanging(false), [opened, d]);
+  const shell = useShell(vna);
 
   const device = d ? (
     <div className={"panel" + (vna.live ? " live" : "")} id="vnaPanel">
       <div className="panel-head">
         <span className="status"><i />{vna.live ? "Sweeping live" : "Connected"}</span>
-        <button id="vnaBtn" className="quiet" onClick={() => void vna.disconnect()}>Disconnect</button>
+        {/* Quiet on purpose: the shell is for those who know the NanoVNA's commands. */}
+        {/* Under Change it hides but keeps its room, so the row keeps its height. */}
+        <button id="shellBtn" className="quiet" onClick={shell.show} style={changing ? { visibility: "hidden" } : undefined}>Shell</button>
       </div>
       <p className="panel-sub" id="vnaInfo"><b>{d.info.board}</b> · firmware {d.info.version}</p>
+      {/* Change shows only the ways out, so the settings step aside under it. */}
+      {!changing && <>
       <div className="row">
         <label htmlFor="vnaSlot">Calibration</label>
         <select id="vnaSlot" defaultValue="" title="Loads a saved calibration on the NanoVNA, as its RECALL menu does"
@@ -57,7 +75,7 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
       <div className="panel-actions">
         <button id="sweepBtn" className="primary" disabled={vna.live} onClick={() => void vna.sweep()}>Sweep</button>
         <button id="liveBtn" className={vna.live ? "on" : ""} onClick={() => vna.setLive(!vna.live)}>{vna.live ? "Hold" : "Live"}</button>
-      </div>
+      </div>      </>}
     </div>
   ) : (
     <div className="row">
@@ -65,38 +83,51 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
     </div>
   );
   const note = why && <p className="hint" id="vnaNote">{why}</p>;
-
-  const choices = (
-    <>
-      <div className="row"><button id="openAnother" className="wide" onClick={onBrowse}>Open another file</button></div>
-      <div className="or">or</div>
-      {device}
-      {note}
-    </>
+  const disconnect = d && <div className="row"><button id="vnaBtn" className="wide" onClick={() => void vna.disconnect()}>Disconnect</button></div>;
+  const drop = (
+    <div className={"drop" + (over ? " over" : "")} id="drop" onClick={onBrowse}>
+      Drop or paste a photo of the SWR screen<br />or a Touchstone <code>.s1p</code> file, or <u>browse…</u>
+    </div>
+  );
+  const header = (done: boolean) => (
+    <h2><b className={"step" + (done ? " done" : "")} /> Load
+      {done && <><span style={{ flex: 1 }}></span>
+        <button id="changeBtn" className="small" onClick={() => setChanging(!changing)}>{changing ? "Cancel" : "Change"}</button></>}
+    </h2>
   );
 
-  // With a file open, the step is done: the card shrinks to its name and
-  // Change, which brings back both ways in.
-  if (opened) {
+  const openAnother = <div className="row"><button id="openAnother" className="wide" onClick={onBrowse}>Open another file</button></div>;
+
+  // With the NanoVNA connected, or a file open, the step is done. A connected
+  // NanoVNA keeps its panel in view, file or not; Change holds only the ways
+  // out: Disconnect, and a file instead. With only a file open, the card
+  // shrinks to its name, and Change offers another file or the NanoVNA.
+  if (d || opened) {
     return (
       <div className="card" id="loadCard">
-        <h2><b className="step done" /> Load <span style={{ flex: 1 }}></span>
-          <button id="changeBtn" className="small" onClick={() => setChanging(!changing)}>{changing ? "Cancel" : "Change"}</button>
-        </h2>
-        <p className="loaded" id="fileName">{opened}</p>
-        {changing && <div className="change">{choices}</div>}
+        {header(true)}
+        {opened && <p className="loaded" id="fileName">{opened}</p>}
+        {d && device}
+        {d && note}
+        {changing && (
+          <div className="change">
+            {d ? disconnect : openAnother}
+            <div className="or">or</div>
+            {d ? (opened ? openAnother : drop) : <>{device}{note}</>}
+          </div>
+        )}
+        {shell.window}
       </div>
     );
   }
   return (
     <div className="card" id="loadCard">
-      <h2><b className="step" /> Load</h2>
+      {header(false)}
       {device}
       {note}
       <div className="or">or</div>
-      <div className={"drop" + (over ? " over" : "")} id="drop" onClick={onBrowse}>
-        Drop or paste a photo of the SWR screen<br />or a Touchstone <code>.s1p</code> file, or <u>browse…</u>
-      </div>
+      {drop}
+      {shell.window}
     </div>
   );
 }
@@ -346,28 +377,6 @@ export function ExportCard({ onPhoto, onChart, onCsv, onS1p }: {
         <button id="expCsv" disabled={!onCsv} onClick={onCsv ?? undefined}>Data (CSV)</button>
         {onS1p && <button id="expS1p" onClick={onS1p}>Touchstone (.s1p)</button>}
       </div>
-    </div>
-  );
-}
-
-/** Opens the Shell window. The card shows only while a NanoVNA is connected.
- *  The window stays open when the device disconnects, so its last lines stay
- *  in view. Its lines and typed commands stay while the page is open. */
-export function ShellCard({ vna }: { vna: Vna }): React.ReactElement {
-  const [open, setOpen] = useState(false);
-  const [entries, setEntries] = useState<ShellEntry[]>([]);
-  const history = useRef<string[]>([]);
-  const show = (): void => { vna.setLive(false); setOpen(true); };
-  const close = useCallback((): void => { setOpen(false); void vna.reread(); }, [vna]);
-  const win = open && <ShellWindow vna={vna} entries={entries} onEntries={setEntries} history={history.current} onClose={close} />;
-  if (!vna.device) return <>{win}</>;
-  return (
-    <div className="card" id="shellCard">
-      <h2>Shell</h2>
-      <div className="stack">
-        <button id="shellBtn" onClick={show}>Open shell</button>
-      </div>
-      {win}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { analyze } from "@/analysis";
-import { AnalyzeCard, CalibrateCard, LoadCard, ShellCard } from "@/ui/Cards";
+import { AnalyzeCard, CalibrateCard, LoadCard } from "@/ui/Cards";
 import { Landing } from "@/ui/Landing";
 import { BANDS } from "@/bands";
 import { DEFAULT_FIELDS, DEFAULT_PREFS, bandView, checkAt, settingsOf } from "@/ui/model";
@@ -133,20 +133,68 @@ describe("LoadCard", () => {
     expect(vna.connect).toHaveBeenCalledOnce();
   });
 
-  it("shows the device, its slots, and Sweep, Live and Disconnect once connected", () => {
+  it("marks the step done once connected, and keeps the device, its slots, Sweep and Live in view", () => {
     const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
     const vna = vnaStub({ device, range: { start: 3e6, stop: 55e6, points: 401 } });
     const { container } = render(<LoadCard source="vna" fileName="nanovna-3-55mhz.s1p" over={false} onBrowse={() => {}} vna={vna} />);
+    expect(container.querySelector("#loadCard .step")).toHaveClass("done");
     expect(screen.getByText("Connected")).toBeInTheDocument();
     expect(container.querySelector("#vnaInfo")).toHaveTextContent("NanoVNA-H 4 · firmware 1.2.44");
     expect(screen.getByText("3–55 MHz · 401 points")).toBeInTheDocument();
-    expect(container.querySelector("#drop")).not.toHaveTextContent("nanovna-3-55mhz.s1p");
     expect(screen.getAllByRole("option")).toHaveLength(8);
     fireEvent.change(screen.getByLabelText("Calibration"), { target: { value: "2" } });
     expect(vna.recall).toHaveBeenCalledWith(2);
     fireEvent.click(screen.getByRole("button", { name: "Live" }));
     expect(vna.setLive).toHaveBeenCalledWith(true);
-    expect(screen.getByRole("button", { name: "Disconnect" })).not.toHaveClass("wide");
+    expect(screen.getByRole("button", { name: "Shell" })).toBeInTheDocument();
+    // Disconnect and a file wait behind Change.
+    expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+    expect(container.querySelector("#drop")).toBeNull();
+  });
+
+  it("offers Disconnect and a file behind Change while connected", () => {
+    const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
+    const vna = vnaStub({ device, range: { start: 3e6, stop: 55e6, points: 401 } });
+    const onBrowse = vi.fn();
+    const { container } = render(<LoadCard source="vna" fileName="nanovna-3-55mhz.s1p" over={false} onBrowse={onBrowse} vna={vna} />);
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(container.querySelector("#drop")).not.toHaveTextContent("nanovna-3-55mhz.s1p");
+    fireEvent.click(container.querySelector("#drop")!);
+    expect(onBrowse).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    expect(vna.disconnect).toHaveBeenCalledOnce();
+    // With the choices open, the panel keeps the device's name, and its settings step aside.
+    expect(container.querySelector("#vnaInfo")).toHaveTextContent("NanoVNA-H 4 · firmware 1.2.44");
+    for (const name of ["Sweep", "Live", "Shell"]) expect(screen.queryByRole("button", { name })).toBeNull();
+    expect(screen.queryByLabelText("Calibration")).toBeNull();
+    expect(container.querySelector("#vnaRange")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Sweep" })).toBeInTheDocument();
+  });
+
+  it("keeps a connected device's panel in view with a photo open, and offers Disconnect and another file behind Change", () => {
+    const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
+    const vna = vnaStub({ device, range: { start: 3e6, stop: 55e6, points: 401 } });
+    const { container } = render(<LoadCard source="image" fileName="wire.jpg" over={false} onBrowse={() => {}} vna={vna} />);
+    expect(container.querySelector("#fileName")).toHaveTextContent("wire.jpg");
+    expect(container.querySelector("#vnaPanel")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Shell" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open another file" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByRole("button", { name: "Disconnect" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open another file" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Shell" })).toBeNull();
+  });
+
+  it("offers another file or the NanoVNA behind Change with only a file open", () => {
+    const { container } = render(<LoadCard source="image" fileName="wire.jpg" over={false} onBrowse={() => {}} vna={vnaStub()} />);
+    expect(container.querySelector("#vnaPanel")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Connect NanoVNA" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByRole("button", { name: "Open another file" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect NanoVNA" })).toBeInTheDocument();
   });
 
   it("shows Hold while live, and no Sweep to press", () => {
@@ -158,23 +206,25 @@ describe("LoadCard", () => {
   });
 });
 
-describe("ShellCard", () => {
+describe("the shell", () => {
+  /** The Load card, where Shell sits in the device panel's top row. */
+  const ShellCard = ({ vna }: { vna: Vna }) => <LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vna} />;
   const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
   // Each test opens the window as for the first time.
   beforeEach(() => localStorage.clear());
 
-  it("shows only while a device is connected", () => {
+  it("is offered only while a device is connected", () => {
     const { rerender } = render(<ShellCard vna={vnaStub()} />);
-    expect(document.getElementById("shellCard")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Shell" })).toBeNull();
     rerender(<ShellCard vna={vnaStub({ device })} />);
-    expect(screen.getByRole("button", { name: "Open shell" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Shell" })).toBeEnabled();
   });
 
   it("keeps the window open when the device disconnects", () => {
     const { rerender } = render(<ShellCard vna={vnaStub({ device })} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shell" }));
     rerender(<ShellCard vna={vnaStub()} />);
-    expect(document.getElementById("shellCard")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Shell" })).toBeNull();
     expect(screen.getByRole("dialog", { name: "Shell" })).toHaveTextContent("Not connected");
     expect(screen.getByLabelText("Command")).toBeDisabled();
   });
@@ -182,7 +232,7 @@ describe("ShellCard", () => {
   it("opens the window over the page, holds Live, and reads the range again on close", () => {
     const vna = vnaStub({ device, live: true });
     render(<ShellCard vna={vna} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shell" }));
     expect(vna.setLive).toHaveBeenCalledWith(false);
     const dialog = screen.getByRole("dialog", { name: "Shell" });
     expect(dialog.parentElement).toBe(document.body);
@@ -195,7 +245,7 @@ describe("ShellCard", () => {
   it("sends a command, shows the reply, and steps back through what was typed", async () => {
     const vna = vnaStub({ device, command: vi.fn(async () => ["3000000 55000000 401"]) });
     render(<ShellCard vna={vna} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shell" }));
     const input = screen.getByLabelText("Command");
     fireEvent.change(input, { target: { value: " sweep " } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -212,7 +262,7 @@ describe("ShellCard", () => {
   it("shows an error, and does not send a command that takes over the port", async () => {
     const vna = vnaStub({ device, command: vi.fn(async () => { throw new Error('The NanoVNA does not know the command "bogus".'); }) });
     render(<ShellCard vna={vna} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shell" }));
     const input = screen.getByLabelText("Command");
     fireEvent.change(input, { target: { value: "reset" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -225,27 +275,27 @@ describe("ShellCard", () => {
 
   it("warns to only run commands you understand", () => {
     render(<ShellCard vna={vnaStub({ device })} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shell" }));
     expect(document.getElementById("shellWarn")).toHaveTextContent("Only run commands you understand.");
   });
 
   it("opens with the list of commands the first time, then as last left", () => {
     const { unmount } = render(<ShellCard vna={vnaStub({ device })} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shell" }));
     const q = screen.getByRole("button", { name: "Commands" });
     expect(q).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(q);
     expect(q).toHaveAttribute("aria-expanded", "false");
     unmount();
     render(<ShellCard vna={vnaStub({ device })} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shell" }));
     expect(screen.getByRole("button", { name: "Commands" })).toHaveAttribute("aria-expanded", "false");
     expect(document.getElementById("shellHelp")).toBeNull();
   });
 
   it("lists the commands beside the prompt with ?, and puts a picked one in the prompt", () => {
     render(<ShellCard vna={vnaStub({ device })} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shell" }));
     const q = screen.getByRole("button", { name: "Commands" });
     expect(q).toHaveAttribute("aria-expanded", "true");
     const list = document.getElementById("shellHelp")!;
@@ -263,7 +313,7 @@ describe("ShellCard", () => {
     localStorage.setItem("nanobands-shell-help", "0");
     const vna = vnaStub({ device });
     render(<ShellCard vna={vna} />);
-    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    fireEvent.click(screen.getByRole("button", { name: "Shell" }));
     fireEvent.change(screen.getByLabelText("Command"), { target: { value: "?" } });
     fireEvent.keyDown(screen.getByLabelText("Command"), { key: "Enter" });
     expect(document.getElementById("shellHelp")).not.toBeNull();

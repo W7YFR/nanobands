@@ -7,7 +7,7 @@
  */
 
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import { fireEvent } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import "@/ui/base.css";
@@ -82,12 +82,22 @@ beforeAll(async () => {
     }),
   };
   Object.defineProperty(navigator, "serial", { value: device.serial(), configurable: true });
-  const { App } = await import("@/ui/App");
-  const root = document.createElement("div");
-  document.body.appendChild(root);
-  createRoot(root).render(<StrictMode><App /></StrictMode>);
-  await until(() => has(".app") && !has(".app.booting"));
+  await mount();
 });
+
+let root: Root | null = null;
+/** Mount the page afresh, as a refresh does: it reads back what it saved. */
+async function mount(): Promise<void> {
+  const { App } = await import("@/ui/App");
+  root?.unmount();
+  document.querySelector("#root")?.remove();
+  const el = document.createElement("div");
+  el.id = "root";
+  document.body.appendChild(el);
+  root = createRoot(el);
+  root.render(<StrictMode><App /></StrictMode>);
+  await until(() => has(".app") && !has(".app.booting"));
+}
 
 describe("the page", () => {
   it("shows the version from package.json in its footer", () => {
@@ -455,7 +465,9 @@ describe("a connected NanoVNA", () => {
     await until(() => has("#vnaInfo") && $("#bandTable").textContent!.includes("20m"));
     expect($("#vnaInfo").textContent).toBe("NanoVNA-H 4 · firmware 1.2.44");
     expect($("#vnaRange").textContent).toBe("3–55 MHz · 401 points");
-    expect($("#vnaBtn").textContent).toBe("Disconnect");
+    expect($("#loadCard .step").classList.contains("done")).toBe(true);
+    expect(has("#vnaBtn")).toBe(false);
+    expect(has("#shellBtn")).toBe(true);
     expect($("#resNote").textContent).toContain("401 points from the NanoVNA");
     expect(has("#photoCard")).toBe(false);
     expect(has("#photoDisclaimer")).toBe(false);
@@ -484,11 +496,24 @@ describe("a connected NanoVNA", () => {
     expect($("#bandTable").textContent).toContain("2m");
   });
 
-  it("disconnects, and keeps the last sweep on the page", async () => {
+  it("disconnects from Change, and keeps the last sweep on the page", async () => {
+    $("#changeBtn").click();
+    await until(() => has("#vnaBtn"));
     $("#vnaBtn").click();
     await until(() => $("#vnaBtn").textContent === "Connect NanoVNA");
     expect(has("#vnaPanel")).toBe(false);
     expect($("#bandTable").textContent).toContain("2m");
     expect(has(".app.no-data")).toBe(false);
+  });
+
+  it("brings the last sweep back after a refresh as the NanoVNA's, not as an opened file", async () => {
+    await mount();
+    await until(() => $("#bandTable").textContent!.includes("2m"));
+    expect(has("#fileName")).toBe(false);
+    expect($("#resNote").textContent).toContain("from the NanoVNA");
+    // Connecting sweeps afresh, and the card still names no file.
+    $("#vnaBtn").click();
+    await until(() => has("#vnaPanel"));
+    expect(has("#fileName")).toBe(false);
   });
 });

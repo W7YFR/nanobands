@@ -19,7 +19,7 @@ import { parseSweepText } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { autoTrace } from "@/trace";
 import { toTouchstone } from "@/vna";
-import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, ShellCard, TraceCard, type Mode } from "./Cards";
+import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type Mode } from "./Cards";
 import { ChartCard } from "./ChartCard";
 import { drawChart } from "./draw-chart";
 import { Disclaimer } from "./Disclaimer";
@@ -135,9 +135,11 @@ export function App(): React.ReactElement {
 
   /* ---------------- Loading ---------------- */
 
-  const saveFile = useCallback((blob: Blob, name: string): void => {
+  /** Keep the file for a refresh. A sweep from the NanoVNA says so, and comes
+   *  back as the NanoVNA's data rather than as an opened file. */
+  const saveFile = useCallback((blob: Blob, name: string, fromVna = false): void => {
     void store.del("session");
-    void store.set("file", { blob, name });
+    void store.set("file", { blob, name, fromVna });
   }, [store]);
 
   /** Show Touchstone data. A repeat sweep of the same range keeps the pins and the zoom. */
@@ -212,8 +214,8 @@ export function App(): React.ReactElement {
     const name = `nanovna-${mhz(r.start)}-${mhz(r.stop)}mhz.s1p`, text = toTouchstone(scan, board);
     const d = docRef.current, repeat = d.source === "vna" && d.s1p?.name === name;
     const blob = new Blob([text], { type: "text/plain" });
-    if (repeat) void store.set("file", { blob, name });
-    else saveFile(blob, name);
+    if (repeat) void store.set("file", { blob, name, fromVna: true });
+    else saveFile(blob, name, true);
     showTouchstone(text, name, "vna", repeat);
   });
 
@@ -234,11 +236,13 @@ export function App(): React.ReactElement {
     let live = true;
     void (async () => {
       try {
-        const f = await store.get<{ blob: Blob; name: string }>("file");
+        const f = await store.get<{ blob: Blob; name: string; fromVna?: boolean }>("file");
         if (!f || !live) return;
         const sv = await store.get<Snapshot>("session");
         if (isTouchstone(f.name)) {
-          showTouchstone(await f.blob.text(), f.name, "s1p", false);
+          // A sweep saved before the flag existed has the name the page gives a sweep.
+          const fromVna = f.fromVna ?? /^nanovna-[\d.]+-[\d.]+mhz\.s1p$/.test(f.name);
+          showTouchstone(await f.blob.text(), f.name, fromVna ? "vna" : "s1p", false);
           if (sv) setDoc((d) => applySnapshot(d, sv, traced));
         } else await openPhoto(f.blob, f.name, sv ?? null);
       } catch {
@@ -468,9 +472,7 @@ export function App(): React.ReactElement {
                 </>
               )}
               <AnalyzeCard prefs={prefs} onPref={onPref} onPin={onPinFreq} onView={onViewFreq} check={check} sweep={sweep} thr={settings.thr} top={settings.top} />
-              <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p} />
-              <ShellCard vna={vna} />
-            </aside>
+              <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p} />            </aside>
             <main>
               {opening ? (
                 <div className="card" id="opening">
