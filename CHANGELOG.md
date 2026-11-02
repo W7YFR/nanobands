@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.11.0 — 2026-11-02
+
 ### Added
 
 - **Read**, by **Shell**, reads the range and calibration in each NanoVNA slot, then returns to the slot it started on. **Calibration** then names each slot by its range, marks a slot that is empty or S11 only, and selects the slot the NanoVNA is on.
