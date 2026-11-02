@@ -3,8 +3,9 @@
  * Tests use it, and `make dev` uses it at `?fake`, since the real device is
  * not always at hand. It answers the way a NanoVNA-H4 on firmware 1.2.44 was
  * seen to: `info`, `version`, `sweep` with and without a range, `recall`,
- * `scan` with an output mask, `frequencies`, `data`, and `cmd?` for anything
- * else. Set `version` below 0.7.1 to act like older firmware without the mask.
+ * `save`, `cal`, `scan` with an output mask, `frequencies`, `data`, and `cmd?`
+ * for anything else. Its slots are the ones read from that H4. A recall of an
+ * empty slot changes nothing. Set `version` below 0.7.1 to act like older firmware without the mask.
  */
 
 import type { Link } from "./vna";
@@ -13,13 +14,24 @@ import type { SerialLike, SerialPortLike } from "./vna-serial";
 export interface FakeOptions {
   board?: string;
   version?: string;
-  /** Saved calibration slots: their ranges. */
-  slots?: [number, number, number][];
+  /** Saved calibration slots, null where empty. */
+  slots?: (FakeSlot | null)[];
   /** Random wobble added to |S11| per sweep, so live sweeps visibly move. */
   noise?: number;
   /** Text waiting on the port when it opens, such as a reply nobody read. */
   stale?: string;
 }
+
+/** A slot: start, stop, points and what `cal` prints. */
+export type FakeSlot = [number, number, number, string];
+
+const FULL = "load isoln Es Er Et cal'ed";
+
+/** The slots read from the user's H4 on 2026-11-01. */
+export const H4_SLOTS: FakeSlot[] = [
+  [144e6, 148e6, 101, FULL], [50e3, 900e6, 101, FULL], [14e6, 14.35e6, 101, FULL], [28e6, 30e6, 101, FULL],
+  [13e6, 15e6, 101, "load Es Er cal'ed"], [6e6, 50e6, 101, FULL], [3e6, 55e6, 401, FULL],
+];
 
 /** SWR of a wire with dips near 7.1, 14.2, 21.3 and 28.4 MHz. */
 export const fakeSwr = (hz: number): number => 1.15 + 6 * Math.sin((Math.PI * hz) / 7.1e6) ** 2;
@@ -27,19 +39,20 @@ export const fakeSwr = (hz: number): number => 1.15 + 6 * Math.sin((Math.PI * hz
 export class FakeNanoVNA {
   board: string;
   version: string;
-  slots: [number, number, number][];
+  slots: (FakeSlot | null)[];
   noise: number;
   stale: string;
   start = 3e6;
   stop = 55e6;
   points = 401;
+  cal = FULL;
   /** Every command received, for tests. */
   log: string[] = [];
 
   constructor(o: FakeOptions = {}) {
     this.board = o.board ?? "NanoVNA-H 4";
     this.version = o.version ?? "1.2.44";
-    this.slots = o.slots ?? [[3e6, 55e6, 401], [144e6, 148e6, 101], [1.8e6, 30e6, 401]];
+    this.slots = o.slots ?? H4_SLOTS.map((s) => [...s]);
     this.noise = o.noise ?? 0;
     this.stale = o.stale ?? "";
   }
@@ -76,10 +89,21 @@ export class FakeNanoVNA {
         [this.start = this.start, this.stop = this.stop, this.points = this.points] = n;
         return out([]);
       case "recall": {
-        const s = this.slots[n[0] ?? -1];
-        if (s) [this.start, this.stop, this.points] = s;
+        const i = n[0];
+        if (i === undefined || i >= this.slots.length) return out(["usage:  0..134287960"]);
+        const s = this.slots[i];
+        if (s) [this.start, this.stop, this.points, this.cal] = s;
         return out([]);
       }
+      case "save": {
+        const i = n[0];
+        if (i === undefined || i >= this.slots.length) return out(["usage:  0..134287960"]);
+        this.slots[i] = [this.start, this.stop, this.points, this.cal];
+        return out([]);
+      }
+      case "cal":
+        if (!a.length) return out([`${this.cal} `]);
+        break;
       case "frequencies":
         return out(this.freqs().map(String));
       case "data":

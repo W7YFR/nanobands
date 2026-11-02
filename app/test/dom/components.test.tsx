@@ -11,6 +11,7 @@ import { BandTable, PointsTable } from "@/ui/Tables";
 import { MATCH, OK } from "@/ui/colors";
 import type { Vna } from "@/ui/useVna";
 import type { NanoVNA } from "@/vna";
+import type { Slot } from "@/slots";
 
 /** A V-shaped dip at 14.2 MHz across 3–30 MHz. */
 function vSweep(): { f: number[]; s: number[] } {
@@ -23,7 +24,8 @@ const an = (() => { const { f, s } = vSweep(); return analyze(f, s, { thr: 3, pr
 const vnaStub = (over: Partial<Vna> = {}): Vna => ({
   unsupported: "", device: null, range: null, live: false, note: "",
   connect: vi.fn(async () => undefined), disconnect: vi.fn(async () => undefined), sweep: vi.fn(async () => undefined),
-  setLive: vi.fn(), recall: vi.fn(async () => undefined), command: vi.fn(async () => []), reread: vi.fn(async () => undefined), ...over,
+  setLive: vi.fn(), recall: vi.fn(async () => undefined),
+  slots: null, slot: null, reading: false, readSlots: vi.fn(async () => undefined), command: vi.fn(async () => []), reread: vi.fn(async () => undefined), ...over,
 });
 
 describe("AnalyzeCard", () => {
@@ -150,6 +152,54 @@ describe("LoadCard", () => {
     // Disconnect and a file wait behind Change.
     expect(screen.queryByRole("button", { name: "Disconnect" })).toBeNull();
     expect(container.querySelector("#drop")).toBeNull();
+  });
+
+  it("names each slot from the last Read, and selects the one the device is on", () => {
+    const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
+    const cal = ["load", "isoln", "Es", "Er", "Et", "cal'ed"];
+    const slots: Slot[] = [
+      { kind: "set", range: { start: 144e6, stop: 148e6, points: 101 }, cal },
+      { kind: "set", range: { start: 13e6, stop: 15e6, points: 101 }, cal: ["load", "Es", "Er", "cal'ed"] },
+      { kind: "empty" }, { kind: "unknown" },
+    ];
+    const vna = vnaStub({ device, range: { start: 144e6, stop: 148e6, points: 101 }, slots, slot: 0 });
+    render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vna} />);
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Slot 0 · 144–148 MHz", "Slot 1 · 13–15 MHz · S11 only", "Slot 2 · empty", "Slot 3 · unknown",
+      "Slot 4", "Slot 5", "Slot 6",
+    ]);
+    expect(screen.getByLabelText("Calibration")).toHaveValue("0");
+    // The device is on a known slot, so Read starts at once.
+    fireEvent.click(screen.getByRole("button", { name: "Read" }));
+    expect(vna.readSlots).toHaveBeenCalledOnce();
+  });
+
+  it("warns before Read when the device may hold a calibration no slot keeps", () => {
+    const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
+    const vna = vnaStub({ device, range: { start: 3e6, stop: 55e6, points: 401 } });
+    render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vna} />);
+    fireEvent.click(screen.getByRole("button", { name: "Read" }));
+    const ask = screen.getByRole("alertdialog", { name: "Read the slots?" });
+    expect(ask).toHaveTextContent("will cause the device to lose the current calibration");
+    expect(screen.getByRole("button", { name: "Read slots" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    // Escape cancels too.
+    fireEvent.click(screen.getByRole("button", { name: "Read" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(vna.readSlots).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Read" }));
+    fireEvent.click(screen.getByRole("button", { name: "Read slots" }));
+    expect(vna.readSlots).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("shows Reading… and holds the menu while it reads", () => {
+    const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
+    render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range: { start: 3e6, stop: 55e6, points: 401 }, reading: true })} />);
+    expect(screen.getByRole("button", { name: "Reading…" })).toBeDisabled();
+    expect(screen.getByLabelText("Calibration")).toBeDisabled();
   });
 
   it("offers Disconnect and a file behind Change while connected", () => {

@@ -5,8 +5,10 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { MODES, type LicenseClass, type OperatingMode } from "@/bands";
 import { fmtF } from "@/format";
+import { slotLabel } from "@/slots";
 import type { Range } from "@/vna";
 import type { Doc, FreqCheck, Fields, GridNote, OcrNote, Prefs } from "./model";
+import { Confirm } from "./Confirm";
 import { Help } from "./Help";
 import { ShellWindow, type ShellEntry } from "./ShellWindow";
 import type { Vna } from "./useVna";
@@ -43,8 +45,12 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
   // A sweep from the NanoVNA has a file name for its export, but no file was opened.
   const opened = source === "vna" ? null : fileName;
   const [changing, setChanging] = useState(false);
+  // Read asks first when the device may hold a calibration no slot keeps.
+  const [asking, setAsking] = useState(false);
   // A newly opened file, or a new connection, closes the choices again.
-  useEffect(() => setChanging(false), [opened, d]);
+  useEffect(() => { setChanging(false); setAsking(false); }, [opened, d]);
+  const read = (): void => { setAsking(false); void vna.readSlots(); };
+  const cancelAsk = useCallback((): void => setAsking(false), []);
   const shell = useShell(vna);
 
   const device = d ? (
@@ -53,19 +59,31 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
         <span className="status"><i />{vna.live ? "Sweeping live" : "Connected"}</span>
         {/* Quiet on purpose: the shell is for those who know the NanoVNA's commands. */}
         {/* Under Change it hides but keeps its room, so the row keeps its height. */}
-        <button id="shellBtn" className="quiet" onClick={shell.show} style={changing ? { visibility: "hidden" } : undefined}>Shell</button>
+        <span className="panel-tools" style={changing ? { visibility: "hidden" } : undefined}>
+          <button id="readSlots" className="quiet" disabled={vna.reading || vna.live || asking}
+            title="Reads the range and calibration in each slot on the NanoVNA"
+            onClick={() => (vna.slot === null ? setAsking(true) : read())}>{vna.reading ? "Reading…" : "Read"}</button>
+          <button id="shellBtn" className="quiet" onClick={shell.show}>Shell</button>
+        </span>
       </div>
       <p className="panel-sub" id="vnaInfo"><b>{d.info.board}</b> · firmware {d.info.version}</p>
       {/* Change shows only the ways out, so the settings step aside under it. */}
       {!changing && <>
       <div className="row">
         <label htmlFor="vnaSlot">Calibration</label>
-        <select id="vnaSlot" defaultValue="" title="Loads a saved calibration on the NanoVNA, as its RECALL menu does"
+        <select id="vnaSlot" value={vna.slot ?? ""} disabled={vna.reading} title="Loads a saved calibration on the NanoVNA, as its RECALL menu does"
           onChange={(e) => { if (e.target.value !== "") void vna.recall(+e.target.value); }}>
-          <option value="">As set</option>
-          {Array.from({ length: d.info.slots }, (_, i) => <option key={i} value={i}>Slot {i}</option>)}
+          {vna.slot === null && <option value="">As set</option>}
+          {Array.from({ length: d.info.slots }, (_, i) => <option key={i} value={i}>{slotLabel(i, vna.slots?.[i])}</option>)}
         </select>
       </div>
+      {asking && (
+        <Confirm title="Read the slots?" action="Read slots" onConfirm={read} onCancel={cancelAsk}>
+          <p>Reading loads each calibration slot on the NanoVNA in turn, then returns to the one it started on.</p>
+          <p>The NanoVNA's current calibration does not match a known reading. If it is not saved on the device, reading the slots will cause the device to lose the current calibration.</p>
+          <p>If it is already saved, you can ignore this message.</p>
+        </Confirm>
+      )}
       {vna.range && (
         <div className="row">
           <label>Range</label>

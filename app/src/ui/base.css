@@ -181,7 +181,8 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 .panel-sub b{color:var(--text);font-weight:600}
 .panel .row{margin:0 0 8px}
 .panel .row label{min-width:72px}
-.panel select{flex:1}
+.panel select{flex:1;min-width:0}
+.panel-tools{display:flex;gap:2px}
 #vnaRange{font-size:13px;font-variant-numeric:tabular-nums}
 .panel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}button.quiet{background:none;border-color:transparent;color:var(--muted);padding:2px 6px;font-size:12px}
 button.quiet:hover{color:var(--text);border-color:var(--line)}
@@ -347,3 +348,10 @@ html.shell-open{overflow:hidden}
 }
 /* A field under 16px makes iOS zoom the page when it takes focus. */
 @media (pointer:coarse){.term-line input{font-size:16px}}
+
+/* A modal question over the page. */
+.modal-back{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.4)}
+.modal h2{margin:0 0 8px;font-size:15px}
+.modal p{margin:0 0 8px;color:var(--muted);font-size:13px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
