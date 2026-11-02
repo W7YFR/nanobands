@@ -7,6 +7,27 @@ them.
 
 ## Unreleased
 
+## v1.10.0 — 2026-11-02
+
+### Added
+
+- **Shell**, by **Connected**, opens a full-page prompt that sends commands to the NanoVNA and shows its replies. It holds **Live**, and the chart follows a range the shell changes.
+- In the shell, **?** opens the list of commands beside the prompt, open the first time. A click on a command puts it in the prompt.
+- The shell warns to only run commands you understand.
+- The shell does not send commands that restart the device, print binary data or wait for a touch on the screen.
+
+### Changed
+
+- A connected NanoVNA marks **Load** done, as an open file does. Its settings stay in view until **Change**, which offers only **Disconnect** or a file instead.
+
+### Fixed
+
+- After a refresh, the last NanoVNA sweep no longer shows in **Load** as an opened `.s1p` file.
+
+### Development
+
+- Tests cover the shell, the **Load** card while connected, and a refresh after a NanoVNA sweep.
+
 ## v1.9.0 — 2026-11-01
 
 ### Added

@@ -105,6 +105,8 @@ main{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
 /* The open file under a done Load, in full, on its own line. */
 .loaded{margin:-4px 0 0;font-size:13px;font-weight:600;overflow-wrap:anywhere}
 .change{margin-top:12px}
+/* A file's name over a connected NanoVNA's panel. */
+.loaded + .panel{margin-top:10px}
 /* What the app found, as short lines apart from the fields under them. */
 .stats{display:flex;flex-direction:column;gap:4px;margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .stat{display:flex;gap:7px;align-items:baseline;margin:0;font-size:12px;color:var(--muted)}
@@ -174,13 +176,14 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 .panel.live .status i{animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.3}}
 .panel-sub{margin:6px 0 10px;color:var(--muted);font-size:12px}
+/* Under Change the panel ends at the device's name. */
+.panel-sub:last-child{margin-bottom:0}
 .panel-sub b{color:var(--text);font-weight:600}
 .panel .row{margin:0 0 8px}
 .panel .row label{min-width:72px}
 .panel select{flex:1}
 #vnaRange{font-size:13px;font-variant-numeric:tabular-nums}
-.panel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-button.quiet{background:none;border-color:transparent;color:var(--muted);padding:2px 6px;font-size:12px}
+.panel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}button.quiet{background:none;border-color:transparent;color:var(--muted);padding:2px 6px;font-size:12px}
 button.quiet:hover{color:var(--text);border-color:var(--line)}
 .refs{font-size:12px;color:var(--muted)}
 .refs span{display:inline-flex;gap:4px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:1px 8px;margin:2px}
@@ -308,3 +311,39 @@ header h1{position:relative;z-index:5}
 .disclaimer{margin:0;padding:8px 12px;border-left:3px solid var(--warn);background:color-mix(in srgb, var(--warn) 6%, transparent);border-radius:0 6px 6px 0;color:var(--muted);font-size:12px;line-height:1.5}
 .disclaimer b{color:var(--text);font-weight:600}
 .disclaimer .line{display:block}
+/* The Shell window: the whole page, a log above a prompt, and the commands
+   beside them while the "?" is on. On a phone the commands sit above the log,
+   so the prompt stays at the bottom by the keyboard. */
+html.shell-open{overflow:hidden}
+#shell{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}
+.shell-head{flex:none;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line)}
+.shell-head h2{margin:0;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.shell-sub{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:12px}
+.shell-head button.small{min-width:0}
+.shell-sub b{color:var(--text);font-weight:600}
+.help.shell-q{width:22px;height:22px;font-size:12px;cursor:pointer}
+/* The warning under the header: the photo warning's look, in the window's gutters. */
+.disclaimer.shell-warn{flex:none;margin:10px 16px}
+.shell-body{flex:1;min-height:0;display:flex;border-top:1px solid var(--line)}
+.term{flex:1;min-width:0;display:flex;flex-direction:column;font-family:var(--mono);font-size:13px}
+.term-log{flex:1;min-height:0;overflow:auto;margin:0;padding:12px 16px;font:inherit;white-space:pre-wrap;overflow-wrap:anywhere}
+.term-log .cmd{color:var(--accent)}
+.term-log .err{color:var(--bad)}
+.term-line{flex:none;display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--line);color:var(--accent)}
+.term-line input{flex:1;min-width:0;background:none;border:none;outline:none;color:var(--text);font:inherit;padding:2px 0}
+.term-line input::placeholder{color:var(--faint)}
+#shellHelp{flex:none;width:380px;overflow:auto;border-left:1px solid var(--line);background:var(--panel);padding:10px 0}
+#shellHelp .hint{margin:0 16px 8px}
+#shellHelp ul{list-style:none;margin:0;padding:0}
+#shellHelp li button{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;background:none;border:none;border-radius:0;padding:6px 16px;font-size:12px;color:var(--muted)}
+#shellHelp li button:hover:not(:disabled),#shellHelp li button:focus-visible{background:var(--panel2);outline:none}
+#shellHelp li button:disabled{opacity:.55}
+#shellHelp code{font-family:var(--mono);color:var(--muted);overflow-wrap:anywhere}
+#shellHelp code b{color:var(--text);font-weight:600}
+#shellHelp .refused{color:var(--warn)}
+@media (max-width:700px){
+  .shell-body{flex-direction:column}
+  #shellHelp{order:-1;width:auto;max-height:40%;border-left:none;border-bottom:1px solid var(--line)}
+}
+/* A field under 16px makes iOS zoom the page when it takes focus. */
+@media (pointer:coarse){.term-line input{font-size:16px}}

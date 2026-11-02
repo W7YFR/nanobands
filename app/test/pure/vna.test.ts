@@ -7,6 +7,7 @@ import {
   NanoVNA, parseDataScan, parseInfo, parseMaskScan, parseRange, Shell, toTouchstone, versionAtLeast, type Link,
 } from "@/vna";
 import { FakeNanoVNA, fakeSwr } from "@/vna-fake";
+import { commandMs, refusal, SHELL_COMMANDS } from "@/shell";
 
 /** Real `info` output from the H4. */
 const H4_INFO = [
@@ -143,5 +144,31 @@ describe("NanoVNA", () => {
     const link: Link = { write: async () => undefined, read: async () => "garbage", close: async () => { closed = true; } };
     await expect(NanoVNA.open(link)).rejects.toThrow();
     expect(closed).toBe(true);
+  });
+
+  it("runs a typed command and returns what it printed", async () => {
+    const dev = new FakeNanoVNA();
+    const vna = await NanoVNA.open(dev.link());
+    expect(await vna.command("  sweep   144000000 148000000 ", 1000)).toEqual([]);
+    expect(dev.log).toContain("sweep 144000000 148000000");
+    expect(await vna.command("sweep", 1000)).toEqual(["144000000 148000000 401"]);
+    await expect(vna.command("bogus 1", 1000)).rejects.toThrow('does not know the command "bogus"');
+  });
+});
+
+describe("the Shell window's commands", () => {
+  it("refuses commands that take over the port, and nothing else", () => {
+    for (const c of ["reset", "dfu", "capture", "refresh on", "touchcal", "touchtest", "scan_bin 1 2", "sd_read a.s1p"]) expect(refusal(c)).not.toBeNull();
+    for (const c of ["info", "  sweep 1 2 3", "scan 1 2 3 3", "recall 1", "bogus", ""]) expect(refusal(c)).toBeNull();
+  });
+
+  it("names each command once", () => {
+    const names = SHELL_COMMANDS.map((c) => c.name);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it("gives a sweep longer than other commands", () => {
+    expect(commandMs("scan 1 2 3 3")).toBeGreaterThan(commandMs("info"));
+    expect(commandMs("scanner")).toBe(commandMs("info"));
   });
 });
