@@ -9,8 +9,8 @@ them.
 
 ### Added
 
-- **Shell**, by **Connected**, opens a full-page prompt that sends commands to the NanoVNA and shows its replies.
-- In the shell, **?** opens the list of commands beside the prompt. A click on a command puts it in the prompt. The list is open the first time the shell opens.
+- **Shell**, by **Connected**, opens a full-page prompt that sends commands to the NanoVNA and shows its replies. It holds **Live**, and the chart follows a range the shell changes.
+- In the shell, **?** opens the list of commands beside the prompt, open the first time. A click on a command puts it in the prompt.
 - The shell warns to only run commands you understand.
 - The shell does not send commands that restart the device, print binary data or wait for a touch on the screen.
 
