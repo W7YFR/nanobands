@@ -491,9 +491,27 @@ describe("a connected NanoVNA", () => {
   it("recalls a calibration slot and sweeps its range", async () => {
     const slot = $<HTMLSelectElement>("#vnaSlot");
     expect(slot.options).toHaveLength(8);
-    fireEvent.change(slot, { target: { value: "1" } });
+    fireEvent.change(slot, { target: { value: "0" } });
     await until(() => $("#vnaRange").textContent === "144–148 MHz · 101 points");
     expect($("#bandTable").textContent).toContain("2m");
+  });
+
+  it("reads what each slot holds, names them, and ends on the slot it started on", async () => {
+    localStorage.removeItem("nanobands-slots");
+    const from = device.log.length;
+    $("#readSlots").click();
+    await until(() => $<HTMLSelectElement>("#vnaSlot").options[1]?.textContent === "Slot 1 · 0.05–900 MHz");
+    const slot = $<HTMLSelectElement>("#vnaSlot");
+    expect([...slot.options].map((o) => o.textContent)).toEqual([
+      "Slot 0 · 144–148 MHz", "Slot 1 · 0.05–900 MHz", "Slot 2 · 14–14.35 MHz",
+      "Slot 3 · 28–30 MHz", "Slot 4 · 13–15 MHz · S11 only", "Slot 5 · 6–50 MHz",
+      "Slot 6 · 3–55 MHz",
+    ]);
+    await until(() => $("#readSlots").textContent === "Read");
+    expect(slot.value).toBe("0");
+    expect(device.log.slice(from).filter((c) => c.startsWith("recall")).at(-1)).toBe("recall 0");
+    expect($("#vnaRange").textContent).toBe("144–148 MHz · 101 points");
+    expect(has("#vnaNote")).toBe(false);
   });
 
   it("disconnects from Change, and keeps the last sweep on the page", async () => {

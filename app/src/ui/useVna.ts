@@ -1,4 +1,5 @@
-/* A NanoVNA over Web Serial: connect, sweep once, sweep live, recall a slot.
+/* A NanoVNA over Web Serial: connect, sweep once, sweep live, recall a slot,
+ * read what the slots hold.
  *
  * The device sweeps the range it is set to, so its calibration applies as
  * stored. Each finished sweep goes to `onSweep`. The device and its range live
@@ -9,6 +10,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NanoVNA, VnaError, type Range, type Scan } from "@/vna";
 import { commandMs } from "@/shell";
+import { loadSlots, readSlots as readAll, slotOf, storeSlots, type Slot } from "@/slots";
 import { connectPort, serialApi, type SerialLike } from "@/vna-serial";
 
 export interface Vna {
@@ -24,6 +26,14 @@ export interface Vna {
   sweep(): Promise<void>;
   setLive(on: boolean): void;
   recall(slot: number): Promise<void>;
+  /** What each slot holds, from the last Read, or null before one. */
+  slots: Slot[] | null;
+  /** The slot the device is on, when it is known. */
+  slot: number | null;
+  /** True while Read recalls the slots. */
+  reading: boolean;
+  /** Recall each slot, note what it holds, and go back to the starting slot. */
+  readSlots(): Promise<void>;
   /** Run a line typed in the Shell window and return what the device printed. */
   command(line: string): Promise<string[]>;
   /** Read the device's range again, and sweep when the shell changed it. */
@@ -38,6 +48,11 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
   const [range, setRange] = useState<Range | null>(null);
   const [live, setLiveState] = useState(false);
   const [note, setNote] = useState("");
+  const [slots, setSlotsState] = useState<Slot[] | null>(null);
+  const [slot, setSlot] = useState<number | null>(null);
+  const [reading, setReading] = useState(false);
+  const slotList = useRef<Slot[] | null>(null);
+  const setSlots = (s: Slot[] | null): void => { slotList.current = s; setSlotsState(s); };
   const dev = useRef<NanoVNA | null>(null), rng = useRef<Range | null>(null), liveOn = useRef(false), busy = useRef(false);
   const sink = useRef(onSweep);
   useLayoutEffect(() => { sink.current = onSweep; });
@@ -56,6 +71,8 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     dev.current = rng.current = null;
     setDevice(null);
     setRange(null);
+    setSlots(null);
+    setSlot(null);
     await d?.close();
   }, []);
 
@@ -85,6 +102,9 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
       const d = await NanoVNA.open(link, log);
       log(d.info);
       const r = await d.range();
+      const list = loadSlots(d.info);
+      setSlots(list);
+      setSlot(slotOf(list, { range: r, cal: await d.cal() }));
       dev.current = d;
       rng.current = r;
       setDevice(d);
@@ -126,6 +146,7 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     if (!d) return;
     try {
       const r = await d.recall(slot);
+      setSlot(slot);
       rng.current = r;
       setRange(r);
       if (!liveOn.current) await sweepOnce();
@@ -134,36 +155,77 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     }
   }, [sweepOnce, fail]);
 
+  /** Read the device's range and slot again, and sweep when the range changed. */
+  const follow = useCallback(async (d: NanoVNA): Promise<void> => {
+    const was = rng.current, r = await d.range();
+    const at = slotOf(slotList.current, { range: r, cal: await d.cal() });
+    if (dev.current !== d) return;
+    setSlot(at);
+    if (was && r.start === was.start && r.stop === was.stop && r.points === was.points) return;
+    rng.current = r;
+    setRange(r);
+    if (!liveOn.current) await sweepOnce();
+  }, [sweepOnce]);
+
+  const reread = useCallback(async (): Promise<void> => {
+    const d = dev.current;
+    if (!d) return;
+    try { await follow(d); } catch (e) { fail(e); }
+  }, [follow, fail]);
+
+  const readSlots = useCallback(async (): Promise<void> => {
+    const d = dev.current;
+    if (!d || busy.current) return;
+    stopLive();
+    busy.current = true;
+    setReading(true);
+    try {
+      const got = await readAll(d, d.info.slots);
+      if (dev.current !== d) return;
+      storeSlots(d.info, got.slots);
+      setSlots(got.slots);
+      setNote(got.restored ? "" : `The calibration before Read matches no slot. The NanoVNA is on slot ${got.at}.`);
+      await follow(d);
+    } catch (e) {
+      fail(e);
+    } finally {
+      busy.current = false;
+      setReading(false);
+    }
+  }, [follow, fail]);
+
+  /** After `save` or `clearconfig` in the shell, the slots it changed. */
+  const saved = async (d: NanoVNA, line: string, out: string[]): Promise<void> => {
+    if (out.some((l) => /usage/i.test(l))) return;
+    if (/^clearconfig\b/.test(line)) { storeSlots(d.info, null); setSlots(null); setSlot(null); return; }
+    const n = /^save\s+(\d+)$/.exec(line)?.[1];
+    const list = slotList.current;
+    if (n === undefined || !list || +n >= list.length) return;
+    const next = list.slice();
+    next[+n] = { kind: "set", range: await d.range(), cal: await d.cal() };
+    storeSlots(d.info, next);
+    setSlots(next);
+    setSlot(+n);
+  };
+
   const command = useCallback(async (line: string): Promise<string[]> => {
     const d = dev.current;
     if (!d) throw new VnaError("The NanoVNA is not connected.", true);
     try {
-      return await d.command(line, commandMs(line));
+      const out = await d.command(line, commandMs(line));
+      await saved(d, line.trim().split(/\s+/).join(" "), out);
+      return out;
     } catch (e) {
       if (!(e instanceof VnaError) || e.closed) void disconnect();
       throw e;
     }
   }, [disconnect]);
 
-  const reread = useCallback(async (): Promise<void> => {
-    const d = dev.current, was = rng.current;
-    if (!d) return;
-    try {
-      const r = await d.range();
-      if (dev.current !== d || (was && r.start === was.start && r.stop === was.stop && r.points === was.points)) return;
-      rng.current = r;
-      setRange(r);
-      if (!liveOn.current) await sweepOnce();
-    } catch (e) {
-      fail(e);
-    }
-  }, [sweepOnce, fail]);
-
   // Let go of the port when the page goes.
   useEffect(() => () => { liveOn.current = false; void dev.current?.close(); }, []);
 
   return {
     unsupported: typeof serial === "string" ? serial : "",
-    device, range, live, note, connect, disconnect, sweep, setLive, recall, command, reread,
+    device, range, live, note, connect, disconnect, sweep, setLive, recall, slots, slot, reading, readSlots, command, reread,
   };
 }

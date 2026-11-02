@@ -127,7 +127,10 @@ describe("NanoVNA", () => {
 
   it("loads a calibration slot and its range", async () => {
     const vna = await NanoVNA.open(new FakeNanoVNA().link());
-    expect(await vna.recall(1)).toEqual({ start: 144e6, stop: 148e6, points: 101 });
+    expect(await vna.recall(0)).toEqual({ start: 144e6, stop: 148e6, points: 101 });
+    expect(await vna.cal()).toEqual(["load", "isoln", "Es", "Er", "Et", "cal'ed"]);
+    expect(await vna.recall(4)).toEqual({ start: 13e6, stop: 15e6, points: 101 });
+    expect(await vna.cal()).toEqual(["load", "Es", "Er", "cal'ed"]);
   });
 
   it("sweeps older firmware with scan, frequencies and data", async () => {

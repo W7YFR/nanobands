@@ -7,6 +7,17 @@ them.
 
 ## Unreleased
 
+### Added
+
+- **Read**, by **Shell**, reads the range and calibration in each NanoVNA slot, then goes back to the slot it started on. **Calibration** names each slot by its range, and selects the slot the NanoVNA is on.
+- **Read** asks first, in a dialog, when the NanoVNA may hold a calibration that no slot keeps. A slot whose calibration is S11 only, or that is empty, says so.
+- The browser keeps the slot list for each board and firmware. A `save` or `clearconfig` in the shell updates it.
+
+### Development
+
+- The stand-in NanoVNA has the seven slots read from an H4, and answers `cal` and `save`.
+- Tests cover reading the slots, their names in the menu and the slot list the browser keeps.
+
 ## v1.10.0 — 2026-11-02
 
 ### Added

@@ -11,6 +11,8 @@
  * range.
  */
 
+import { parseCal } from "./slots";
+
 /** A text channel to the device: a serial port, or the fake in tests. */
 export interface Link {
   write(text: string): Promise<void>;
@@ -240,6 +242,17 @@ export class NanoVNA {
   async recall(slot: number): Promise<Range> {
     await this.sh.run(`recall ${slot}`, 5000);
     return this.range();
+  }
+
+  /** The calibration terms the device has, such as `load isoln Es Er Et cal'ed`. */
+  async cal(): Promise<string[]> {
+    try {
+      return parseCal(await this.sh.run("cal"));
+    } catch (e) {
+      // Firmware without the command has no terms to tell.
+      if (e instanceof VnaError && !e.closed) return [];
+      throw e;
+    }
   }
 
   /** Sweep a range and read S11. */
