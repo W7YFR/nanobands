@@ -1,7 +1,8 @@
 /* The Shell window: a prompt to the NanoVNA over the whole page. A typed
  * command goes to the device and its reply shows above the prompt. The "?"
  * opens the list of commands beside the prompt, and a click on one puts it
- * in the prompt. The window refuses commands that take over the port. Live
+ * in the prompt. A warning under the header says to only run commands you
+ * understand. The window refuses commands that take over the port. Live
  * sweeps stop while it is open, and the page reads the device's range again
  * when it closes.
  */
@@ -19,6 +20,16 @@ export interface ShellEntry {
 /** The most lines the window keeps. */
 const KEEP = 5000;
 
+/** Whether the list of commands is open, kept in the browser. It starts open,
+ *  the first time the window opens, and then stays as last left. */
+const HELP_KEY = "nanobands-shell-help";
+const helpWasOpen = (): boolean => {
+  try { return localStorage.getItem(HELP_KEY) !== "0"; } catch { return true; }
+};
+const keepHelp = (open: boolean): void => {
+  try { localStorage.setItem(HELP_KEY, open ? "1" : "0"); } catch { /* storage blocked: it starts open next time */ }
+};
+
 export function ShellWindow({ vna, entries, onEntries, history, onClose }: {
   vna: Vna;
   entries: ShellEntry[];
@@ -29,7 +40,8 @@ export function ShellWindow({ vna, entries, onEntries, history, onClose }: {
 }): React.ReactElement {
   const [line, setLine] = useState("");
   const [running, setRunning] = useState(false);
-  const [help, setHelp] = useState(false);
+  const [help, setHelpState] = useState(helpWasOpen);
+  const setHelp = (open: boolean): void => { setHelpState(open); keepHelp(open); };
   const back = useRef(-1);
   const input = useRef<HTMLInputElement>(null), log = useRef<HTMLPreElement>(null);
   const d = vna.device;
@@ -104,6 +116,9 @@ export function ShellWindow({ vna, entries, onEntries, history, onClose }: {
         <button type="button" className="small" onClick={() => onEntries(() => [])} disabled={!entries.length}>Clear</button>
         <button type="button" className="small" onClick={onClose}>Close</button>
       </div>
+      <p className="disclaimer shell-warn" id="shellWarn">
+        <b>Only run commands you understand.</b> Each one goes straight to your NanoVNA, and some change its settings or erase its calibration for good.
+      </p>
       <div className="shell-body">
         <div className="term">
           <pre className="term-log" ref={log} aria-live="polite">

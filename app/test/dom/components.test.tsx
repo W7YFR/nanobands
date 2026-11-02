@@ -1,7 +1,7 @@
 /* The components' markup and wiring, in jsdom. */
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { analyze } from "@/analysis";
 import { AnalyzeCard, CalibrateCard, LoadCard, ShellCard } from "@/ui/Cards";
 import { Landing } from "@/ui/Landing";
@@ -160,6 +160,8 @@ describe("LoadCard", () => {
 
 describe("ShellCard", () => {
   const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
+  // Each test opens the window as for the first time.
+  beforeEach(() => localStorage.clear());
 
   it("shows only while a device is connected", () => {
     const { rerender } = render(<ShellCard vna={vnaStub()} />);
@@ -221,12 +223,30 @@ describe("ShellCard", () => {
     expect(await screen.findByText(/does not know the command/)).toHaveClass("err");
   });
 
+  it("warns to only run commands you understand", () => {
+    render(<ShellCard vna={vnaStub({ device })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    expect(document.getElementById("shellWarn")).toHaveTextContent("Only run commands you understand.");
+  });
+
+  it("opens with the list of commands the first time, then as last left", () => {
+    const { unmount } = render(<ShellCard vna={vnaStub({ device })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    const q = screen.getByRole("button", { name: "Commands" });
+    expect(q).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(q);
+    expect(q).toHaveAttribute("aria-expanded", "false");
+    unmount();
+    render(<ShellCard vna={vnaStub({ device })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
+    expect(screen.getByRole("button", { name: "Commands" })).toHaveAttribute("aria-expanded", "false");
+    expect(document.getElementById("shellHelp")).toBeNull();
+  });
+
   it("lists the commands beside the prompt with ?, and puts a picked one in the prompt", () => {
     render(<ShellCard vna={vnaStub({ device })} />);
     fireEvent.click(screen.getByRole("button", { name: "Open shell" }));
     const q = screen.getByRole("button", { name: "Commands" });
-    expect(q).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(q);
     expect(q).toHaveAttribute("aria-expanded", "true");
     const list = document.getElementById("shellHelp")!;
     expect(list).toHaveTextContent("Loads the calibration and range from a slot.");
@@ -240,6 +260,7 @@ describe("ShellCard", () => {
   });
 
   it("opens the list when ? is typed in the prompt", () => {
+    localStorage.setItem("nanobands-shell-help", "0");
     const vna = vnaStub({ device });
     render(<ShellCard vna={vna} />);
     fireEvent.click(screen.getByRole("button", { name: "Open shell" }));

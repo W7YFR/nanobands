@@ -10,7 +10,8 @@ them.
 ### Added
 
 - A connected NanoVNA shows a **Shell** card. **Open shell** opens a full-page prompt that sends commands to the NanoVNA and shows its replies.
-- In the shell, **?** opens the list of commands beside the prompt. A click on a command puts it in the prompt.
+- In the shell, **?** opens the list of commands beside the prompt. A click on a command puts it in the prompt. The list is open the first time the shell opens.
+- The shell warns to only run commands you understand.
 - The shell does not send commands that restart the device, print binary data or wait for a touch on the screen.
 
 ### Development
