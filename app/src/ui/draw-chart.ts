@@ -136,10 +136,17 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
   const path = new Path2D();
   let pen = false, prevTop = false;
+  // A sample off the chart stays in when its line to a neighbour reaches
+  // into the view. The clip cuts that line at the edge.
+  const reaches = (i: number, j: number): boolean => {
+    if (j < 0 || j >= t.N) return false;
+    const fi = t.f[i]!, fj = t.f[j]!;
+    return !Number.isNaN(fj) && !Number.isNaN(t.s[j]!) && Math.max(fi, fj) >= lo && Math.min(fi, fj) <= hi;
+  };
   for (let i = 0; i < t.N; i++) {
     const fi = t.f[i]!, si = t.s[i]!;
     if (Number.isNaN(si) || Number.isNaN(fi)) { pen = false; continue; }
-    if (fi < lo - (hi - lo) * 0.02 || fi > hi + (hi - lo) * 0.02) { pen = false; continue; }
+    if ((fi < lo || fi > hi) && !reaches(i, i - 1) && !reaches(i, i + 1)) { pen = false; continue; }
     const top = thrAtTop && atTop(si, s);
     // A step from the top or onto it is drawn, so the curve meets the line.
     if (top && prevTop) pen = false;
