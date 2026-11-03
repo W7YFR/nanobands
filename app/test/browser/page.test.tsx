@@ -9,12 +9,14 @@
 import { StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { fireEvent } from "@testing-library/react";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import "@/ui/base.css";
 import photo from "../data/random-wire-3-55mhz.jpg?url";
 import pkg from "../../../package.json";
 import { FakeNanoVNA } from "@/vna-fake";
 import { detectGrid } from "@/grid";
+import { openStore } from "@/store";
+import type { Snapshot } from "@/ui/session";
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string): T => document.querySelector<T>(sel)!;
 const has = (sel: string): boolean => document.querySelector(sel) !== null;
@@ -65,6 +67,85 @@ const wheel = (el: Element, x: number, y: number, deltaY: number, shiftKey = fal
 const frames = (n: number): Promise<void> =>
   new Promise((r) => { let k = 0; const f = (): void => { if (++k >= n) r(); else requestAnimationFrame(f); }; requestAnimationFrame(f); });
 
+/** A pen stroke from (x0, y0) to (x1, y1), one move a frame, as a real
+ *  pointer sends them: the page draws each move onto the last one's trace. */
+async function penStroke(el: Element, x0: number, y0: number, x1: number, y1: number, pointerType = "mouse"): Promise<void> {
+  point(el, "pointerdown", x0, y0, pointerType);
+  await frames(1);
+  for (let k = 1; k <= 8; k++) {
+    point(el, "pointermove", x0 + ((x1 - x0) * k) / 8, y0 + ((y1 - y0) * k) / 8, pointerType);
+    await frames(1);
+  }
+  point(el, "pointerup", x1, y1, pointerType, 0);
+}
+
+/** Open a file through the page's file input, as Browse does. */
+function openFile(file: File): void {
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  const input = $<HTMLInputElement>("#file");
+  input.files = dt.files;
+  fireEvent.change(input);
+}
+const photoFile = async (name = "random-wire.jpg"): Promise<File> =>
+  new File([await (await fetch(photo)).blob()], name, { type: "image/jpeg" });
+
+/** Run `fn` on a touch screen: a coarse pointer. */
+async function asTouch(fn: () => Promise<void>): Promise<void> {
+  const real = window.matchMedia;
+  window.matchMedia = ((q: string) => q.includes("coarse")
+    ? { matches: true, media: q, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false }
+    : real.call(window, q)) as typeof window.matchMedia;
+  try { await fn(); } finally { window.matchMedia = real; }
+}
+
+/** Every file the page saves, by name and URL, while `fn` runs. */
+async function downloads(fn: () => void | Promise<void>): Promise<{ name: string; url: string }[]> {
+  const real = HTMLAnchorElement.prototype.click, got: { name: string; url: string }[] = [];
+  HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) { got.push({ name: this.download, url: this.href }); };
+  try { await fn(); } finally { HTMLAnchorElement.prototype.click = real; }
+  return got;
+}
+
+/** A Tesseract stand-in that reads `text`, after `wait` when given. */
+const tesseract = (text: string, wait?: Promise<void>): NonNullable<Window["Tesseract"]> => ({
+  createWorker: async () => ({
+    setParameters: async () => undefined,
+    recognize: async () => { await wait; return { data: { text, lines: null } }; },
+    terminate: async () => undefined,
+  }),
+});
+const SCREEN_TEXT = "YSTL SUR 500n/ 2.970\nSTART 3.000 000 MHz\nBW:1000Hz 401p\nSTOP 55.000 000 MHz";
+
+/** What a status line in the sidebar says, without its ✓, ! or … mark. */
+const stat = (id: string): string => document.querySelector(`#${id} span:last-child`)?.textContent ?? "";
+
+/** The rows of Key points with this kind, and a row's frequency. */
+const pointRows = (kind: string): Element[] => [...document.querySelectorAll("#ptTable tr")].filter((tr) => tr.children[2]?.textContent === kind);
+const rowF = (tr: Element): number => +tr.children[0]!.textContent!;
+
+/** Pin a frequency as Enter in Frequency does, then clear the field. */
+async function pinFreq(f: string): Promise<void> {
+  const n = pointRows("Pinned").length;
+  fireEvent.change($("#freq"), { target: { value: f } });
+  fireEvent.keyDown($("#freq"), { key: "Enter" });
+  await until(() => pointRows("Pinned").length === n + 1);
+  $("#freqClear").click();
+  await until(() => $<HTMLInputElement>("#freq").value === "");
+}
+
+/** Wait until the saved session matches `test`, so a remount reads it back. */
+async function saved(test: (s: Snapshot) => boolean): Promise<void> {
+  const store = openStore();
+  const t0 = performance.now();
+  for (;;) {
+    const s = await store.get<Snapshot>("session");
+    if (s && test(s)) return;
+    if (performance.now() - t0 > 5000) throw new Error("session not saved");
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 // Synthetic pointers have no real pointer to capture; capture is the
 // browser's business, not the page's, so let it pass.
 const capture = Element.prototype.setPointerCapture;
@@ -74,13 +155,7 @@ beforeAll(async () => {
   Element.prototype.setPointerCapture = () => undefined;
   indexedDB.deleteDatabase("nanobands");
   localStorage.clear();
-  window.Tesseract = {
-    createWorker: async () => ({
-      setParameters: async () => undefined,
-      recognize: async () => ({ data: { text: "YSTL SUR 500n/ 2.970\nSTART 3.000 000 MHz\nBW:1000Hz 401p\nSTOP 55.000 000 MHz", lines: null } }),
-      terminate: async () => undefined,
-    }),
-  };
+  window.Tesseract = tesseract(SCREEN_TEXT);
   Object.defineProperty(navigator, "serial", { value: device.serial(), configurable: true });
   await mount();
 });
@@ -98,6 +173,9 @@ async function mount(): Promise<void> {
   root.render(<StrictMode><App /></StrictMode>);
   await until(() => has(".app") && !has(".app.booting"));
 }
+
+/** Key points as the photo first opened, on the grid the page found. */
+let opened = "";
 
 describe("the page", () => {
   it("shows the version from package.json in its footer", () => {
@@ -143,6 +221,7 @@ describe("the page", () => {
     const bands = $("#bandTable").textContent ?? "";
     expect(bands).toMatch(/20m\s*all usable/);
     expect(bands).toMatch(/40m\s*none/);
+    opened = $("#ptTable").textContent!;
   });
 
   it("filters the table by mode", async () => {
@@ -416,6 +495,150 @@ describe("the page", () => {
     await until(() => $("#ptTable").textContent !== before);
   });
 
+  it("finds the grid again on Detect grid, and traces it afresh", async () => {
+    // The corner drag above moved a corner off the grid.
+    expect($("#ptTable").textContent).not.toBe(opened);
+    $("#gridBtn").click();
+    await until(() => $("#ptTable").textContent === opened);
+    expect($("#gridNote").textContent).toContain("Grid found");
+    expect(stat("traceNote")).toBe("Traced automatically");
+  });
+
+  it("works out the sweep from two frequency references", async () => {
+    if ($("#straightBtn").textContent === "Straighten") $("#straightBtn").click();
+    await until(() => $("#straightBtn").textContent === "Edit corners");
+    const answers: (string | null)[] = ["16", "42", null], real = window.prompt;
+    window.prompt = () => answers.shift() ?? null;
+    try {
+      // Straightened, the grid spans the photo less a margin of 7% of its width each side.
+      const c = $("#photo"), r = c.getBoundingClientRect(), y = r.top + r.height / 2;
+      const ref = async (u: number): Promise<void> => {
+        $("#refBtn").click();
+        await until(() => $("#refBtn").classList.contains("on"));
+        const x = r.left + (r.width * (0.07 + u)) / 1.14;
+        point(c, "pointerdown", x, y);
+        point(c, "pointerup", x, y, "mouse", 0);
+        await until(() => !$("#refBtn").classList.contains("on"));
+      };
+      // 16 and 42 MHz sit a quarter and three quarters across a 3–55 MHz grid.
+      await ref(0.25);
+      expect($("#refs").textContent).toContain("16 MHz");
+      expect($("#refs").textContent).toContain("add one more…");
+      await ref(0.75);
+      expect($("#refs").textContent).toContain("42 MHz");
+      expect(+$<HTMLInputElement>("#fStart").value).toBeCloseTo(3, 1);
+      expect(+$<HTMLInputElement>("#fStop").value).toBeCloseTo(55, 1);
+      // A cancelled prompt adds no reference.
+      await ref(0.5);
+      expect(document.querySelectorAll("#refs i")).toHaveLength(2);
+      // Removing one keeps the sweep; removing both clears the list.
+      $("#refs i").click();
+      await until(() => document.querySelectorAll("#refs i").length === 1);
+      expect(+$<HTMLInputElement>("#fStop").value).toBeCloseTo(55, 1);
+      $("#refs i").click();
+      await until(() => !has("#refs"));
+    } finally {
+      window.prompt = real;
+    }
+  });
+
+  describe("Pen fix", () => {
+    const table = (): string => $("#ptTable").textContent!;
+    const note = (): string => stat("traceNote");
+    let auto = "";
+
+    it("redraws a stretch of the auto-trace with a mouse stroke", async () => {
+      $("#traceBtn").click();
+      await until(() => note() === "Traced automatically");
+      auto = table();
+      $("#penBtn").click();
+      await until(() => $("#photoPen").classList.contains("on") && $("#penBtn").classList.contains("on"));
+      const c = $("#photo"), r = c.getBoundingClientRect();
+      await penStroke(c, r.left + r.width * 0.3, r.top + r.height * 0.8, r.left + r.width * 0.6, r.top + r.height * 0.8);
+      await until(() => note() === "Traced automatically, then fixed with the pen");
+      expect(table()).not.toBe(auto);
+      $("#penBtn").click();
+      await until(() => !$("#photoPen").classList.contains("on"));
+    });
+
+    it("takes a stroke back on Undo, and every mark on Clear marks, on a touch screen", async () => {
+      await asTouch(async () => {
+        $("#penBtn").click();
+        await until(() => $("#photoCard").classList.contains("focus"));
+        expect($<HTMLButtonElement>("#penUndo").disabled).toBe(false);
+        $("#penUndo").click();
+        await until(() => table() === auto);
+        expect(note()).toBe("Traced automatically");
+        expect($<HTMLButtonElement>("#penUndo").disabled).toBe(true);
+        expect($<HTMLButtonElement>("#penClear").disabled).toBe(true);
+
+        // Draw on, a finger steers the cursor and the cursor draws.
+        $("#penDraw").click();
+        await until(() => $("#penDraw").classList.contains("on"));
+        const c = $("#photo"), r = c.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+        await penStroke(c, x, y, x + 150, y + 75, "touch");
+        await until(() => note() === "Traced automatically, then fixed with the pen");
+        expect(table()).not.toBe(auto);
+        $("#penClear").click();
+        await until(() => table() === auto && note() === "Traced automatically");
+        $("#penDone").click();
+        await until(() => !$("#photoCard").classList.contains("focus"));
+      });
+    });
+
+    it("draws a trace from scratch after Erase trace", async () => {
+      $("#clearBtn").click();
+      await until(() => note().startsWith("No trace yet"));
+      $("#penBtn").click();
+      await until(() => $("#photoPen").classList.contains("on"));
+      const c = $("#photo"), r = c.getBoundingClientRect();
+      // A low line from about 11 to 41 MHz.
+      await penStroke(c, r.left + r.width * 0.2, r.top + r.height * 0.8, r.left + r.width * 0.7, r.top + r.height * 0.8);
+      await until(() => note() === "Traced with the pen");
+      expect($("#bandTable").textContent).toMatch(/20m\s*all usable/);
+      $("#penBtn").click();
+      await until(() => !$("#photoPen").classList.contains("on"));
+    });
+
+    it("asks to auto-trace again when Detect grid moves the corners under a pen trace", async () => {
+      $("#gridBtn").click();
+      await until(() => has("#retraceHint"));
+      expect($("#retraceHint").textContent).toContain("Corners moved.");
+      $("#retraceHint button").click();
+      await until(() => !has("#retraceHint") && note() === "Traced automatically");
+      expect(table()).toBe(auto);
+    });
+  });
+
+  it("saves the photo with its overlay, the chart and the data", async () => {
+    expect(has("#expS1p")).toBe(false);
+    const files = await downloads(() => { $("#expPhoto").click(); $("#expChart").click(); $("#expCsv").click(); });
+    expect(files.map((f) => f.name)).toEqual(["swr-overlay.png", "swr-chart.png", "swr-trace.csv"]);
+    const [photoPng, chartPng, csv] = files.map((f) => f.url) as [string, string, string];
+
+    // The photo at its own size, shaped as the page shows it.
+    expect(photoPng.startsWith("data:image/png")).toBe(true);
+    const pb = await createImageBitmap(await (await fetch(photoPng)).blob()), pr = $("#photo").getBoundingClientRect();
+    expect(pb.width).toBeGreaterThanOrEqual(Math.floor(pr.width));
+    expect(pb.width / pb.height).toBeCloseTo(pr.width / pr.height, 1);
+    // The chart at twice its size on the page.
+    expect(chartPng.startsWith("data:image/png")).toBe(true);
+    const cb = await createImageBitmap(await (await fetch(chartPng)).blob()), chart = $("#chart");
+    expect([cb.width, cb.height]).toEqual([chart.clientWidth * 2, chart.clientHeight * 2]);
+
+    // The curve as frequency and SWR, in order, across the sweep.
+    const lines = (await (await fetch(csv)).text()).trim().split("\n");
+    expect(lines[0]).toBe("freq_mhz,swr");
+    const rows = lines.slice(1).map((l) => l.split(",").map(Number) as [number, number]);
+    expect(rows.length).toBeGreaterThan(100);
+    expect(rows.every(([f, s]) => Number.isFinite(f) && s >= 1 && s < 10)).toBe(true);
+    expect(rows.every(([f], i) => i === 0 || f > rows[i - 1]![0])).toBe(true);
+    const start = +$<HTMLInputElement>("#fStart").value, stop = +$<HTMLInputElement>("#fStop").value;
+    expect(rows[0]![0]).toBeGreaterThanOrEqual(start - 0.01);
+    expect(rows.at(-1)![0]).toBeLessThanOrEqual(stop + 0.01);
+    expect(rows.at(-1)![0] - rows[0]![0]).toBeGreaterThan(0.8 * (stop - start));
+  });
+
   it("stretches the photo in the pen with a mouse, and scrolls it at the edge", async () => {
     $("#photoPen").click();
     await until(() => has("#photoStretch"));
@@ -451,11 +674,167 @@ describe("the page", () => {
     await until(() => !has("#photoStretch"));
   });
 
+  it("brings the photo, its settings, trace and pins back after a refresh", async () => {
+    await pinFreq("14.1");
+    const was = $("#ptTable").textContent;
+    fireEvent.change($("#swrTop"), { target: { value: "6" } });
+    await until(() => $("#ptTable").textContent !== was);
+    const text = (sel: string): string => $(sel).textContent!, value = (sel: string): string => $<HTMLInputElement>(sel).value;
+    const before = {
+      table: text("#ptTable"), bands: text("#bandTable"), grid: text("#gridNote"), ocr: text("#ocrNote"), trace: text("#traceNote"),
+      start: value("#fStart"), stop: value("#fStop"), top: value("#swrTop"), bot: value("#swrBot"), straight: text("#straightBtn"),
+    };
+    await saved((s) => s.manual.includes(14.1) && s.fields.top === "6");
+
+    await mount();
+    await until(() => has("#ptTable") && $("#ptTable").textContent === before.table);
+    expect($("#fileName").textContent).toBe("random-wire.jpg");
+    expect(has("#photo")).toBe(true);
+    expect({
+      table: text("#ptTable"), bands: text("#bandTable"), grid: text("#gridNote"), ocr: text("#ocrNote"), trace: text("#traceNote"),
+      start: value("#fStart"), stop: value("#fStop"), top: value("#swrTop"), bot: value("#swrBot"), straight: text("#straightBtn"),
+    }).toEqual(before);
+    expect(pointRows("Pinned").map(rowF)).toEqual([14.1]);
+  });
+
   it("starts over on Clear", async () => {
     $("#clearAll").click();
     await until(() => has("#landing"));
     expect($("#clearAll").classList.contains("ghost")).toBe(true);
     expect(has(".app.no-data")).toBe(true);
+  });
+});
+
+describe("an opened .s1p file", () => {
+  // A dip at 14.2 MHz across 3–30 MHz, in 201 points.
+  const S1P = ["! a test sweep", "# MHz S RI R 50", ...Array.from({ length: 201 }, (_, i) => {
+    const f = 3 + (27 * i) / 200, swr = Math.min(10, 1.2 + ((f - 14.2) / 1.5) ** 2), g = (swr - 1) / (swr + 1);
+    return `${f.toFixed(4)} ${g.toFixed(6)} 0`;
+  })].join("\n") + "\n";
+  const chip = (): string => $("#chips button.on")?.textContent ?? "";
+
+  it("reads the sweep from the file", async () => {
+    openFile(new File([S1P], "dipole.s1p", { type: "text/plain" }));
+    await until(() => has("#bandTable") && /20m\s*all usable/.test($("#bandTable").textContent!));
+    expect($("#fileName").textContent).toBe("dipole.s1p");
+    expect($("#resNote").textContent).toContain("201 points from file");
+    expect(has("#photoCard")).toBe(false);
+    expect(has("#calCard")).toBe(false);
+  });
+
+  it("saves the file back as it was, and its data as CSV", async () => {
+    expect(has("#expPhoto")).toBe(false);
+    const files = await downloads(() => { $("#expS1p").click(); $("#expCsv").click(); });
+    expect(files.map((f) => f.name)).toEqual(["dipole.s1p", "swr-trace.csv"]);
+    expect(await (await fetch(files[0]!.url)).text()).toBe(S1P);
+    const lines = (await (await fetch(files[1]!.url)).text()).trim().split("\n");
+    expect(lines).toHaveLength(202);
+    expect(lines[1]).toBe("3.000000,10.000");
+    // The lowest SWR is the sample nearest the dip at 14.2 MHz.
+    const low = lines.slice(1).reduce((a, l) => (+l.split(",")[1]! < +a.split(",")[1]! ? l : a));
+    expect(low).toBe("14.205000,1.200");
+  });
+
+  it("brings the file, its pins and its zoom back after a refresh", async () => {
+    await pinFreq("14.1");
+    [...document.querySelectorAll<HTMLButtonElement>("#chips button")].find((b) => b.textContent === "20m")!.click();
+    await until(() => chip() === "20m");
+    const table = $("#ptTable").textContent;
+    await saved((s) => s.manual.includes(14.1) && s.view !== null);
+
+    await mount();
+    await until(() => has("#fileName") && chip() === "20m");
+    expect($("#fileName").textContent).toBe("dipole.s1p");
+    expect($("#resNote").textContent).toContain("201 points from file");
+    expect($("#ptTable").textContent).toBe(table);
+    expect(pointRows("Pinned").map(rowF)).toEqual([14.1]);
+    // The file itself comes back too, to save again.
+    const files = await downloads(() => $("#expS1p").click());
+    expect(await (await fetch(files[0]!.url)).text()).toBe(S1P);
+  });
+
+  it("starts over on Clear", async () => {
+    $("#clearAll").click();
+    await until(() => has("#landing"));
+  });
+});
+
+describe("reading the sweep off a photo", () => {
+  const note = (): string => stat("ocrNote");
+  afterEach(() => { window.Tesseract = tesseract(SCREEN_TEXT); });
+
+  it("offers what it read when the sweep was typed meanwhile, and uses it on Use it", async () => {
+    let done = (): void => undefined;
+    window.Tesseract = tesseract(SCREEN_TEXT, new Promise((r) => { done = r; }));
+    openFile(await photoFile());
+    await until(() => note() === "Reading the sweep from the photo");
+    fireEvent.change($("#fStart"), { target: { value: "3.5" } });
+    fireEvent.change($("#fStop"), { target: { value: "50" } });
+    done();
+    await until(() => note().includes("The photo says 3–55 MHz."));
+    // What was typed stands until Use it.
+    expect($<HTMLInputElement>("#fStart").value).toBe("3.5");
+    expect($<HTMLInputElement>("#fStop").value).toBe("50");
+    $("#ocrUse").click();
+    await until(() => note().includes("Sweep read from the photo: 3–55 MHz"));
+    expect($<HTMLInputElement>("#fStart").value).toBe("3");
+    expect($<HTMLInputElement>("#fStop").value).toBe("55");
+  });
+
+  it("says when the photo shows no sweep, and fills the tables from a typed one", async () => {
+    window.Tesseract = tesseract("");
+    openFile(await photoFile());
+    await until(() => note() === "No sweep found on the photo. Enter it below.");
+    expect($("#gridNote").textContent).toContain("Grid found");
+    expect($<HTMLInputElement>("#fStart").value).toBe("");
+    expect(has("#calSummary")).toBe(false);
+    fireEvent.change($("#fStart"), { target: { value: "3" } });
+    fireEvent.change($("#fStop"), { target: { value: "55" } });
+    await until(() => /20m\s*all usable/.test($("#bandTable").textContent!));
+  });
+
+  it("says when it cannot read the photo's text, as when Tesseract does not load", async () => {
+    delete window.Tesseract;
+    const head = document.head, real = head.appendChild;
+    let asked = false;
+    head.appendChild = (<T extends Node>(n: T): T => {
+      if (n instanceof HTMLScriptElement && n.src.includes("tesseract")) {
+        asked = true;
+        setTimeout(() => n.onerror?.(new Event("error")), 0);
+        return n;
+      }
+      return real.call(head, n) as T;
+    }) as typeof head.appendChild;
+    try {
+      openFile(await photoFile());
+      await until(() => note() === "Couldn't read the photo's text. Enter the sweep below.");
+      expect(asked).toBe(true);
+      expect($("#gridNote").textContent).toContain("Grid found");
+      expect($<HTMLInputElement>("#fStart").value).toBe("");
+    } finally {
+      head.appendChild = real;
+    }
+  });
+
+  it("says when there is no grid, and Detect grid finds none either", async () => {
+    window.Tesseract = tesseract("");
+    const oc = new OffscreenCanvas(800, 480), ox = oc.getContext("2d")!;
+    ox.fillStyle = "#000";
+    ox.fillRect(0, 0, 800, 480);
+    openFile(new File([await oc.convertToBlob({ type: "image/png" })], "blank.png", { type: "image/png" }));
+    await until(() => has("#gridNote") && $("#fileName").textContent === "blank.png" && note().startsWith("No sweep"));
+    expect(stat("gridNote")).toBe("No grid found. Drag the photo's corners onto it.");
+    expect(stat("traceNote")).toContain("No trace yet");
+    expect($("#straightBtn").textContent).toBe("Straighten");
+    $("#gridBtn").click();
+    await frames(2);
+    expect(stat("gridNote")).toBe("No grid found. Drag the photo's corners onto it.");
+    expect(stat("traceNote")).toContain("No trace yet");
+  });
+
+  it("starts over on Clear", async () => {
+    $("#clearAll").click();
+    await until(() => has("#landing"));
   });
 });
 
@@ -476,7 +855,8 @@ describe("a connected NanoVNA", () => {
   });
 
   it("keeps pins across live sweeps, and stops on Hold", async () => {
-    const pinned = document.querySelectorAll("#ptTable [data-del]").length;
+    await pinFreq("14.1");
+    expect(pointRows("Pinned").map(rowF)).toEqual([14.1]);
     const scans = (): number => device.log.filter((c) => c.startsWith("scan")).length;
     const before = scans();
     $("#liveBtn").click();
@@ -485,7 +865,10 @@ describe("a connected NanoVNA", () => {
     await until(() => scans() >= before + 3);
     $("#liveBtn").click();
     await until(() => $("#liveBtn").textContent === "Live");
-    expect(document.querySelectorAll("#ptTable [data-del]").length).toBe(pinned);
+    expect(pointRows("Pinned").map(rowF)).toEqual([14.1]);
+    expect(pointRows("Pinned")[0]!.children[1]!.textContent).toMatch(/^\d+\.\d\d$/);
+    $<HTMLButtonElement>("#ptTable [data-del]").click();
+    await until(() => pointRows("Pinned").length === 0);
   });
 
   it("recalls a calibration slot and sweeps its range", async () => {
