@@ -7,6 +7,10 @@ them.
 
 ## Unreleased
 
+### Development
+
+- Page tests cover session restore, OCR failures, exports, **Pen fix**, frequency references and **Detect grid**. The live sweep test pins a frequency first.
+
 ## v1.11.0 — 2026-11-02
 
 ### Added
