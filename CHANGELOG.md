@@ -7,7 +7,13 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- When the chart is zoomed in, the curve now reaches both edges. It no longer stops short of them.
+
 ### Development
+
+- A chart test draws a curve with sparse samples in a zoomed view.
 
 - Page tests cover session restore, OCR failures, exports, **Pen fix**, frequency references and **Detect grid**. The live sweep test pins a frequency first.
 

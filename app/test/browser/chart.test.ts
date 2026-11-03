@@ -52,6 +52,15 @@ describe("drawChart", () => {
     expect(colorsAt(ctx, g, xOf(g, 14.4))).toEqual(new Set([HIGH])); // 3.6
   });
 
+  it("draws the curve to both edges when its samples are far apart", () => {
+    // Samples every 0.2 MHz, and a view whose edges fall between them.
+    const N = 6, f = new Float64Array(N), sw = new Float64Array(N);
+    for (let i = 0; i < N; i++) { f[i] = 13.5 + i * 0.2; sw[i] = 2; }
+    const { ctx, g } = draw({ N, f, s: sw }, [], null, { range: [13.55, 14.38] });
+    expect(colorsAt(ctx, g, xOf(g, 13.6)).size).toBe(1);
+    expect(colorsAt(ctx, g, xOf(g, 14.36)).size).toBe(1);
+  });
+
   it("colors a dip the way the curve is colored there", () => {
     for (const [dip, col] of [[13.8, MATCH], [14.1, OK]] as const) {
       const { ctx, g } = draw(vee(dip));
