@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.11.1 — 2026-11-03
+
 ### Fixed
 
 - When the chart is zoomed in, the curve now reaches both edges. It no longer stops short of them.
