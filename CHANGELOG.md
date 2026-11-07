@@ -7,6 +7,16 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- Picking an empty slot under **Calibration** now says the slot is empty. It no longer shows that slot as chosen.
+- A `clearconfig` with the wrong key in **Shell** no longer drops the slot names.
+- A line longer than 63 characters in **Shell** no longer ends in "stopped answering". **Shell** does not send it, and says why.
+
+### Development
+
+- The stand-in NanoVNA says `Err, default load` for an empty slot, or nothing with `quiet`, and answers `clearconfig`.
+
 ## v1.11.2 — 2026-11-07
 
 ### Fixed

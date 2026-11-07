@@ -43,10 +43,33 @@ describe("readSlots", () => {
     expect(got).toMatchObject({ at: 0, restored: true });
   });
 
-  it("marks an empty slot, which a recall leaves the device unchanged by", async () => {
+  it("marks a slot empty when the device says so, with one recall of it", async () => {
     const slots = H4_SLOTS.map((s) => [...s] as typeof s) as (typeof H4_SLOTS[number] | null)[];
     slots[3] = null;
     const dev = new FakeNanoVNA({ slots });
+    const vna = await open(dev);
+    const got = await readSlots(vna, 7);
+    expect(got.slots[3]).toEqual({ kind: "empty" });
+    expect(got.slots[4]).toMatchObject({ kind: "set" });
+    expect(recalls(dev).filter((c) => c === "recall 3")).toHaveLength(1);
+    expect(got).toMatchObject({ at: 6, restored: true });
+    expect([dev.start, dev.stop, dev.points]).toEqual([3e6, 55e6, 401]);
+  });
+
+  it("names the slot the device is on when the last slot is empty", async () => {
+    const slots = H4_SLOTS.map((s) => [...s] as typeof s) as (typeof H4_SLOTS[number] | null)[];
+    slots[6] = null;
+    const dev = new FakeNanoVNA({ slots });
+    const vna = await open(dev);
+    await vna.command("sweep 7000000 7300000 101", 1000);
+    const got = await readSlots(vna, 7);
+    expect(got).toMatchObject({ at: 5, restored: false });
+  });
+
+  it("marks an empty slot on firmware that says nothing, which a recall leaves the device unchanged by", async () => {
+    const slots = H4_SLOTS.map((s) => [...s] as typeof s) as (typeof H4_SLOTS[number] | null)[];
+    slots[3] = null;
+    const dev = new FakeNanoVNA({ slots, quiet: true });
     const vna = await open(dev);
     const got = await readSlots(vna, 7);
     expect(got.slots[3]).toEqual({ kind: "empty" });
@@ -64,7 +87,7 @@ describe("readSlots", () => {
   });
 
   it("calls slots unknown when every one reads the same", async () => {
-    const dev = new FakeNanoVNA({ slots: [null, null] });
+    const dev = new FakeNanoVNA({ slots: [null, null], quiet: true });
     const vna = await open(dev);
     const got = await readSlots(vna, 2);
     expect(got.slots).toEqual([{ kind: "unknown" }, { kind: "unknown" }]);

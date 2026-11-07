@@ -143,6 +143,14 @@ describe("NanoVNA", () => {
     await expect(vna.resume()).resolves.toBeUndefined();
   });
 
+  it("says when a slot is empty, and keeps the range", async () => {
+    const dev = new FakeNanoVNA({ slots: [null, [14e6, 14.35e6, 101, "load isoln Es Er Et cal'ed"]] });
+    const vna = await NanoVNA.open(dev.link());
+    expect(await vna.recall(0)).toBeNull();
+    expect(await vna.range()).toEqual({ start: 3e6, stop: 55e6, points: 401 });
+    expect(await vna.recall(1)).toEqual({ start: 14e6, stop: 14.35e6, points: 101 });
+  });
+
   it("loads a calibration slot and its range", async () => {
     const vna = await NanoVNA.open(new FakeNanoVNA().link());
     expect(await vna.recall(0)).toEqual({ start: 144e6, stop: 148e6, points: 101 });
@@ -178,6 +186,12 @@ describe("NanoVNA", () => {
 });
 
 describe("the Shell window's commands", () => {
+  it("refuses a line longer than the firmware reads", () => {
+    expect(refusal("msg 1000 " + "x".repeat(54))).toBeNull();
+    expect(refusal("msg 1000 " + "x".repeat(55))).toMatch(/at most 63 characters/);
+    expect(refusal("  msg   1000 " + "x".repeat(54))).toBeNull();
+  });
+
   it("refuses commands that take over the port, and nothing else", () => {
     for (const c of ["reset", "dfu", "capture", "refresh on", "touchcal", "touchtest", "scan_bin 1 2", "sd_read a.s1p"]) expect(refusal(c)).not.toBeNull();
     for (const c of ["info", "  sweep 1 2 3", "scan 1 2 3 3", "recall 1", "bogus", ""]) expect(refusal(c)).toBeNull();

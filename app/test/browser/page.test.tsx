@@ -902,6 +902,39 @@ describe("a connected NanoVNA", () => {
     expect(has("#vnaNote")).toBe(false);
   });
 
+  it("says when a picked slot is empty, and stays on its slot", async () => {
+    const kept = device.slots[2]!;
+    device.slots[2] = null;
+    const slot = $<HTMLSelectElement>("#vnaSlot");
+    fireEvent.change(slot, { target: { value: "2" } });
+    await until(() => has("#vnaNote"));
+    expect($("#vnaNote").textContent).toContain("Slot 2 is empty");
+    expect(slot.value).toBe("0");
+    expect($("#vnaRange").textContent).toBe("144–148 MHz · 101 points");
+    device.slots[2] = kept;
+  });
+
+  it("keeps the slot names after a clearconfig with the wrong key, and drops them after the right one", async () => {
+    const kept = device.slots.slice();
+    const send = async (cmd: string, reply: string): Promise<void> => {
+      fireEvent.change($("#shellInput"), { target: { value: cmd } });
+      fireEvent.keyDown($("#shellInput"), { key: "Enter" });
+      await until(() => $("#shell").textContent!.includes(reply) && !$<HTMLInputElement>("#shellInput").disabled);
+    };
+    $("#shellBtn").click();
+    await until(() => has("#shellInput"));
+    await send("clearconfig 9999", "Key unmatched.");
+    expect(localStorage.getItem("nanobands-slots")).toContain("144000000");
+    await send("clearconfig 1234", "Config and all cal data cleared.");
+    expect(localStorage.getItem("nanobands-slots") ?? "").not.toContain("144000000");
+    fireEvent.keyDown(document, { key: "Escape" });
+    await until(() => !has("#shell"));
+    const names = [...$<HTMLSelectElement>("#vnaSlot").options].map((o) => o.textContent);
+    expect(names).toContain("Slot 1");
+    expect(names).not.toContain("Slot 1 · 0.05–900 MHz");
+    device.slots = kept;
+  });
+
   it("disconnects from Change, and keeps the last sweep on the page", async () => {
     $("#changeBtn").click();
     await until(() => has("#vnaBtn"));
