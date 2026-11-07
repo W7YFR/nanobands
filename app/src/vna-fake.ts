@@ -3,9 +3,10 @@
  * Tests use it, and `make dev` uses it at `?fake`, since the real device is
  * not always at hand. It answers the way a NanoVNA-H4 on firmware 1.2.44 was
  * seen to: `info`, `version`, `sweep` with and without a range, `recall`,
- * `save`, `cal`, `scan` with an output mask, `frequencies`, `data`, and `cmd?`
- * for anything else. Its slots are the ones read from that H4. A recall of an
- * empty slot changes nothing. Set `version` below 0.7.1 to act like older firmware without the mask.
+ * `save`, `cal`, `scan` with an output mask, `frequencies`, `data`, `pause`,
+ * `resume`, and `cmd?` for anything else. Its slots are the ones read from
+ * that H4. A recall of an empty slot changes nothing. A scan pauses the
+ * device's own sweep and sets its point count. Set `version` below 0.7.1 to act like older firmware without the mask.
  */
 
 import type { Link } from "./vna";
@@ -46,6 +47,8 @@ export class FakeNanoVNA {
   stop = 55e6;
   points = 401;
   cal = FULL;
+  /** Whether the device's own sweep is stopped, as a scan leaves it. */
+  paused = false;
   /** Every command received, for tests. */
   log: string[] = [];
 
@@ -104,6 +107,10 @@ export class FakeNanoVNA {
       case "cal":
         if (!a.length) return out([`${this.cal} `]);
         break;
+      case "pause":
+      case "resume":
+        this.paused = name === "pause";
+        return out([]);
       case "frequencies":
         return out(this.freqs().map(String));
       case "data":
@@ -111,6 +118,8 @@ export class FakeNanoVNA {
       case "scan": {
         const [start = this.start, stop = this.stop, pts = this.points, mask] = n;
         if (mask !== undefined && !this.masked) break;
+        this.paused = true;
+        this.points = pts;
         if (mask === undefined) { [this.start, this.stop, this.points] = [start, stop, pts]; return out([]); }
         return out(this.freqs(start, stop, pts).map((f) => {
           const cols: (string | number)[] = [];

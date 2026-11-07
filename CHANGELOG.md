@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- The NanoVNA's screen no longer freezes after **Sweep**, **Live** or **Disconnect**. It sweeps again on its own.
+
+### Development
+
+- The stand-in NanoVNA pauses on `scan` and answers `pause` and `resume`.
+
 ## v1.11.1 — 2026-11-03
 
 ### Fixed

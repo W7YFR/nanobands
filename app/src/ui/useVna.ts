@@ -2,7 +2,9 @@
  * read what the slots hold.
  *
  * The device sweeps the range it is set to, so its calibration applies as
- * stored. Each finished sweep goes to `onSweep`. The device and its range live
+ * stored. Each finished sweep goes to `onSweep`. A scan pauses the device's
+ * own sweep, so each sweep ends with `resume`. Live resumes once, when it
+ * stops. The device and its range live
  * in refs as well as state: the live loop and a sweep in flight read them
  * after awaits, when the render that started them is stale.
  */
@@ -73,6 +75,7 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     setRange(null);
     setSlots(null);
     setSlot(null);
+    await d?.resume().catch(() => undefined);
     await d?.close();
   }, []);
 
@@ -83,11 +86,13 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     if (!(e instanceof VnaError) || e.closed) void disconnect();
   }, [disconnect]);
 
-  /** Sweep the device's range once and hand it on. */
-  const sweepOnce = useCallback(async (): Promise<void> => {
+  /** Sweep the device's range once and hand it on. Live passes `hold` to
+   *  leave the device paused until it stops. */
+  const sweepOnce = useCallback(async (hold = false): Promise<void> => {
     const d = dev.current, r = rng.current;
     if (!d || !r) return;
     const scan = await d.scan(r);
+    if (!hold) await d.resume();
     // Disconnected, or a recall changed the range, while it swept.
     if (dev.current !== d || rng.current !== r) return;
     if (scan.hz.length < 2) throw new VnaError("The sweep came back empty.");
@@ -130,10 +135,11 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     void (async () => {
       try {
         while (liveOn.current && dev.current) {
-          await sweepOnce();
+          await sweepOnce(true);
           // Let the page draw and take clicks between sweeps, even when a reply arrives at once.
           await new Promise((r) => setTimeout(r, 0));
         }
+        await dev.current?.resume();
       } catch (e) {
         fail(e);
       }
@@ -222,7 +228,11 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
   }, [disconnect]);
 
   // Let go of the port when the page goes.
-  useEffect(() => () => { liveOn.current = false; void dev.current?.close(); }, []);
+  useEffect(() => () => {
+    liveOn.current = false;
+    const d = dev.current;
+    void d?.resume().catch(() => undefined).finally(() => d.close());
+  }, []);
 
   return {
     unsupported: typeof serial === "string" ? serial : "",
