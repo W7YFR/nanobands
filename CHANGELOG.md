@@ -7,6 +7,16 @@ them.
 
 ## Unreleased
 
+### Added
+
+- **Fine sweep**, at the end of the band chips when the chart shows a band, sweeps that band with all the NanoVNA's points. The chart puts those readings in the band, marks it, and notes that its calibration is filled in.
+- After a fine sweep, **Sweep** and **Live** sweep the band. A **Fine** row names it, and its × sweeps the whole range again.
+- **Fine sweep** shows only where it adds readings, the calibrated points are at most 1 MHz apart, and some of the band is under the top of the SWR scale.
+
+### Development
+
+- Tests cover which bands get a fine sweep, how it fills in the full sweep, **Live** and ×.
+
 ## v1.11.3 — 2026-11-07
 
 ### Fixed

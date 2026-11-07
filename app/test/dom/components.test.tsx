@@ -25,7 +25,8 @@ const vnaStub = (over: Partial<Vna> = {}): Vna => ({
   unsupported: "", device: null, range: null, live: false, note: "",
   connect: vi.fn(async () => undefined), disconnect: vi.fn(async () => undefined), sweep: vi.fn(async () => undefined),
   setLive: vi.fn(), recall: vi.fn(async () => undefined),
-  slots: null, slot: null, reading: false, readSlots: vi.fn(async () => undefined), command: vi.fn(async () => []), reread: vi.fn(async () => undefined), ...over,
+  slots: null, slot: null, reading: false, readSlots: vi.fn(async () => undefined), command: vi.fn(async () => []), reread: vi.fn(async () => undefined),
+  fine: null, setFine: vi.fn(async () => undefined), ...over,
 });
 
 describe("AnalyzeCard", () => {

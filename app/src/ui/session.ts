@@ -7,7 +7,7 @@
  */
 
 import type { Quad } from "@/geometry";
-import { DEFAULT_FIELDS, type Doc, type Fields, type GridNote, type OcrNote } from "./model";
+import { DEFAULT_FIELDS, type Doc, type Fields, type FineSpan, type GridNote, type OcrNote } from "./model";
 
 export interface Snapshot {
   fields: Fields;
@@ -15,6 +15,8 @@ export interface Snapshot {
   refs: { u: number; f: number }[];
   manual: number[];
   view: [number, number] | null;
+  /** The band a fine sweep filled in, so a refresh marks it again. */
+  fine: FineSpan | null;
   straight: boolean;
   sweepTyped: boolean;
   collapsed: boolean;
@@ -26,7 +28,7 @@ export function snapshotOf(d: Doc): Snapshot {
   const t = d.trace;
   const ocr = d.ocr && d.ocr.kind !== "looking" && d.ocr.kind !== "offer" ? d.ocr : null;
   return {
-    fields: d.fields, corners: d.corners, refs: d.refs, manual: d.manual, view: d.view,
+    fields: d.fields, corners: d.corners, refs: d.refs, manual: d.manual, view: d.view, fine: d.fine,
     straight: d.straight, sweepTyped: d.sweepTyped, collapsed: d.collapsed,
     trace: t?.kind === "photo" ? { N: t.N, v: t.v.slice(), auto: t.auto, edited: t.edited } : null,
     notes: { grid: d.grid, ocr },
@@ -50,7 +52,10 @@ export function applySnapshot(d: Doc, sv: Partial<Snapshot>, traceIt: (d: Doc) =
   };
   // A Touchstone file's sweep is in the file, not in the fields.
   out.fields = d.source === "image" ? fields : { ...fields, start: d.fields.start, stop: d.fields.stop };
-  if (d.source !== "image") return out;
+  if (d.source !== "image") {
+    const f = sv.fine;
+    return f && typeof f.band === "string" && Number.isFinite(f.lo) && Number.isFinite(f.hi) ? { ...out, fine: f } : out;
+  }
   const isNote = (n: unknown): boolean => typeof n === "object" && n !== null && "kind" in n;
   out = {
     ...out,

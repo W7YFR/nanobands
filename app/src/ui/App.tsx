@@ -8,7 +8,8 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Band } from "@/bands";
+import { bandsInRange, type Band } from "@/bands";
+import { fineFor, mergeScan, offScale } from "@/fine";
 import { mappingFor, solveRefs, type Quad } from "@/geometry";
 import { detectGrid } from "@/grid";
 import { fixedWords } from "@/ocr-zeros";
@@ -18,7 +19,7 @@ import { openStore } from "@/store";
 import { parseSweepText } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { autoTrace } from "@/trace";
-import { toTouchstone } from "@/vna";
+import { toTouchstone, type Scan } from "@/vna";
 import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type Mode } from "./Cards";
 import { ChartCard } from "./ChartCard";
 import { drawChart } from "./draw-chart";
@@ -29,8 +30,8 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
-  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, loadImage, photoFrom, pickBand, rectOf, settingsOf, swrOn, viewAround, viewOf,
-  type Doc, type Fields, type Photo, type Picked, type Prefs, type Trace,
+  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, loadImage, photoFrom, pickBand, rectOf, sameView, settingsOf, swrOn, viewAround, viewOf,
+  type Doc, type Fields, type FineSpan, type Photo, type Picked, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
 import { applySnapshot, snapshotOf, type Snapshot } from "./session";
@@ -142,13 +143,14 @@ export function App(): React.ReactElement {
     void store.set("file", { blob, name, fromVna });
   }, [store]);
 
-  /** Show Touchstone data. A repeat sweep of the same range keeps the pins and the zoom. */
-  const showTouchstone = useCallback((text: string, name: string, source: "s1p" | "vna", repeat: boolean): void => {
+  /** Show Touchstone data. A repeat sweep of the same range keeps the pins and
+   *  the zoom. `fine` is the band a fine sweep filled in. */
+  const showTouchstone = useCallback((text: string, name: string, source: "s1p" | "vna", repeat: boolean, fine: FineSpan | null = null): void => {
     const { f, s } = parseTouchstone(text);
     if (f.length < 2) { alert("Couldn't find S11 data in that file."); return; }
     setDoc((d) => ({
       ...(repeat ? d : EMPTY_DOC),
-      source, fileName: name, s1p: { text, name }, photo: null, corners: null, straight: false, refs: [], grid: null, ocr: null,
+      source, fileName: name, s1p: { text, name }, fine, photo: null, corners: null, straight: false, refs: [], grid: null, ocr: null,
       trace: { kind: "data", N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) },
       fields: { ...(repeat ? d.fields : DEFAULT_FIELDS), start: String(+f[0]!.toFixed(4)), stop: String(+f[f.length - 1]!.toFixed(4)) },
     }));
@@ -210,13 +212,19 @@ export function App(): React.ReactElement {
 
   /* ---------------- The NanoVNA ---------------- */
 
-  const vna = useVna((scan, board, r) => {
-    const name = `nanovna-${mhz(r.start)}-${mhz(r.stop)}mhz.s1p`, text = toTouchstone(scan, board);
+  /** The last sweep of the whole range, for a fine sweep to fill in. */
+  const fullScan = useRef<Scan | null>(null);
+  const vna = useVna((scan, board, r, fine) => {
+    if (!fine) fullScan.current = scan;
+    const base = fullScan.current, data = fine && base ? mergeScan(base, scan) : scan;
+    const span = fine ? { band: fine.band, lo: fine.start / 1e6, hi: fine.stop / 1e6 } : null;
+    // A fine sweep keeps the range's name: it is that sweep, filled in.
+    const name = `nanovna-${mhz(r.start)}-${mhz(r.stop)}mhz.s1p`, text = toTouchstone(data, board);
     const d = docRef.current, repeat = d.source === "vna" && d.s1p?.name === name;
     const blob = new Blob([text], { type: "text/plain" });
     if (repeat) void store.set("file", { blob, name, fromVna: true });
     else saveFile(blob, name, true);
-    showTouchstone(text, name, "vna", repeat);
+    showTouchstone(text, name, "vna", repeat, span);
   });
 
   /* ---------------- The saved session ---------------- */
@@ -425,7 +433,7 @@ export function App(): React.ReactElement {
     const W = cv.clientWidth, H = cv.clientHeight, c = document.createElement("canvas");
     c.width = W * 2;
     c.height = H * 2;
-    drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null });
+    drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null, fine: doc.fine });
     download("swr-chart.png", c.toDataURL("image/png"));
   };
   const exportCsv = (): void => {
@@ -445,8 +453,13 @@ export function App(): React.ReactElement {
     const res = ((an.fmax - an.fmin) / curve.N) * 1000;
     resNote = doc.source === "image"
       ? `Traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point`
-      : `${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`;
+      : `${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`
+        + (doc.fine ? `, ${doc.fine.band} fine sweep with calibration filled in` : "");
   }
+  // A fine sweep for the band the chart shows, when one would add to it.
+  const viewBand = an && doc.view ? bandsInRange(an.fmin, an.fmax).find((b) => sameView(bandView(an, b), doc.view)) : undefined;
+  const fineOffer = doc.source === "vna" && vna.range && curve && viewBand && !offScale(curve, viewBand.lo, viewBand.hi, settings)
+    ? fineFor(vna.range, viewBand) : null;
 
   return (
     <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")}>
@@ -485,7 +498,8 @@ export function App(): React.ReactElement {
                   onCorners={onCorners} onPen={onPen} onRef={onRef} onHover={setHoverF} />
               )}
               <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={peek ?? doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
-                manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote} />
+                manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote}
+                fine={doc.fine} fineOffer={fineOffer && { band: fineOffer.band, on: vna.fine?.band === fineOffer.band, run: () => void vna.setFine(fineOffer) }} />
               <div className="card" id="bandCard">
                 <h2>Band segments
                   <span style={{ flex: 1 }}></span>

@@ -183,7 +183,11 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 .panel .row label{min-width:72px}
 .panel select{flex:1;min-width:0}
 .panel-tools{display:flex;gap:2px}
-#vnaRange{font-size:13px;font-variant-numeric:tabular-nums}
+#vnaRange,#vnaFine{font-size:13px;font-variant-numeric:tabular-nums}
+/* The fine band, and its × at the row's end, on one line. */
+.panel .row.fine{flex-wrap:nowrap}
+#vnaFine{color:var(--accent);flex:1;min-width:0}
+#fineClear{flex:none}
 .panel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}button.quiet{background:none;border-color:transparent;color:var(--muted);padding:2px 6px;font-size:12px}
 button.quiet:hover{color:var(--text);border-color:var(--line)}
 .refs{font-size:12px;color:var(--muted)}
@@ -207,6 +211,11 @@ button.quiet:hover{color:var(--text);border-color:var(--line)}
 html.chart-full{overflow:hidden;overscroll-behavior:none}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .chips button{padding:3px 9px;font-size:12px;border-radius:12px}
+/* Fine sweep sits apart at the end of the chips, in the accent the chart
+   marks a fine sweep's band with. A chip whose band has one carries a ✦. */
+.chips #fineBtn{margin-left:auto;border-color:color-mix(in srgb, var(--accent) 60%, var(--line));color:var(--accent);background:color-mix(in srgb, var(--accent) 8%, transparent)}
+.chips #fineBtn.on{background:color-mix(in srgb, var(--accent) 18%, transparent)}
+.chips button.fined::after{content:" ✦";color:var(--accent);font-size:10px}
 #resNote{text-transform:none;letter-spacing:0;font-weight:400}
 #resNote::before{content:"· "}
 /* On a phone: the resolution on its own line under the title, and the band

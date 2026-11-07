@@ -21,19 +21,33 @@ import { Help } from "./Help";
 import { bandTip, drawChart, freqAt, type ChartGeom, type KeyKind, type KeyPoint } from "./draw-chart";
 import { fitCanvas } from "./draw-photo";
 import type { Band } from "@/bands";
-import { bandView, fitView, sameView, type Curve, type Settings } from "./model";
+import { bandView, fitView, sameView, type Curve, type FineSpan, type Settings } from "./model";
 import { useNoSwipe } from "./useNoSwipe";
 
-function Chips({ an, view, onView }: { an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void }): React.ReactElement {
+/** A fine sweep the band in view can have: its band, whether it is the one
+ *  Sweep and Live scan now, and how to start it. */
+export interface FineOffer { band: string; on: boolean; run(): void }
+
+function Chips({ an, view, onView, fine, offer }: {
+  an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void; fine: FineSpan | null; offer: FineOffer | null;
+}): React.ReactElement {
   const chips: [string, [number, number] | null][] = [["Full sweep", null], ...bandsInRange(an.fmin, an.fmax).map((b): [string, [number, number]] => [b.name, bandView(an, b)])];
   return (
     <div className="chips" id="chips">
-      {chips.map(([name, v]) => <button key={name} className={sameView(v, view) ? "on" : ""} onClick={() => onView(v)}>{name}</button>)}
+      {chips.map(([name, v]) => (
+        <button key={name} className={(sameView(v, view) ? "on" : "") + (fine?.band === name ? " fined" : "")} onClick={() => onView(v)}>{name}</button>
+      ))}
+      {offer && (
+        <button id="fineBtn" className={"fine" + (offer.on ? " on" : "")} onClick={offer.run}
+          title="Sweeps this band with all the NanoVNA's points. Calibration between its calibrated points is filled in.">
+          Fine sweep {offer.band}
+        </button>
+      )}
     </div>
   );
 }
 
-export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote }: {
+export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = null, fineOffer = null }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   an: Analysis | null;
   curve: Curve | null;
@@ -46,6 +60,9 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   hoverF: number | null;
   onHover(f: number | null): void;
   resNote: string;
+  /** The band a fine sweep filled in. */
+  fine?: FineSpan | null;
+  fineOffer?: FineOffer | null;
 }): React.ReactElement {
   const geom = useRef<ChartGeom | null>(null);
   /** A press on the chart. `pan` holds the view it started from. */
@@ -87,7 +104,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
     const dpr = window.devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
     fitCanvas(c, ctx, Math.round(W * dpr), Math.round(H * dpr));
     geom.current = drawChart(ctx, W, H, dpr, {
-      settings, an, curve, range, manual, probe, hoverF, drag: drag.current?.zoom ? drag.current : null,
+      settings, an, curve, range, manual, probe, hoverF, drag: drag.current?.zoom ? drag.current : null, fine,
       snap, hoverNote: snap === "pin" ? (touch ? "tap to unpin" : "click to unpin") : snap === "probe" ? (touch ? "tap to pin" : "click to pin") : undefined,
     });
   };
@@ -174,7 +191,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
             : <button id="chartFull" className="small" onClick={() => setFull(true)}>⤢ Full screen</button>}
         </span>
       </h2>
-      {an && <Chips an={an} view={view} onView={onView} />}
+      {an && <Chips an={an} view={view} onView={onView} fine={fine} offer={fineOffer} />}
       <canvas id="chart" ref={canvasRef}
         style={panning ? { cursor: "grabbing" } : snap === "pin" || snap === "probe" || tip ? { cursor: "pointer" } : undefined}
         // Stops the middle button's autoscroll.
@@ -253,6 +270,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         <span><i style={{ background: "var(--phone)" }}></i>Phone / image</span>
         <span><i style={{ background: "var(--cw)" }}></i>CW only</span>
         <span><i style={{ background: "var(--all)" }}></i>All modes / 60 m channel</span>
+        {fine && <span id="fineKey"><i style={{ background: "var(--accent)" }}></i>Fine sweep, calibration filled in</span>}
       </div>
     </div>
   );

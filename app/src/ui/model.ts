@@ -60,6 +60,9 @@ export interface Prefs {
 
 export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false, bands: "all" };
 
+/** A fine sweep's band in the data: its name, and its span in MHz. */
+export interface FineSpan { band: string; lo: number; hi: number }
+
 /** Everything about the loaded file. Clear resets it to EMPTY_DOC. */
 export interface Doc {
   source: "image" | "s1p" | "vna" | null;
@@ -76,6 +79,8 @@ export interface Doc {
   manual: number[];
   /** Chart zoom, [lo, hi] in MHz. */
   view: [number, number] | null;
+  /** The band a fine sweep filled in, in MHz, or null. */
+  fine: FineSpan | null;
   collapsed: boolean;
   /** The user typed the sweep, so text recognition offers its reading instead of using it. */
   sweepTyped: boolean;
@@ -88,7 +93,7 @@ export interface Doc {
 
 export const EMPTY_DOC: Doc = {
   source: null, fileName: null, photo: null, corners: null, straight: false, trace: null, s1p: null,
-  refs: [], manual: [], view: null, collapsed: false, sweepTyped: false, retrace: false,
+  refs: [], manual: [], view: null, fine: null, collapsed: false, sweepTyped: false, retrace: false,
   fields: DEFAULT_FIELDS, grid: null, ocr: null,
 };
 

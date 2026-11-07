@@ -6,8 +6,8 @@
 import { atTop, segUsable, usableLimit, type Analysis } from "@/analysis";
 import { MODES, bandAt, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
-import { swrOn, type Curve, type Settings } from "./model";
-import { BAD, HIGH, MATCH, OK, PROBE, curveColor } from "./colors";
+import { swrOn, type Curve, type FineSpan, type Settings } from "./model";
+import { BAD, FINE, HIGH, MATCH, OK, PROBE, curveColor } from "./colors";
 
 /** Where the plot sits, for turning a pointer position into a frequency. */
 export interface ChartGeom {
@@ -44,6 +44,8 @@ export interface ChartScene {
   snap?: KeyKind | null;
   /** Added to the hover readout, such as how to unpin a snapped pin. */
   hoverNote?: string | undefined;
+  /** The band a fine sweep filled in, tinted. */
+  fine?: FineSpan | null;
 }
 
 /** Draw the chart at W × H CSS pixels. Returns the plot's geometry, or null
@@ -122,6 +124,13 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
       ctx.fillStyle = segs.length ? "#e6edf3" : "#6e7681"; ctx.fillText(b.name, lx, y0 - 12); lastLbl = lx + lw / 2;
       if (segs.length) bandBoxes.push({ band: b, l: lx - lw / 2 - 3, r: lx + lw / 2 + 3, t: y0 - 22, b: y0 - 2 });
     }
+  }
+  // A fine sweep's band: a light tint, and a line along the plot's top.
+  if (sc.fine && sc.fine.hi > lo && sc.fine.lo < hi) {
+    const fa = X(sc.fine.lo), fw = Math.max(3, X(sc.fine.hi) - fa);
+    ctx.fillStyle = FINE + "14"; ctx.fillRect(fa, y0, fw, y1 - y0);
+    // Clear of the segments' bars along the top.
+    ctx.fillStyle = FINE; ctx.fillRect(fa, y0 - 5, fw, 2);
   }
   ctx.restore();
   ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "right";

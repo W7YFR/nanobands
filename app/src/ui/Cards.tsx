@@ -90,6 +90,15 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
           <span id="vnaRange">{rangeText(vna.range)}</span>
         </div>
       )}
+      {vna.fine && vna.range && (
+        <div className="row fine">
+          <label>Fine</label>
+          {/* At the Range row's point count, which that row shows. */}
+          <span id="vnaFine">{vna.fine.band} · {mhz(vna.fine.start)}–{mhz(vna.fine.stop)} MHz</span>
+          <button id="fineClear" className="quiet" title="Sweeps the whole range again" aria-label="Sweep the whole range"
+            onClick={() => void vna.setFine(null)}>×</button>
+        </div>
+      )}
       <div className="panel-actions">
         <button id="sweepBtn" className="primary" disabled={vna.live} onClick={() => void vna.sweep()}>Sweep</button>
         <button id="liveBtn" className={vna.live ? "on" : ""} onClick={() => vna.setLive(!vna.live)}>{vna.live ? "Hold" : "Live"}</button>
