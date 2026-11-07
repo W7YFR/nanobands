@@ -2,9 +2,10 @@
  *
  * No command lists the slots, so Read recalls each one and reads its range
  * and calibration. Then it recalls the slot that matches what the device had
- * before, so the device ends where it started. A recall of an empty slot is
- * taken to change nothing. A slot that reads the same as the one before it is
- * read again after a different slot, to tell the two apart.
+ * before, so the device ends where it started. The device says when a slot
+ * is empty. Older firmware says nothing and keeps what it had, so there a
+ * slot that reads the same as the one before it is read again after a
+ * different slot, to tell the two apart.
  *
  * The list is kept in the browser for each board and firmware.
  */
@@ -22,7 +23,8 @@ export type Slot = ({ kind: "set" } & SlotState) | { kind: "empty" } | { kind: "
 
 /** The part of the device that Read uses. */
 export interface SlotDevice {
-  recall(slot: number): Promise<Range>;
+  /** Null when the device says the slot is empty. */
+  recall(slot: number): Promise<Range | null>;
   range(): Promise<Range>;
   cal(): Promise<string[]>;
 }
@@ -55,26 +57,32 @@ export interface SlotRead {
 export async function readSlots(d: SlotDevice, count: number): Promise<SlotRead> {
   const state = async (r: Range): Promise<SlotState> => ({ range: r, cal: await d.cal() });
   const start = await state(await d.range());
-  const read: SlotState[] = [], twin: boolean[] = [];
-  let prev = start;
+  const read: (SlotState | null)[] = [], twin: boolean[] = [];
+  // The last slot the device loaded: it is on that slot after Read.
+  let prev = start, last = -1;
   for (let i = 0; i < count; i++) {
-    read[i] = await state(await d.recall(i));
-    twin[i] = sameState(read[i]!, prev);
-    prev = read[i]!;
+    const r = await d.recall(i);
+    if (!r) { read[i] = null; continue; }
+    const s = await state(r);
+    read[i] = s;
+    twin[i] = sameState(s, prev);
+    prev = s;
+    last = i;
   }
-  let last = count - 1;
-  const slots: Slot[] = read.map((s, i) => (twin[i] ? { kind: "unknown" } : { kind: "set", ...s }));
+  const slots: Slot[] = read.map((s, i) => (!s ? { kind: "empty" } : twin[i] ? { kind: "unknown" } : { kind: "set", ...s }));
   // A twin is a full slot or an empty one. Recall a slot that differs, then
   // the twin again: an empty slot leaves the device on the other one.
   for (let i = 0; i < count; i++) {
-    if (!twin[i]) continue;
-    const j = read.findIndex((s) => !sameState(s, read[i]!));
+    const s = read[i];
+    if (!s || !twin[i]) continue;
+    const j = read.findIndex((o) => o && !sameState(o, s));
     if (j < 0) continue;
     await d.recall(j);
-    const again = await state(await d.recall(i));
-    last = i;
-    slots[i] = sameState(again, read[j]!) ? { kind: "empty" } : { kind: "set", ...again };
+    const r = await d.recall(i), again = r && (await state(r));
+    last = again ? i : j;
+    slots[i] = !again || sameState(again, read[j]!) ? { kind: "empty" } : { kind: "set", ...again };
   }
+  if (last < 0) last = count - 1;
   const back = slotOf(slots, start);
   if (back !== null && back !== last) await d.recall(back);
   return { slots, at: back ?? last, restored: back !== null };

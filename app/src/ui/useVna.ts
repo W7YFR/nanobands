@@ -152,6 +152,8 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     if (!d) return;
     try {
       const r = await d.recall(slot);
+      if (!r) { setNote(`Slot ${slot} is empty. The NanoVNA kept its calibration.`); return; }
+      setNote("");
       setSlot(slot);
       rng.current = r;
       setRange(r);
@@ -203,7 +205,11 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
   /** After `save` or `clearconfig` in the shell, the slots it changed. */
   const saved = async (d: NanoVNA, line: string, out: string[]): Promise<void> => {
     if (out.some((l) => /usage/i.test(l))) return;
-    if (/^clearconfig\b/.test(line)) { storeSlots(d.info, null); setSlots(null); setSlot(null); return; }
+    if (/^clearconfig\b/.test(line)) {
+      // A wrong key answers "Key unmatched." and erases nothing.
+      if (!out.some((l) => /cleared/i.test(l))) return;
+      storeSlots(d.info, null); setSlots(null); setSlot(null); return;
+    }
     const n = /^save\s+(\d+)$/.exec(line)?.[1];
     const list = slotList.current;
     if (n === undefined || !list || +n >= list.length) return;

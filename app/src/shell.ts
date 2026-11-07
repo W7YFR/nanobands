@@ -72,9 +72,13 @@ export const SHELL_COMMANDS: ShellCommand[] = [
   { name: "dfu", args: "", text: "Restarts into firmware update mode.", refused: "Restarts the device and closes the port." },
 ];
 
+/** The longest line the firmware reads. It drops the characters past it. */
+export const MAX_LINE = 63;
+
 /** Why the window does not send this line, or null when it does. */
 export function refusal(line: string): string | null {
-  const name = line.trim().split(/\s+/)[0] ?? "";
+  const words = line.trim().split(/\s+/), name = words[0] ?? "";
+  if (words.join(" ").length > MAX_LINE) return `The NanoVNA reads at most ${MAX_LINE} characters in a line.`;
   return SHELL_COMMANDS.find((c) => c.name === name)?.refused ?? null;
 }
 

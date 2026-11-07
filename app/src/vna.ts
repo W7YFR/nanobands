@@ -239,9 +239,12 @@ export class NanoVNA {
     return { start: f[0]!, stop: f[f.length - 1]!, points: f.length };
   }
 
-  /** Load a saved calibration, and the range saved with it. */
-  async recall(slot: number): Promise<Range> {
-    await this.sh.run(`recall ${slot}`, 5000);
+  /** Load a saved calibration, and the range saved with it. Null when the
+   *  device says the slot is empty: it then keeps what it had. Older
+   *  firmware says nothing, and returns the range it kept. */
+  async recall(slot: number): Promise<Range | null> {
+    const out = await this.sh.run(`recall ${slot}`, 5000);
+    if (out.some((l) => /^Err\b/.test(l))) return null;
     return this.range();
   }
 

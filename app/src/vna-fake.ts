@@ -4,9 +4,11 @@
  * not always at hand. It answers the way a NanoVNA-H4 on firmware 1.2.44 was
  * seen to: `info`, `version`, `sweep` with and without a range, `recall`,
  * `save`, `cal`, `scan` with an output mask, `frequencies`, `data`, `pause`,
- * `resume`, and `cmd?` for anything else. Its slots are the ones read from
- * that H4. A recall of an empty slot changes nothing. A scan pauses the
- * device's own sweep and sets its point count. Set `version` below 0.7.1 to act like older firmware without the mask.
+ * `resume`, `clearconfig`, and `cmd?` for anything else. Its slots are the
+ * ones read from that H4. A recall of an empty slot changes nothing and says
+ * `Err, default load`; set `quiet` to act like older firmware, which says
+ * nothing. A scan pauses the device's own sweep and sets its point count. Set
+ * `version` below 0.7.1 to act like older firmware without the mask.
  */
 
 import type { Link } from "./vna";
@@ -21,6 +23,8 @@ export interface FakeOptions {
   noise?: number;
   /** Text waiting on the port when it opens, such as a reply nobody read. */
   stale?: string;
+  /** Say nothing on a recall of an empty slot, like older firmware. */
+  quiet?: boolean;
 }
 
 /** A slot: start, stop, points and what `cal` prints. */
@@ -43,6 +47,7 @@ export class FakeNanoVNA {
   slots: (FakeSlot | null)[];
   noise: number;
   stale: string;
+  quiet: boolean;
   start = 3e6;
   stop = 55e6;
   points = 401;
@@ -58,6 +63,7 @@ export class FakeNanoVNA {
     this.slots = o.slots ?? H4_SLOTS.map((s) => [...s]);
     this.noise = o.noise ?? 0;
     this.stale = o.stale ?? "";
+    this.quiet = o.quiet ?? false;
   }
 
   private freqs(start = this.start, stop = this.stop, n = this.points): number[] {
@@ -95,9 +101,15 @@ export class FakeNanoVNA {
         const i = n[0];
         if (i === undefined || i >= this.slots.length) return out(["usage:  0..134287960"]);
         const s = this.slots[i];
-        if (s) [this.start, this.stop, this.points, this.cal] = s;
+        if (!s) return out(this.quiet ? [] : ["Err, default load"]);
+        [this.start, this.stop, this.points, this.cal] = s;
         return out([]);
       }
+      case "clearconfig":
+        if (a.length !== 1) return out(["usage: clearconfig {protection key}"]);
+        if (a[0] !== "1234") return out(["Key unmatched."]);
+        this.slots = this.slots.map(() => null);
+        return out(["Config and all cal data cleared.", "Do reset manually to take effect. Then do touch cal and save."]);
       case "save": {
         const i = n[0];
         if (i === undefined || i >= this.slots.length) return out(["usage:  0..134287960"]);
