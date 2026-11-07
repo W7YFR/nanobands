@@ -61,6 +61,23 @@ describe("drawChart", () => {
     expect(colorsAt(ctx, g, xOf(g, 14.36)).size).toBe(1);
   });
 
+  it("runs the curve along the top until the line between readings comes under it, as the hover does", () => {
+    // SWR 12 at 13.6 MHz and 4.5 at 13.8: the line between them meets the
+    // top, 5, at 13.787 MHz. At 13.7 it is at 8.25, so the curve is at the top.
+    const f = Float64Array.from([13.5, 13.6, 13.8, 14.0]), sw = Float64Array.from([12, 12, 4.5, 4.5]);
+    const curve = { N: 4, f, s: sw };
+    const { ctx, g } = draw(curve);
+    // The top of the scale sits 24 px under the plot's top edge.
+    const top = g.y0 + 24, x = xOf(g, 13.7);
+    expect(colorsAt(ctx, g, x, top - 4, top + 4)).toEqual(new Set([HIGH]));
+    expect(colorsAt(ctx, g, x, top + 6, g.y1).size).toBe(0);
+    // The hover's dot sits at the top there too.
+    const hovered = draw(curve, [], null, { hoverF: 13.7 }).ctx, d = hovered.getImageData(x, top - 8, 1, 16).data;
+    let white = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i]! > 240 && d[i + 1]! > 240 && d[i + 2]! > 240) white++;
+    expect(white).toBeGreaterThan(0);
+  });
+
   it("colors a dip the way the curve is colored there", () => {
     for (const [dip, col] of [[13.8, MATCH], [14.1, OK]] as const) {
       const { ctx, g } = draw(vee(dip));

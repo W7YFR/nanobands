@@ -144,7 +144,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   const thrAtTop = atTop(s.thr, s);
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
   const path = new Path2D();
-  let pen = false, prevTop = false;
+  let pen = false, prevTop = false, pf = NaN, ps = NaN;
   // A sample off the chart stays in when its line to a neighbour reaches
   // into the view. The clip cuts that line at the edge.
   const reaches = (i: number, j: number): boolean => {
@@ -160,9 +160,15 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     // A step from the top or onto it is drawn, so the curve meets the line.
     if (top && prevTop) pen = false;
     prevTop = top;
-    if (pen) path.lineTo(X(fi), Y(si));
-    else path.moveTo(X(fi), Y(si));
-    pen = true;
+    if (pen) {
+      // A stretch across the top of the scale turns where the straight line
+      // between its readings meets the top, as the hover's dot does. Drawn
+      // straight between readings clamped to the top, it would show an SWR
+      // under the top that neither reading has.
+      if ((ps > yTop) !== (si > yTop)) path.lineTo(X(pf + ((yTop - ps) / (si - ps)) * (fi - pf)), Y(yTop));
+      path.lineTo(X(fi), Y(si));
+    } else path.moveTo(X(fi), Y(si));
+    pen = true; pf = fi; ps = si;
   }
   ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.strokeStyle = HIGH; ctx.stroke(path);
   // Under the usable limit, not Max SWR: a flat line along the top of the
