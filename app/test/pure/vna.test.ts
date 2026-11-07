@@ -125,6 +125,24 @@ describe("NanoVNA", () => {
     expect((1 + g) / (1 - g)).toBeCloseTo(fakeSwr(s.hz[i]!), 6);
   });
 
+  it("starts the device's own sweep again after a scan paused it", async () => {
+    const dev = new FakeNanoVNA();
+    const vna = await NanoVNA.open(dev.link());
+    await vna.scan(await vna.range());
+    expect(dev.paused).toBe(true);
+    await vna.resume();
+    expect(dev.paused).toBe(false);
+    expect(await vna.range()).toEqual({ start: 3e6, stop: 55e6, points: 401 });
+  });
+
+  it("takes no resume as no error, from firmware without the command", async () => {
+    const dev = new FakeNanoVNA();
+    const answer = dev.answer.bind(dev);
+    dev.answer = (line) => (line.trim() === "resume" ? "resume\r\nresume?\r\nch> " : answer(line));
+    const vna = await NanoVNA.open(dev.link());
+    await expect(vna.resume()).resolves.toBeUndefined();
+  });
+
   it("loads a calibration slot and its range", async () => {
     const vna = await NanoVNA.open(new FakeNanoVNA().link());
     expect(await vna.recall(0)).toEqual({ start: 144e6, stop: 148e6, points: 101 });

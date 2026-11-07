@@ -8,7 +8,8 @@
  *
  * The page sweeps the range the device is set to, so its calibration applies
  * as stored. `recall` loads a saved calibration slot, and with it that slot's
- * range.
+ * range. A `scan` pauses the device's own sweep, and its screen holds the
+ * scan until `resume`.
  */
 
 import { parseCal } from "./slots";
@@ -261,6 +262,16 @@ export class NanoVNA {
     if (this.info.method === "mask") return parseMaskScan(await this.sh.run(`scan ${args} 3`, SCAN_MS));
     await this.sh.run(`${this.info.method} ${args}`, SCAN_MS);
     return parseDataScan(await this.sh.run("frequencies"), await this.sh.run("data 0", 10_000));
+  }
+
+  /** Start the device's own sweep again, after a scan paused it. */
+  async resume(): Promise<void> {
+    try {
+      await this.sh.run("resume");
+    } catch (e) {
+      // Firmware without the command does not pause.
+      if (!(e instanceof VnaError) || e.closed) throw e;
+    }
   }
 
   /** Run a command typed in the Shell window and return what it printed. */

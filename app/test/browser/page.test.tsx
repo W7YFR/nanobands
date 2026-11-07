@@ -852,6 +852,8 @@ describe("a connected NanoVNA", () => {
     expect(has("#photoDisclaimer")).toBe(false);
     expect(has("#expS1p")).toBe(true);
     expect(device.log).toContain("scan 3000000 55000000 401 3");
+    expect(device.log.at(-1)).toBe("resume");
+    expect(device.paused).toBe(false);
   });
 
   it("keeps pins across live sweeps, and stops on Hold", async () => {
@@ -863,8 +865,11 @@ describe("a connected NanoVNA", () => {
     await until(() => $("#liveBtn").textContent === "Hold");
     expect($<HTMLButtonElement>("#sweepBtn").disabled).toBe(true);
     await until(() => scans() >= before + 3);
+    // Live leaves the device paused between its sweeps.
+    expect(device.log.slice(-3).includes("resume")).toBe(false);
     $("#liveBtn").click();
     await until(() => $("#liveBtn").textContent === "Live");
+    await until(() => !device.paused);
     expect(pointRows("Pinned").map(rowF)).toEqual([14.1]);
     expect(pointRows("Pinned")[0]!.children[1]!.textContent).toMatch(/^\d+\.\d\d$/);
     $<HTMLButtonElement>("#ptTable [data-del]").click();
@@ -900,9 +905,12 @@ describe("a connected NanoVNA", () => {
   it("disconnects from Change, and keeps the last sweep on the page", async () => {
     $("#changeBtn").click();
     await until(() => has("#vnaBtn"));
+    // As a scan typed in the shell leaves it.
+    device.paused = true;
     $("#vnaBtn").click();
     await until(() => $("#vnaBtn").textContent === "Connect NanoVNA");
     expect(has("#vnaPanel")).toBe(false);
+    expect(device.paused).toBe(false);
     expect($("#bandTable").textContent).toContain("2m");
     expect(has(".app.no-data")).toBe(false);
   });
