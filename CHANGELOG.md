@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.11.3 — 2026-11-07
+
 ### Fixed
 
 - Picking an empty slot under **Calibration** now says the slot is empty. It no longer shows that slot as chosen.
