@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.11.2 — 2026-11-07
+
 ### Fixed
 
 - The NanoVNA's screen no longer freezes after **Sweep**, **Live** or **Disconnect**. It sweeps again on its own.
