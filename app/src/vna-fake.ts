@@ -27,6 +27,8 @@ export interface FakeOptions {
   quiet?: boolean;
 }
 
+
+
 /** A slot: start, stop, points and what `cal` prints. */
 export type FakeSlot = [number, number, number, string];
 
@@ -48,6 +50,8 @@ export class FakeNanoVNA {
   noise: number;
   stale: string;
   quiet: boolean;
+  /** How long the port takes to answer a scan, in ms, so tests can act while one runs. */
+  scanMs = 0;
   start = 3e6;
   stop = 55e6;
   points = 401;
@@ -184,12 +188,13 @@ export class FakeNanoVNA {
             partial += dec.decode(chunk, { stream: true });
             let at;
             while ((at = partial.indexOf("\r")) >= 0) {
-              const reply = this.answer(partial.slice(0, at));
+              const line = partial.slice(0, at), reply = this.answer(line);
               partial = partial.slice(at + 1);
               // Real replies arrive in pieces; split one so the reader has to join them.
               const mid = Math.floor(reply.length / 2);
-              ctrl?.enqueue(enc.encode(reply.slice(0, mid)));
-              ctrl?.enqueue(enc.encode(reply.slice(mid)));
+              const send = (): void => { try { ctrl?.enqueue(enc.encode(reply.slice(0, mid))); ctrl?.enqueue(enc.encode(reply.slice(mid))); } catch { /* closed */ } };
+              if (this.scanMs && /^scan\b/.test(line.trim())) setTimeout(send, this.scanMs);
+              else send();
             }
           },
         });

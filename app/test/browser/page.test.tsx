@@ -13,7 +13,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import "@/ui/base.css";
 import photo from "../data/random-wire-3-55mhz.jpg?url";
 import pkg from "../../../package.json";
-import { FakeNanoVNA } from "@/vna-fake";
+import { FakeNanoVNA, fakeSwr } from "@/vna-fake";
 import { detectGrid } from "@/grid";
 import { openStore } from "@/store";
 import type { Snapshot } from "@/ui/session";
@@ -201,6 +201,9 @@ describe("the page", () => {
     fireEvent.change(input);
 
     await until(() => has("#fStop") && $<HTMLInputElement>("#fStop").value === "55");
+    // A photo's trace has no readings to show, and its scale comes from the photo.
+    expect(has("#readingsShown")).toBe(false);
+    expect(has("#scaleTop")).toBe(false);
     expect($("#fileName").textContent).toBe("random-wire.jpg");
     expect($("#gridNote").textContent).toContain("Grid found");
     expect($("#calSummary").textContent).toBe("3–55 MHz · SWR 1–5");
@@ -238,13 +241,12 @@ describe("the page", () => {
     const enter = (name: string): boolean => rows(name).querySelector("td")!.dispatchEvent(new PointerEvent("pointerover", { pointerType: "mouse", bubbles: true }));
     const leave = (name: string): boolean => rows(name).querySelector("td")!.dispatchEvent(new PointerEvent("pointerout", { pointerType: "mouse", bubbles: true, relatedTarget: document.body }));
 
-    it("shows a band on the chart while the mouse is over its rows", async () => {
+    it("leaves the chart as it is while the mouse is over a band's rows", async () => {
       expect(chip()).toBe("Full sweep");
       enter("20m");
-      await until(() => chip() === "20m");
-      expect(rows("20m").classList.contains("on")).toBe(false);
+      await frames(3);
+      expect(chip()).toBe("Full sweep");
       leave("20m");
-      await until(() => chip() === "Full sweep");
     });
 
     it("keeps a band on the chart on a click, and goes back to the view before on a second", async () => {
@@ -933,6 +935,181 @@ describe("a connected NanoVNA", () => {
     expect(names).toContain("Slot 1");
     expect(names).not.toContain("Slot 1 · 0.05–900 MHz");
     device.slots = kept;
+  });
+
+  it("fine-sweeps a band, merges it into the full sweep, repeats it live, and goes back with ×", async () => {
+    const fineRow = (): string[] => [...document.querySelectorAll("#vnaFine button[aria-pressed]")].map((b) => b.textContent!);
+    const repeats = (): string | undefined => $("#vnaFine [aria-pressed=true]")?.textContent ?? undefined;
+    const chipBtn = (name: string): HTMLButtonElement =>
+      [...document.querySelectorAll<HTMLButtonElement>("#chips button")].find((b) => b.textContent === name)!;
+    const slot = $<HTMLSelectElement>("#vnaSlot");
+    fireEvent.change(slot, { target: { value: "6" } });
+    await until(() => $("#vnaRange").textContent === "3–55 MHz · 401 points" && $("#resNote").textContent!.includes("401 points"));
+    // The Fine row offers + Band, and nothing more at the full view.
+    expect($("#fineAdd").textContent).toBe("+ Band");
+    expect(has("#fineSuggest")).toBe(false);
+    expect(has("#fineClear")).toBe(false);
+    // Zoomed to 40m, the row offers it.
+    chipBtn("40m").click();
+    await until(() => has("#fineSuggest"));
+    expect($("#fineSuggest").textContent).toBe("+ 40m");
+    const from = device.log.length;
+    $("#fineSuggest").click();
+    await until(() => fineRow().length === 1 && $("#resNote").textContent!.includes("fine sweep"));
+    expect(device.log.slice(from)).toEqual(["scan 7000000 7300000 401 3", "resume"]);
+    expect([device.start, device.stop, device.points]).toEqual([3e6, 55e6, 401]);
+    expect(fineRow()).toEqual(["40m"]);
+    expect(repeats()).toBe("40m");
+    // The 3 readings of the full sweep inside 40 m give way to 401.
+    expect($("#resNote").textContent).toBe("799 points from the NanoVNA, 40m fine sweep with calibration filled in · zoom in to see readings");
+    // Swept, 40m is a chip in the row, and no longer offered.
+    expect(has("#fineSuggest")).toBe(false);
+    chipBtn("Full sweep").click();
+    await until(() => $("#chips button.on")?.textContent === "Full sweep");
+    expect(chipBtn("40m").classList.contains("fined")).toBe(true);
+    expect($("#bandTable").textContent).toContain("20m");
+
+    // Live scans the band, says so, and resumes the device when it stops.
+    const fines = (): number => device.log.filter((c) => c === "scan 7000000 7300000 401 3").length;
+    const before = fines();
+    $("#liveBtn").click();
+    await until(() => fines() >= before + 3);
+    expect($("#vnaPanel .status").textContent).toBe("Sweeping 40m live");
+    expect($("#liveNote").textContent).toBe("Live: 40m only");
+    $("#liveBtn").click();
+    await until(() => $("#liveBtn").textContent === "Live" && !device.paused);
+    expect($("#vnaPanel .status").textContent).toBe("Connected");
+    expect(has("#liveNote")).toBe(false);
+
+    // + Band lists the bands in the range, grays one that a fine sweep would
+    // not help, and sweeps a picked band and shows it on the chart.
+    $("#fineAdd").click();
+    await until(() => has("#fineMenu"));
+    const item = (name: string): HTMLButtonElement =>
+      [...document.querySelectorAll<HTMLButtonElement>("#fineMenu button")].find((b) => b.firstChild?.textContent === name)!;
+    // The stand-in NanoVNA has all of 80 m over SWR 5.
+    expect(item("80m").disabled).toBe(true);
+    expect(item("80m").textContent).toBe("80mall over the SWR scale");
+    expect(item("40m").textContent).toBe("40mswept · sweep again");
+    expect(item("20m").disabled).toBe(false);
+    item("20m").click();
+    await until(() => !has("#fineMenu") && $("#chips button.on")?.textContent === "20m");
+    // A second band's fine sweep keeps the first's, and Sweep then repeats the second.
+    await until(() => repeats() === "20m" && $("#resNote").textContent!.includes("40m and 20m"));
+    expect(fineRow()).toEqual(["40m", "20m"]);
+    // 3 readings each in 40 m and 20 m give way to 401 each.
+    expect($("#resNote").textContent).toMatch(/^1197 points from the NanoVNA, 40m and 20m fine sweeps with calibration filled in/);
+    expect(chipBtn("40m").classList.contains("fined")).toBe(true);
+    expect(chipBtn("20m").classList.contains("fined")).toBe(true);
+    const sent = device.log.length;
+    $("#sweepBtn").click();
+    await until(() => device.log.length > sent + 1);
+    expect(device.log.slice(sent)[0]).toBe("scan 14000000 14350000 401 3");
+
+    // A click on 40m in the row makes it the one repeated, and sweeps it.
+    const again = device.log.length;
+    [...document.querySelectorAll<HTMLButtonElement>("#vnaFine button")].find((b) => b.textContent === "40m")!.click();
+    await until(() => repeats() === "40m" && device.log.length > again + 1);
+    expect(device.log.slice(again)[0]).toBe("scan 7000000 7300000 401 3");
+    expect(fineRow()).toEqual(["40m", "20m"]);
+
+    // × drops the fine sweeps at once, while Live's pass of 40m is still running,
+    // and that pass does not bring 40m back.
+    device.scanMs = 200;
+    $("#liveBtn").click();
+    await until(() => device.log.at(-1) === "scan 7000000 7300000 401 3");
+    $("#fineClear").click();
+    await frames(2);
+    expect(fineRow()).toEqual([]);
+    expect(has("#fineClear")).toBe(false);
+    expect($("#resNote").textContent).not.toContain("fine");
+    expect(chipBtn("40m").classList.contains("fined")).toBe(false);
+    expect($("#liveNote").textContent).toBe("Live");
+    // Live's next pass sweeps the whole range; the 40m pass before it was dropped.
+    await until(() => device.log.at(-1) === "scan 3000000 55000000 401 3");
+    await frames(2);
+    expect(chipBtn("40m").classList.contains("fined")).toBe(false);
+    expect(chipBtn("20m").classList.contains("fined")).toBe(false);
+    $("#liveBtn").click();
+    await until(() => $("#liveBtn").textContent === "Live" && !device.paused);
+    device.scanMs = 0;
+  });
+
+  it("offers no fine sweep where it would add nothing, the band is off the scale, or the calibration is too coarse", async () => {
+    const slot = $<HTMLSelectElement>("#vnaSlot");
+    const offered = async (n: string, range: string, band: string): Promise<boolean> => {
+      fireEvent.change(slot, { target: { value: n } });
+      await until(() => $("#vnaRange").textContent === range && !!$("#bandTable").textContent);
+      [...document.querySelectorAll<HTMLButtonElement>("#chips button")].find((b) => b.textContent === band)!.click();
+      await until(() => $("#chips button.on")?.textContent === band);
+      return has("#fineSuggest");
+    };
+    // The stand-in NanoVNA has all of 80 m over SWR 5, the top of the scale.
+    expect(await offered("6", "3–55 MHz · 401 points", "80m")).toBe(false);
+    // Calibrated for 20 m itself.
+    expect(await offered("2", "14–14.35 MHz · 101 points", "20m")).toBe(false);
+    // Calibrated points 9 MHz apart: + Band says so.
+    expect(await offered("1", "0.05–900 MHz · 101 points", "2m")).toBe(false);
+    $("#fineAdd").click();
+    await until(() => has("#fineMenu"));
+    const twoM = [...document.querySelectorAll<HTMLButtonElement>("#fineMenu button")].find((b) => b.firstChild?.textContent === "2m")!;
+    expect(twoM.disabled).toBe(true);
+    expect(twoM.textContent).toBe("2mcalibration too coarse");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await until(() => !has("#fineMenu"));
+    // 13–15 MHz: 18 readings in 20 m, and a fine sweep gives 101.
+    expect(await offered("4", "13–15 MHz · 101 points", "20m")).toBe(true);
+    fireEvent.change(slot, { target: { value: "0" } });
+    await until(() => $("#vnaRange").textContent === "144–148 MHz · 101 points");
+  });
+
+  it("offers Both by default, and in Points pins only readings", async () => {
+    const rows = (kind: string): Element[] => [...document.querySelectorAll("#ptTable tr")].filter((tr) => tr.children[2]?.textContent === kind);
+    const pressed = (): string => $("#readingsShown [aria-pressed=true]").textContent!;
+    expect(pressed()).toBe("Both");
+    [...document.querySelectorAll<HTMLButtonElement>("#readingsShown button")].find((b) => b.textContent === "Points")!.click();
+    await until(() => pressed() === "Points");
+    // Between the readings at 145.00 and 145.04 MHz, nearer the second.
+    const r = $("#chart").getBoundingClientRect(), x = r.left + 46 + ((145.03 - 144) / 4) * (r.width - 60), y = r.top + r.height / 2;
+    point($("#chart"), "pointermove", x, y, "mouse", 0);
+    point($("#chart"), "pointerdown", x, y);
+    point($("#chart"), "pointerup", x, y, "mouse", 0);
+    await until(() => rows("Pinned").length === 1);
+    expect(+rows("Pinned")[0]!.children[0]!.textContent!).toBe(145.04);
+    $<HTMLButtonElement>("#ptTable [data-del]").click();
+    await until(() => rows("Pinned").length === 0);
+    [...document.querySelectorAll<HTMLButtonElement>("#readingsShown button")].find((b) => b.textContent === "Both")!.click();
+    await until(() => pressed() === "Both");
+  });
+
+  it("sets the top of the SWR scale, so a peak over 5 reads as its value at 10", async () => {
+    const peakSwr = (): string[] => [...document.querySelectorAll("#ptTable tr")].filter((tr) => tr.children[2]?.textContent === "Peak").map((tr) => tr.children[1]!.textContent!);
+    const pressed = (): string => $("#scaleTop [aria-pressed=true]").textContent!;
+    const pick = (v: string): void => [...document.querySelectorAll<HTMLButtonElement>("#scaleTop button")].find((b) => b.textContent === v)!.click();
+    expect(pressed()).toBe("5");
+    // Slot 0's peak, near 145.6 MHz, is about SWR 7.15: over a top of 5.
+    if (!has("#ptTable")) $("#ptCard h2 button")?.click();
+    await until(() => peakSwr().length > 0);
+    expect(peakSwr().every((v) => v === "≥ 5")).toBe(true);
+    pick("10");
+    await until(() => pressed() === "10" && peakSwr().every((v) => /^\d+\.\d\d$/.test(v)));
+    expect(+peakSwr()[0]!).toBeGreaterThan(7);
+    pick("5");
+    await until(() => pressed() === "5");
+  });
+
+  it("pins a band edge itself when a click snaps to its tick", async () => {
+    const rows = (kind: string): Element[] => [...document.querySelectorAll("#ptTable tr")].filter((tr) => tr.children[2]?.textContent === kind);
+    // Slot 0, 144–148 MHz: 2 m ends at the chart's right edge.
+    const r = $("#chart").getBoundingClientRect(), x = r.right - 14;
+    const w = Math.min(5, fakeSwr(148e6)), py0 = r.top + 54, py1 = r.bottom - 108, y = py1 - ((w - 1) / 4) * (py1 - py0);
+    point($("#chart"), "pointermove", x - 4, y + 3, "mouse", 0);
+    point($("#chart"), "pointerdown", x - 4, y + 3);
+    point($("#chart"), "pointerup", x - 4, y + 3, "mouse", 0);
+    await until(() => rows("Pinned").length === 1);
+    expect(+rows("Pinned")[0]!.children[0]!.textContent!).toBe(148);
+    $<HTMLButtonElement>("#ptTable [data-del]").click();
+    await until(() => rows("Pinned").length === 0);
   });
 
   it("disconnects from Change, and keeps the last sweep on the page", async () => {

@@ -46,6 +46,15 @@ describe("the session", () => {
     expect(applySnapshot(d, snapshotOf(photoDoc()), noTrace).fields).toMatchObject({ start: "1", stop: "2", sens: "80" });
   });
 
+  it("marks a NanoVNA sweep's fine bands again", () => {
+    const fine = [{ band: "40m", lo: 7, hi: 7.3 }, { band: "20m", lo: 14, hi: 14.35 }];
+    const sv = snapshotOf({ ...EMPTY_DOC, source: "vna", fine });
+    expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, sv, noTrace).fine).toEqual(fine);
+    // A band without its span, or a saved band that is not a list, is left out.
+    expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, { ...sv, fine: [{ band: "40m" }, fine[1]] as never }, noTrace).fine).toEqual([fine[1]]);
+    expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, { ...sv, fine: fine[0] as never }, noTrace).fine).toEqual([]);
+  });
+
   it("traces a photo afresh when its snapshot has corners and no trace", () => {
     let traced = false;
     applySnapshot({ ...EMPTY_DOC, source: "image" }, { corners: [[0, 0], [1, 0], [1, 1], [0, 1]] }, (d) => { traced = true; return d; });

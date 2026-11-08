@@ -1,13 +1,25 @@
 /* The chart, drawn: SWR against frequency, the band plan and the usable
  * stretches under it, the key points, pins, the zoom selection and the hover
  * readout.
+ *
+ * Data from the NanoVNA or a file is readings, and the line between them is
+ * an estimate. The chart can show the line, the readings or both. A reading
+ * shows as a dot once readings are at least READING_GAP px apart; closer,
+ * they would only thicken the line. A reading over the top of the scale shows
+ * as a ▲ at the top. A photo's trace has no readings.
+ *
+ * Each band's ends, and the ends of the segments the settings allow, are
+ * key points too: a short tick across the curve, which the hover snaps to and
+ * names. A band's ticks show once the band is EDGE_BAND px wide, so a wide
+ * view stays clean, and a tick within EDGE_GAP px of the one before is left
+ * out.
  */
 
 import { atTop, segUsable, usableLimit, type Analysis } from "@/analysis";
-import { MODES, bandAt, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
+import { MODES, bandAt, bandEdges, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
-import { swrOn, type Curve, type Settings } from "./model";
-import { BAD, HIGH, MATCH, OK, PROBE, curveColor } from "./colors";
+import { swrOn, type Curve, type FineSpan, type Settings } from "./model";
+import { BAD, FINE, HIGH, MATCH, OK, PROBE, curveColor } from "./colors";
 
 /** Where the plot sits, for turning a pointer position into a frequency. */
 export interface ChartGeom {
@@ -21,10 +33,26 @@ export interface ChartGeom {
   points: KeyPoint[];
   /** Each band's boxes in the strip and its name over the plot, for its tooltip. */
   bands: { band: Band; l: number; r: number; t: number; b: number }[];
+  /** The readings in view, for the hover to snap to in Points. */
+  readings: number[];
+  /** True when readings are shown but too close together to draw. */
+  crowded: boolean;
 }
 
+/** How the chart shows data: the line, the readings, or both. */
+export type Readings = "line" | "points" | "both";
+
+/** The least space between readings, in px, for each to show as a dot. */
+export const READING_GAP = 5;
+
+/** The least space between band edges, in px, for each to show its tick. */
+export const EDGE_GAP = 8;
+
+/** The least width of a band on the chart, in px, for its edges to show. */
+export const EDGE_BAND = 80;
+
 /** `probe` is the frequency typed in the Analyze card, not pinned yet. */
-export type KeyKind = "dip" | "peak" | "crossing" | "pin" | "probe";
+export type KeyKind = "dip" | "peak" | "crossing" | "pin" | "probe" | "reading" | "edge";
 export interface KeyPoint { kind: KeyKind; f: number; x: number; y: number }
 
 export const freqAt = (g: ChartGeom, x: number): number => g.lo + ((x - g.x0) / (g.x1 - g.x0)) * (g.hi - g.lo);
@@ -44,6 +72,10 @@ export interface ChartScene {
   snap?: KeyKind | null;
   /** Added to the hover readout, such as how to unpin a snapped pin. */
   hoverNote?: string | undefined;
+  /** The bands fine sweeps filled in, tinted. */
+  fine?: readonly FineSpan[];
+  /** How to show readings. Null for a photo's trace, which has none. */
+  readings?: Readings | null;
 }
 
 /** Draw the chart at W × H CSS pixels. Returns the plot's geometry, or null
@@ -123,6 +155,14 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
       if (segs.length) bandBoxes.push({ band: b, l: lx - lw / 2 - 3, r: lx + lw / 2 + 3, t: y0 - 22, b: y0 - 2 });
     }
   }
+  // A fine sweep's band: a light tint, and a line along the plot's top.
+  for (const fs of sc.fine ?? []) {
+    if (fs.hi <= lo || fs.lo >= hi) continue;
+    const fa = X(fs.lo), fw = Math.max(3, X(fs.hi) - fa);
+    ctx.fillStyle = FINE + "14"; ctx.fillRect(fa, y0, fw, y1 - y0);
+    // Clear of the segments' bars along the top.
+    ctx.fillStyle = FINE; ctx.fillRect(fa, y0 - 5, fw, 2);
+  }
   ctx.restore();
   ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "right";
   ctx.fillText("bands", x0 - 6, stripY + stripH / 2);
@@ -135,7 +175,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   const thrAtTop = atTop(s.thr, s);
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
   const path = new Path2D();
-  let pen = false, prevTop = false;
+  let pen = false, prevTop = false, pf = NaN, ps = NaN;
   // A sample off the chart stays in when its line to a neighbour reaches
   // into the view. The clip cuts that line at the edge.
   const reaches = (i: number, j: number): boolean => {
@@ -151,21 +191,69 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     // A step from the top or onto it is drawn, so the curve meets the line.
     if (top && prevTop) pen = false;
     prevTop = top;
-    if (pen) path.lineTo(X(fi), Y(si));
-    else path.moveTo(X(fi), Y(si));
-    pen = true;
+    if (pen) {
+      // A stretch across the top of the scale turns where the straight line
+      // between its readings meets the top, as the hover's dot does. Drawn
+      // straight between readings clamped to the top, it would show an SWR
+      // under the top that neither reading has.
+      if ((ps > yTop) !== (si > yTop)) path.lineTo(X(pf + ((yTop - ps) / (si - ps)) * (fi - pf)), Y(yTop));
+      path.lineTo(X(fi), Y(si));
+    } else path.moveTo(X(fi), Y(si));
+    pen = true; pf = fi; ps = si;
   }
-  ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.strokeStyle = HIGH; ctx.stroke(path);
-  // Under the usable limit, not Max SWR: a flat line along the top of the
-  // scale stays yellow even where the top is at or under Max SWR.
-  const yLim = Y(usableLimit(s));
-  ctx.beginPath(); ctx.rect(x0, yLim, x1 - x0, y1 - yLim + 2); ctx.clip();
-  ctx.strokeStyle = MATCH; ctx.stroke(path);
-  ctx.beginPath();
-  for (const b of bandsInRange(lo, hi)) for (const seg of segsFor(b, s)) ctx.rect(X(seg[0]), y0, Math.max(1, X(seg[1]) - X(seg[0])), y1 - y0);
-  ctx.clip();
-  ctx.strokeStyle = OK; ctx.stroke(path);
+  const mode = sc.readings ?? null;
+  if (mode !== "points") {
+    ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.strokeStyle = HIGH; ctx.stroke(path);
+    // Under the usable limit, not Max SWR: a flat line along the top of the
+    // scale stays yellow even where the top is at or under Max SWR.
+    const yLim = Y(usableLimit(s));
+    ctx.beginPath(); ctx.rect(x0, yLim, x1 - x0, y1 - yLim + 2); ctx.clip();
+    ctx.strokeStyle = MATCH; ctx.stroke(path);
+    ctx.beginPath();
+    for (const b of bandsInRange(lo, hi)) for (const seg of segsFor(b, s)) ctx.rect(X(seg[0]), y0, Math.max(1, X(seg[1]) - X(seg[0])), y1 - y0);
+    ctx.clip();
+    ctx.strokeStyle = OK; ctx.stroke(path);
+  }
   ctx.restore();
+
+  // The readings in view: dots far enough apart to tell, a ▲ at the top for
+  // one over the scale. Points draws crowded readings small, so the curve
+  // still shows.
+  const readings: number[] = [];
+  let crowded = false;
+  if (mode && mode !== "line") {
+    for (let i = 0; i < t.N; i++) if (t.f[i]! >= lo && t.f[i]! <= hi && !Number.isNaN(t.s[i]!)) readings.push(i);
+    const n = readings.length, gap = n > 1 ? (X(t.f[readings[n - 1]!]!) - X(t.f[readings[0]!]!)) / (n - 1) : Infinity;
+    crowded = gap < READING_GAP;
+    for (const i of readings) {
+      const f = t.f[i]!, w = t.s[i]!, x = X(f), over = w > yTop;
+      ctx.fillStyle = curveColor(w, f, s);
+      if (crowded) {
+        if (mode === "points") { ctx.beginPath(); ctx.arc(x, Y(w), 1.1, 0, 7); ctx.fill(); }
+        continue;
+      }
+      ctx.strokeStyle = "#1a1f27"; ctx.lineWidth = 1.2; ctx.beginPath();
+      if (over) { const y = Y(yTop); ctx.moveTo(x - 4.5, y + 4); ctx.lineTo(x + 4.5, y + 4); ctx.lineTo(x, y - 4.5); ctx.closePath(); }
+      else ctx.arc(x, Y(w), 3.2, 0, 7);
+      ctx.fill(); ctx.stroke();
+      points.push({ kind: "reading", f, x, y: Y(w) });
+    }
+  }
+
+  // Band and segment edges: a tick across the curve where the sweep has one.
+  const wide = new Set(bandsInRange(lo, hi).filter((b) => X(b.hi) - X(b.lo) >= EDGE_BAND).map((b) => b.name));
+  const edges = bandEdges(lo, hi, s).filter((e) => wide.has(e.band));
+  let lastEdge = -Infinity;
+  ctx.strokeStyle = "#e6edf3"; ctx.lineWidth = 2; ctx.lineCap = "round";
+  for (const e of edges) {
+    const w = swr(e.f), x = X(e.f);
+    if (e.f < lo || e.f > hi || Number.isNaN(w) || x - lastEdge < EDGE_GAP) continue;
+    lastEdge = x;
+    const y = Y(w);
+    ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x, y + 6); ctx.stroke();
+    points.push({ kind: "edge", f: e.f, x, y });
+  }
+  ctx.lineCap = "butt";
 
   // Max SWR's line, over the curve. Max SWR over the top of the scale draws at the top.
   ctx.strokeStyle = BAD; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
@@ -283,7 +371,8 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     const f = sc.hoverF, x = X(f), w = swr(f);
     ctx.strokeStyle = "rgba(255,255,255,.3)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
     // A snapped hover rings the key point itself.
-    const snapped = sc.snap ? points.find((p) => p.f === f && p.kind === sc.snap) : undefined;
+    const snapped = sc.snap === "reading" ? { kind: "reading" as const, f, x, y: Y(w) }
+      : sc.snap ? points.find((p) => p.f === f && p.kind === sc.snap) : undefined;
     if (snapped) {
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(snapped.x, snapped.y, 8, 0, 7); ctx.stroke();
@@ -295,9 +384,24 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     // Rides with the dot, above it, or below it where above would leave the plot.
     const dy = snapped ? snapped.y : Y(w), off = snapped ? 22 : 18;
     const ly = Number.isNaN(dy) ? y0 + 10 : dy - off >= y0 + 10 ? dy - off : Math.min(dy + off, y1 - 10);
-    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : atTop(w, s) ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s));
+    // NanoVNA and file data say whether the value is a reading or the line's estimate.
+    const from = !mode || Number.isNaN(w) ? "" : isReading(t, f) ? " · reading" : " · estimate";
+    // An edge the hover snapped to says what starts or ends there.
+    const edge = snapped?.kind === "edge" ? edges.find((e) => e.f === f) : undefined;
+    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : atTop(w, s) ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${edge ? " · " + edge.label : ""}${from}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s));
   }
-  return { x0, x1, y0, y1, lo, hi, points, bands: bandBoxes };
+  return { x0, x1, y0, y1, lo, hi, points, bands: bandBoxes, readings: readings.map((i) => t.f[i]!), crowded };
+}
+
+/** Whether the curve has a reading at exactly f. */
+export function isReading(c: Curve, f: number): boolean {
+  let a = 0, b = c.N - 1;
+  while (a <= b) {
+    const m = (a + b) >> 1, v = c.f[m]!;
+    if (v === f) return true;
+    if (v < f) a = m + 1; else b = m - 1;
+  }
+  return false;
 }
 
 /** What a band's tooltip says: its name, the lowest and highest SWR over

@@ -96,17 +96,16 @@ function BandRows({ b, an, s, onTip }: { b: Band; an: Analysis; s: Settings; onT
   );
 }
 
-/** The Band segments table. A band's rows show it on the chart while the
- *  pointer is over them. A click keeps it there, and a second click goes back. */
-export const BandTable = memo(function BandTable({ an, settings, shown = "all", view = null, onPeek, onPick }: {
+/** The Band segments table. A click on a band's rows shows it on the chart,
+ *  and a second click goes back. The pointer over them changes nothing: the
+ *  chart would jump as it passed. */
+export const BandTable = memo(function BandTable({ an, settings, shown = "all", view = null, onPick }: {
   an: Analysis | null;
   settings: Settings;
   /** All bands, or only those with a usable part. */
   shown?: "all" | "usable";
   /** The chart's view, to mark the band it shows. */
   view?: [number, number] | null;
-  /** The pointer came onto a band's rows, or left them. */
-  onPeek?(b: Band | null): void;
   onPick?(b: Band): void;
 }): React.ReactElement {
   const [tip, setTip] = useState<BarTip | null>(null);
@@ -122,8 +121,6 @@ export const BandTable = memo(function BandTable({ an, settings, shown = "all", 
         {!bands.length && <tbody><tr><td colSpan={5} className="empty">{all.length ? "No usable band segments in this sweep." : "No amateur bands inside this sweep."}</td></tr></tbody>}
         {bands.map((b) => (
           <tbody key={b.name} className={"band" + (sameView(view, bandView(an, b)) ? " on" : "")} data-band={b.name}
-            onPointerEnter={(e) => { if (e.pointerType === "mouse") onPeek?.(b); }}
-            onPointerLeave={(e) => { if (e.pointerType === "mouse") onPeek?.(null); }}
             onClick={() => onPick?.(b)}>
             <BandRows b={b} an={an} s={settings} onTip={setTip} />
           </tbody>

@@ -12,6 +12,9 @@ export const MATCH = "#93a1b3";
 export const PROBE = "#6aa9ff";
 /** The curve over Max SWR. */
 export const HIGH = "#e3c84a";
+/** The band a fine sweep filled in: the accent, as the chips' and buttons'
+ *  selected state. The CSS's --accent. */
+export const FINE = "#6aa9ff";
 
 /** The curve's color at f: green where you may transmit with SWR at or under
  *  Max SWR, gray where the SWR is under it outside your segments, yellow over

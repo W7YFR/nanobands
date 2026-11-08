@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { analyze } from "@/analysis";
-import { drawChart, type ChartGeom, type ChartScene } from "@/ui/draw-chart";
+import { drawChart, isReading, type ChartGeom, type ChartScene } from "@/ui/draw-chart";
 import { HIGH, MATCH, OK, PROBE } from "@/ui/colors";
 import type { Curve, Settings } from "@/ui/model";
 
@@ -61,6 +61,94 @@ describe("drawChart", () => {
     expect(colorsAt(ctx, g, xOf(g, 14.36)).size).toBe(1);
   });
 
+  it("runs the curve along the top until the line between readings comes under it, as the hover does", () => {
+    // SWR 12 at 13.6 MHz and 4.5 at 13.8: the line between them meets the
+    // top, 5, at 13.787 MHz. At 13.7 it is at 8.25, so the curve is at the top.
+    const f = Float64Array.from([13.5, 13.6, 13.8, 14.0]), sw = Float64Array.from([12, 12, 4.5, 4.5]);
+    const curve = { N: 4, f, s: sw };
+    const { ctx, g } = draw(curve);
+    // The top of the scale sits 24 px under the plot's top edge.
+    const top = g.y0 + 24, x = xOf(g, 13.7);
+    expect(colorsAt(ctx, g, x, top - 4, top + 4)).toEqual(new Set([HIGH]));
+    expect(colorsAt(ctx, g, x, top + 6, g.y1).size).toBe(0);
+    // The hover's dot sits at the top there too.
+    const hovered = draw(curve, [], null, { hoverF: 13.7 }).ctx, d = hovered.getImageData(x, top - 8, 1, 16).data;
+    let white = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i]! > 240 && d[i + 1]! > 240 && d[i + 2]! > 240) white++;
+    expect(white).toBeGreaterThan(0);
+  });
+
+  describe("band edges", () => {
+    const edgeF = (g: ChartGeom): number[] => g.points.filter((p) => p.kind === "edge").map((p) => p.f);
+
+    it("puts a tick on the curve at each edge, for the hover to snap to", () => {
+      // General class on 20 m.
+      expect(edgeF(draw(vee(13.8)).g)).toEqual([14.0, 14.025, 14.15, 14.225, 14.35]);
+    });
+
+    it("shows no edges of a band too narrow on the chart to read them", () => {
+      // 3–55 MHz across the plot: the widest band, 6 m, is about 57 px.
+      const N = 521, f = Float64Array.from({ length: N }, (_, i) => 3 + i * 0.1), sw = new Float64Array(N).fill(2);
+      expect(edgeF(draw({ N, f, s: sw }, [], null, { range: [3, 55] }).g)).toEqual([]);
+      // 3–10 MHz: 80 m is about 53 px, 40 m under that; 3.5–4.5 MHz: 80 m fills the plot.
+      expect(edgeF(draw({ N, f, s: sw }, [], null, { range: [3, 10] }).g)).toEqual([]);
+      expect(edgeF(draw({ N, f, s: sw }, [], null, { range: [3.4, 4.1] }).g)).toEqual([3.5, 3.525, 3.6, 3.8, 4.0]);
+    });
+
+    it("leaves out an edge too close to the one before", () => {
+      // 5.3–5.42 MHz: 60 m is wide, and its channels' two ends 2.8 kHz apart, about 17 px.
+      const N = 121, f = Float64Array.from({ length: N }, (_, i) => 5.3 + i * 0.001), sw = new Float64Array(N).fill(2);
+      const g = draw({ N, f, s: sw }, [], null, { range: [5.3, 5.42] }).g, xs = g.points.filter((p) => p.kind === "edge").map((p) => p.x);
+      expect(xs.length).toBeGreaterThan(4);
+      for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeGreaterThanOrEqual(8);
+    });
+  });
+
+  describe("readings", () => {
+    /** Readings every 0.2 MHz over 13.5–14.5 MHz. */
+    const sparse = (s: number[]): Curve => ({ N: s.length, f: Float64Array.from(s, (_, i) => 13.5 + i * 0.2), s: Float64Array.from(s) });
+    const readingDots = (g: ChartGeom): number => g.points.filter((p) => p.kind === "reading").length;
+
+    it("puts a dot on each reading in Both, and none in Line or for a photo's trace", () => {
+      const c = sparse([2, 2, 2, 2, 2, 2]);
+      const both = draw(c, [], null, { readings: "both" }).g;
+      expect(readingDots(both)).toBe(6);
+      expect(both.crowded).toBe(false);
+      expect(readingDots(draw(c, [], null, { readings: "line" }).g)).toBe(0);
+      expect(readingDots(draw(c, [], null, { readings: null }).g)).toBe(0);
+    });
+
+    it("draws no line between readings in Points", () => {
+      const c = sparse([2, 2, 2, 2, 2, 2]);
+      const both = draw(c, [], null, { readings: "both" }), pts = draw(c, [], null, { readings: "points" });
+      expect(colorsAt(both.ctx, both.g, xOf(both.g, 13.6)).size).toBe(1);
+      expect(colorsAt(pts.ctx, pts.g, xOf(pts.g, 13.6)).size).toBe(0);
+      expect(readingDots(pts.g)).toBe(6);
+    });
+
+    it("leaves out readings too close together to tell apart", () => {
+      // 1001 readings across the plot: under a pixel apart.
+      const { g } = draw(vee(13.8), [], null, { readings: "both" });
+      expect(g.crowded).toBe(true);
+      expect(readingDots(g)).toBe(0);
+      expect(g.readings).toHaveLength(1001);
+    });
+
+    it("marks a reading over the top of the scale with a ▲ at the top", () => {
+      const c = sparse([2, 12, 2, 2, 2, 2]), top = (g: ChartGeom): number => g.y0 + 24;
+      const both = draw(c, [], null, { readings: "both" }), line = draw(c, [], null, { readings: "line" });
+      const x = xOf(both.g, 13.7);
+      expect(colorsAt(both.ctx, both.g, x, top(both.g) - 5, top(both.g) - 2)).toEqual(new Set([HIGH]));
+      expect(colorsAt(line.ctx, line.g, x, top(line.g) - 5, top(line.g) - 2).size).toBe(0);
+    });
+
+    it("tells a reading from a value between readings", () => {
+      const c = sparse([2, 3, 4]);
+      expect(isReading(c, 13.7)).toBe(true);
+      expect(isReading(c, 13.6)).toBe(false);
+    });
+  });
+
   it("colors a dip the way the curve is colored there", () => {
     for (const [dip, col] of [[13.8, MATCH], [14.1, OK]] as const) {
       const { ctx, g } = draw(vee(dip));
@@ -86,7 +174,7 @@ describe("drawChart", () => {
   it("returns the key points and the band's boxes", () => {
     const { g } = draw(vee(13.8), [14.1]);
     const kinds = g.points.map((p) => p.kind).sort();
-    expect(kinds).toEqual(["crossing", "dip", "pin"]); // the other crossing, at 13.35 MHz, is out of view
+    expect(kinds).toEqual(["crossing", "dip", "edge", "edge", "edge", "edge", "edge", "pin"]); // the other crossing, at 13.35 MHz, is out of view
     const pin = g.points.find((p) => p.kind === "pin")!;
     expect(pin.f).toBe(14.1);
     expect(Math.round(pin.x)).toBe(xOf(g, 14.1));

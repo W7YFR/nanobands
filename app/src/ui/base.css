@@ -183,7 +183,29 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 .panel .row label{min-width:72px}
 .panel select{flex:1;min-width:0}
 .panel-tools{display:flex;gap:2px}
-#vnaRange{font-size:13px;font-variant-numeric:tabular-nums}
+#vnaRange,#vnaFine{font-size:13px;font-variant-numeric:tabular-nums}
+/* The fine band, and its × at the row's end, on one line. */
+.panel .row.fine{flex-wrap:nowrap}
+#vnaFine{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:4px}
+/* A fine-swept band, as a chip; the one Sweep and Live repeat is pressed. */
+#vnaFine button{padding:1px 8px;font-size:12px;border-radius:12px;color:var(--muted)}
+#vnaFine button[aria-pressed="true"]{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
+/* + Band, and + the band the chart shows: actions, dashed, in the accent. */
+#vnaFine button.add{border-style:dashed;border-color:color-mix(in srgb, var(--accent) 50%, var(--line));color:var(--accent);background:none}
+/* Under the pointer or the keyboard: a band chip brightens; + Band and + 40m fill with the accent. */
+#vnaFine button:not(.add):not([aria-pressed="true"]):hover,#vnaFine button:not(.add):not([aria-pressed="true"]):focus-visible{color:var(--text);border-color:#4a5260;outline:none}
+#vnaFine button.add:hover,#vnaFine button.add:focus-visible,#vnaFine button.add[aria-expanded="true"]{border-style:solid;border-color:var(--accent);background:color-mix(in srgb, var(--accent) 14%, transparent);outline:none}
+.fine-menu{display:inline-flex}
+/* The menu hangs from the whole Fine row, as wide as it, so it stays inside the card. */
+.panel .row.fine{position:relative}
+#fineMenu{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:20;padding:4px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 22px rgba(0,0,0,.45)}
+#fineMenu .hd{font-size:11px;color:var(--muted);padding:4px 8px 2px}
+#fineMenu button{display:flex;justify-content:space-between;align-items:center;width:100%;padding:5px 8px;border:none;border-radius:5px;background:none;color:var(--text);font-size:13px;text-align:left}
+#fineMenu button:hover:not(:disabled),#fineMenu button:focus-visible{background:#1c2a40;color:var(--accent);outline:none}
+#fineMenu button small{color:var(--muted);font-size:11px}
+#fineMenu button:disabled{opacity:1;color:var(--faint)}
+#fineMenu button:disabled small{color:var(--faint)}
+#fineClear{flex:none}
 .panel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}button.quiet{background:none;border-color:transparent;color:var(--muted);padding:2px 6px;font-size:12px}
 button.quiet:hover{color:var(--text);border-color:var(--line)}
 .refs{font-size:12px;color:var(--muted)}
@@ -200,6 +222,9 @@ button.quiet:hover{color:var(--text);border-color:var(--line)}
 .chartTip div{margin-top:4px}
 #chartCard h2 .tools{margin-left:auto;display:flex;gap:6px}
 #chartCard h2 .tools button{white-space:nowrap}
+/* A switch with a quiet name before it, such as the SWR scale's. */
+#chartCard h2 .labeled{display:inline-flex;align-items:center;gap:6px}
+#chartCard h2 .labeled .lbl{text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;color:var(--muted);white-space:nowrap}
 /* Full screen: the chart card fills the window, over the page, and the chart
    takes the room its header, chips and legend leave. */
 #chartCard.full{position:fixed;inset:0;z-index:40;margin:0;border:none;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
@@ -207,13 +232,23 @@ button.quiet:hover{color:var(--text);border-color:var(--line)}
 html.chart-full{overflow:hidden;overscroll-behavior:none}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .chips button{padding:3px 9px;font-size:12px;border-radius:12px}
+/* A chip whose band has a fine sweep carries a ✦. */
+.chips button.fined::after{content:" ✦";color:var(--accent);font-size:10px}
 #resNote{text-transform:none;letter-spacing:0;font-weight:400}
+/* While Live sweeps: a pulsing green mark, as the NanoVNA panel's status has. */
+#liveNote{display:inline-flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ok);font-weight:600;white-space:nowrap}
+#chartCard h2 .title{white-space:nowrap}
+/* The note gives way first: it wraps, and the title, the Live mark and the tools keep their lines. */
+@media (min-width:601px){ #resNote{flex:1 1 200px;min-width:0} }
+#liveNote i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(63,185,80,.2);animation:pulse 1s ease-in-out infinite}
 #resNote::before{content:"· "}
 /* On a phone: the resolution on its own line under the title, and the band
    chips in one row that scrolls sideways, fading out at the right edge where
    more chips wait. */
 @media (max-width:600px){
   #chartCard h2{flex-wrap:wrap;row-gap:2px}
+  /* The chart's switches and Full screen wrap onto a second line rather than run off the card. */
+  #chartCard h2 .tools{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}
   #resNote{order:1;flex-basis:100%;font-size:11px}
   #resNote::before{content:none}
   .chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain;margin:0 -14px 8px;padding:0 14px;
@@ -223,6 +258,9 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 }
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
 .legend i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+/* A reading's dot, and the ▲ of a reading over the scale, as the chart draws them. */
+.legend i.dot{width:8px;height:8px;border-radius:50%;background:var(--text);vertical-align:0}
+.legend i.tri{width:0;height:0;border-radius:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid #e3c84a;vertical-align:0}
 /* On a wide screen a band's name and pill sit in its own column. */
 .bands td.band .pill{margin-top:4px}
 .bands td.none{color:var(--muted)}
@@ -298,7 +336,7 @@ header h1{position:relative;z-index:5}
 /* A joined button has no left border: a hovered or pressed one draws that edge as a shadow. */
 .modeswitch button+button:hover,.modeswitch button+button[aria-pressed="true"]{box-shadow:-1px 0 0 var(--accent)}
 .card h2 .modeswitch button{text-transform:none;letter-spacing:0}
-/* A band's rows: the pointer over them shows the band on the chart, a click keeps it there. */
+/* A band's rows: a click shows the band on the chart; the pointer over them only highlights them. */
 .bands tbody.band{cursor:pointer}
 .bands tbody.band:hover td{background:rgba(255,255,255,.03)}
 .bands tbody.band.on td{background:#1c2a40}

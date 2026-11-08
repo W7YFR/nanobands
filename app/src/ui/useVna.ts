@@ -2,7 +2,9 @@
  * read what the slots hold.
  *
  * The device sweeps the range it is set to, so its calibration applies as
- * stored. Each finished sweep goes to `onSweep`. A scan pauses the device's
+ * stored. Each finished sweep goes to `onSweep`. A fine sweep scans one band
+ * of that range instead, at the same point count, until it is cleared or the
+ * range changes; Sweep and Live then scan the band. A scan pauses the device's
  * own sweep, so each sweep ends with `resume`. Live resumes once, when it
  * stops. The device and its range live
  * in refs as well as state: the live loop and a sweep in flight read them
@@ -11,6 +13,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NanoVNA, VnaError, type Range, type Scan } from "@/vna";
+import type { Fine } from "@/fine";
 import { commandMs } from "@/shell";
 import { loadSlots, readSlots as readAll, slotOf, storeSlots, type Slot } from "@/slots";
 import { connectPort, serialApi, type SerialLike } from "@/vna-serial";
@@ -40,11 +43,15 @@ export interface Vna {
   command(line: string): Promise<string[]>;
   /** Read the device's range again, and sweep when the shell changed it. */
   reread(): Promise<void>;
+  /** The band Sweep and Live scan instead of the whole range, or null. */
+  fine: Fine | null;
+  /** Sweep a band finely from now on, or the whole range again with null. */
+  setFine(f: Fine | null): Promise<void>;
 }
 
 const log = (line: unknown): void => console.info("[NanoVNA]", line);
 
-export function useVna(onSweep: (scan: Scan, board: string, range: Range) => void): Vna {
+export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: Fine | null) => void): Vna {
   const [serial, setSerial] = useState<SerialLike | string>(() => serialApi());
   const [device, setDevice] = useState<NanoVNA | null>(null);
   const [range, setRange] = useState<Range | null>(null);
@@ -53,6 +60,9 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
   const [slots, setSlotsState] = useState<Slot[] | null>(null);
   const [slot, setSlot] = useState<number | null>(null);
   const [reading, setReading] = useState(false);
+  const [fine, setFineState] = useState<Fine | null>(null);
+  const fineRef = useRef<Fine | null>(null);
+  const keepFine = (f: Fine | null): void => { fineRef.current = f; setFineState(f); };
   const slotList = useRef<Slot[] | null>(null);
   const setSlots = (s: Slot[] | null): void => { slotList.current = s; setSlotsState(s); };
   const dev = useRef<NanoVNA | null>(null), rng = useRef<Range | null>(null), liveOn = useRef(false), busy = useRef(false);
@@ -75,6 +85,7 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     setRange(null);
     setSlots(null);
     setSlot(null);
+    keepFine(null);
     await d?.resume().catch(() => undefined);
     await d?.close();
   }, []);
@@ -89,14 +100,15 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
   /** Sweep the device's range once and hand it on. Live passes `hold` to
    *  leave the device paused until it stops. */
   const sweepOnce = useCallback(async (hold = false): Promise<void> => {
-    const d = dev.current, r = rng.current;
+    const d = dev.current, r = rng.current, f = fineRef.current;
     if (!d || !r) return;
-    const scan = await d.scan(r);
+    // The device's point count, so it keeps its settings.
+    const scan = await d.scan(f ? { start: f.start, stop: f.stop, points: r.points } : r);
     if (!hold) await d.resume();
-    // Disconnected, or a recall changed the range, while it swept.
-    if (dev.current !== d || rng.current !== r) return;
+    // Disconnected, a recall changed the range, or the fine band changed, while it swept.
+    if (dev.current !== d || rng.current !== r || fineRef.current !== f) return;
     if (scan.hz.length < 2) throw new VnaError("The sweep came back empty.");
-    sink.current(scan, d.info.board, r);
+    sink.current(scan, d.info.board, r, f);
   }, []);
 
   const connect = useCallback(async (): Promise<void> => {
@@ -112,6 +124,7 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
       setSlot(slotOf(list, { range: r, cal: await d.cal() }));
       dev.current = d;
       rng.current = r;
+      keepFine(null);
       setDevice(d);
       setRange(r);
       setNote("");
@@ -121,11 +134,23 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     }
   }, [serial, sweepOnce, fail]);
 
+  /** Set when a sweep is asked for while one is running: it runs once more after. */
+  const again = useRef(false);
   const sweep = useCallback(async (): Promise<void> => {
-    if (busy.current || liveOn.current) return;
+    if (liveOn.current) return;
+    if (busy.current) { again.current = true; return; }
     busy.current = true;
-    try { await sweepOnce(); } catch (e) { fail(e); } finally { busy.current = false; }
+    try {
+      do { again.current = false; await sweepOnce(); } while (again.current && !liveOn.current && dev.current);
+    } catch (e) { fail(e); } finally { busy.current = false; }
   }, [sweepOnce, fail]);
+
+  const setFine = useCallback(async (f: Fine | null): Promise<void> => {
+    if (!dev.current) return;
+    keepFine(f);
+    // Live scans it on its next sweep.
+    if (!liveOn.current) await sweep();
+  }, [sweep]);
 
   const setLive = useCallback((on: boolean): void => {
     if (!on) { stopLive(); return; }
@@ -151,6 +176,7 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     const d = dev.current;
     if (!d) return;
     try {
+      keepFine(null);
       const r = await d.recall(slot);
       if (!r) { setNote(`Slot ${slot} is empty. The NanoVNA kept its calibration.`); return; }
       setNote("");
@@ -170,6 +196,7 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
     if (dev.current !== d) return;
     setSlot(at);
     if (was && r.start === was.start && r.stop === was.stop && r.points === was.points) return;
+    keepFine(null);
     rng.current = r;
     setRange(r);
     if (!liveOn.current) await sweepOnce();
@@ -242,6 +269,6 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range) => voi
 
   return {
     unsupported: typeof serial === "string" ? serial : "",
-    device, range, live, note, connect, disconnect, sweep, setLive, recall, slots, slot, reading, readSlots, command, reread,
+    device, range, live, note, connect, disconnect, sweep, setLive, recall, slots, slot, reading, readSlots, command, reread, fine, setFine,
   };
 }

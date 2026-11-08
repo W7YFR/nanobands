@@ -8,6 +8,7 @@ import { MODE_NAMES, bandAt, segmentAt, type Band, type LicenseClass, type Opera
 import { mappingFor, type Mapping, type Point, type Quad } from "@/geometry";
 import type { Pixels } from "@/pixels";
 import { rectify, type Rectified } from "@/rectify";
+import type { Readings } from "./draw-chart";
 
 /** A loaded photo: a working copy at most 4000 px on its long side, and its pixels. */
 export interface Photo {
@@ -56,9 +57,19 @@ export interface Prefs {
   points: boolean;
   /** Which bands the Band segments table lists: all of them, or only those with a usable part. */
   bands: "all" | "usable";
+  /** How the chart shows NanoVNA and file data: the line, the readings, or both. */
+  readings: Readings;
+  /** The top of the SWR scale for NanoVNA and file data. A photo's comes from the photo. */
+  scaleTop: ScaleTop;
 }
 
-export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false, bands: "all" };
+/** The tops the SWR scale offers for NanoVNA and file data. */
+export type ScaleTop = "3" | "5" | "10";
+
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both", scaleTop: "5" };
+
+/** A fine sweep's band in the data: its name, and its span in MHz. */
+export interface FineSpan { band: string; lo: number; hi: number }
 
 /** Everything about the loaded file. Clear resets it to EMPTY_DOC. */
 export interface Doc {
@@ -76,6 +87,8 @@ export interface Doc {
   manual: number[];
   /** Chart zoom, [lo, hi] in MHz. */
   view: [number, number] | null;
+  /** The bands fine sweeps filled in, low to high. */
+  fine: FineSpan[];
   collapsed: boolean;
   /** The user typed the sweep, so text recognition offers its reading instead of using it. */
   sweepTyped: boolean;
@@ -88,7 +101,7 @@ export interface Doc {
 
 export const EMPTY_DOC: Doc = {
   source: null, fileName: null, photo: null, corners: null, straight: false, trace: null, s1p: null,
-  refs: [], manual: [], view: null, collapsed: false, sweepTyped: false, retrace: false,
+  refs: [], manual: [], view: null, fine: [], collapsed: false, sweepTyped: false, retrace: false,
   fields: DEFAULT_FIELDS, grid: null, ocr: null,
 };
 

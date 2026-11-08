@@ -8,7 +8,8 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Band } from "@/bands";
+import { bandsInRange, type Band } from "@/bands";
+import { fineCheck, mergeScan, offScale } from "@/fine";
 import { mappingFor, solveRefs, type Quad } from "@/geometry";
 import { detectGrid } from "@/grid";
 import { fixedWords } from "@/ocr-zeros";
@@ -18,8 +19,8 @@ import { openStore } from "@/store";
 import { parseSweepText } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { autoTrace } from "@/trace";
-import { toTouchstone } from "@/vna";
-import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type Mode } from "./Cards";
+import { toTouchstone, type Scan } from "@/vna";
+import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type FineChoice, type Mode } from "./Cards";
 import { ChartCard } from "./ChartCard";
 import { drawChart } from "./draw-chart";
 import { Disclaimer } from "./Disclaimer";
@@ -29,8 +30,8 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
-  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, loadImage, photoFrom, pickBand, rectOf, settingsOf, swrOn, viewAround, viewOf,
-  type Doc, type Fields, type Photo, type Picked, type Prefs, type Trace,
+  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, loadImage, photoFrom, pickBand, rectOf, sameView, settingsOf, swrOn, viewAround, viewOf,
+  type Doc, type Fields, type FineSpan, type Photo, type Picked, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
 import { applySnapshot, snapshotOf, type Snapshot } from "./session";
@@ -40,6 +41,9 @@ import { useFileDrop } from "./useFileDrop";
 import { useVna } from "./useVna";
 
 const PREFS_KEY = "swrfit";
+
+/** Names joined for a sentence: "40m", "40m and 20m", "40m, 20m and 15m". */
+const listOf = (names: string[]): string => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
 function loadPrefs(): Prefs {
   try {
@@ -99,7 +103,6 @@ export function App(): React.ReactElement {
   const [mode, setMode] = useState<Mode>("idle");
   const [hoverF, setHoverF] = useState<number | null>(null);
   /** The chart's view while the pointer is over a band's rows in Band segments. */
-  const [peek, setPeek] = useState<[number, number] | null>(null);
   /** The band a click in Band segments put on the chart, and the view before it. */
   const picked = useRef<Picked | null>(null);
   /** The name of a photo being opened, while its grid and trace are worked out. */
@@ -115,7 +118,11 @@ export function App(): React.ReactElement {
 
   /* ---------------- What the page shows ---------------- */
 
-  const settings = useMemo(() => settingsOf(doc.fields, prefs), [doc.fields, prefs]);
+  // NanoVNA and file data run from SWR 1 to the scale top chosen on the chart.
+  const settings = useMemo(() => {
+    const s = settingsOf(doc.fields, prefs);
+    return doc.source === "image" ? s : { ...s, top: +prefs.scaleTop, bot: 1 };
+  }, [doc.fields, doc.source, prefs]);
   const curve = useMemo(() => curveOf(doc.trace, settings), [doc.trace, settings]);
   const an = useMemo(() => analysisOf(curve, settings), [curve, settings]);
   const map = useMemo(() => (doc.corners ? mappingFor(doc.corners) : null), [doc.corners]);
@@ -142,13 +149,14 @@ export function App(): React.ReactElement {
     void store.set("file", { blob, name, fromVna });
   }, [store]);
 
-  /** Show Touchstone data. A repeat sweep of the same range keeps the pins and the zoom. */
-  const showTouchstone = useCallback((text: string, name: string, source: "s1p" | "vna", repeat: boolean): void => {
+  /** Show Touchstone data. A repeat sweep of the same range keeps the pins and
+   *  the zoom. `fine` lists the bands fine sweeps filled in. */
+  const showTouchstone = useCallback((text: string, name: string, source: "s1p" | "vna", repeat: boolean, fine: FineSpan[] = []): void => {
     const { f, s } = parseTouchstone(text);
     if (f.length < 2) { alert("Couldn't find S11 data in that file."); return; }
     setDoc((d) => ({
       ...(repeat ? d : EMPTY_DOC),
-      source, fileName: name, s1p: { text, name }, photo: null, corners: null, straight: false, refs: [], grid: null, ocr: null,
+      source, fileName: name, s1p: { text, name }, fine, photo: null, corners: null, straight: false, refs: [], grid: null, ocr: null,
       trace: { kind: "data", N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) },
       fields: { ...(repeat ? d.fields : DEFAULT_FIELDS), start: String(+f[0]!.toFixed(4)), stop: String(+f[f.length - 1]!.toFixed(4)) },
     }));
@@ -210,14 +218,35 @@ export function App(): React.ReactElement {
 
   /* ---------------- The NanoVNA ---------------- */
 
-  const vna = useVna((scan, board, r) => {
-    const name = `nanovna-${mhz(r.start)}-${mhz(r.stop)}mhz.s1p`, text = toTouchstone(scan, board);
+  /** The last sweep of the whole range, and each band's latest fine sweep
+   *  to fill it in with. A sweep of the whole range drops the fine sweeps. */
+  const fullScan = useRef<Scan | null>(null);
+  const fineScans = useRef(new Map<string, { span: FineSpan; scan: Scan }>());
+  /** Show the full sweep with the fine sweeps kept, and keep it for a refresh. */
+  const showSweep = (board: string, r: { start: number; stop: number }): void => {
+    const fines = [...fineScans.current.values()].sort((a, b) => a.span.lo - b.span.lo);
+    if (!fullScan.current) return;
+    const data = fines.reduce((d, x) => mergeScan(d, x.scan), fullScan.current);
+    const spans = fines.map((x) => x.span);
+    // A fine sweep keeps the range's name: it is that sweep, filled in.
+    const name = `nanovna-${mhz(r.start)}-${mhz(r.stop)}mhz.s1p`, text = toTouchstone(data, board);
     const d = docRef.current, repeat = d.source === "vna" && d.s1p?.name === name;
     const blob = new Blob([text], { type: "text/plain" });
     if (repeat) void store.set("file", { blob, name, fromVna: true });
     else saveFile(blob, name, true);
-    showTouchstone(text, name, "vna", repeat);
+    showTouchstone(text, name, "vna", repeat, spans);
+  };
+  const vna = useVna((scan, board, r, fine) => {
+    if (fine) fineScans.current.set(fine.band, { span: { band: fine.band, lo: fine.start / 1e6, hi: fine.stop / 1e6 }, scan });
+    else { fullScan.current = scan; fineScans.current.clear(); }
+    showSweep(board, r);
   });
+  /** ×: drop the fine sweeps from the page at once, then sweep the whole range. */
+  const clearFine = (): void => {
+    fineScans.current.clear();
+    if (vna.device && vna.range) showSweep(vna.device.info.board, vna.range);
+    void vna.setFine(null);
+  };
 
   /* ---------------- The saved session ---------------- */
 
@@ -395,13 +424,10 @@ export function App(): React.ReactElement {
     chartRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [prefs.freq, an]);
 
-  const onPeekBand = useCallback((b: Band | null): void => setPeek(b && an ? bandView(an, b) : null), [an]);
   const onPickBand = useCallback((b: Band): void => {
     if (!an) return;
     const r = pickBand(doc.view, picked.current, bandView(an, b));
     picked.current = r.picked;
-    // The pick shows at once. The hover shows again when the pointer comes back.
-    setPeek(null);
     setDoc((d) => ({ ...d, view: r.view }));
   }, [an, doc.view]);
 
@@ -425,7 +451,7 @@ export function App(): React.ReactElement {
     const W = cv.clientWidth, H = cv.clientHeight, c = document.createElement("canvas");
     c.width = W * 2;
     c.height = H * 2;
-    drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null });
+    drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null, fine: doc.fine, readings: doc.source === "image" ? null : prefs.readings });
     download("swr-chart.png", c.toDataURL("image/png"));
   };
   const exportCsv = (): void => {
@@ -445,8 +471,29 @@ export function App(): React.ReactElement {
     const res = ((an.fmax - an.fmin) / curve.N) * 1000;
     resNote = doc.source === "image"
       ? `Traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point`
-      : `${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`;
+      : `${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`
+        + (doc.fine.length ? `, ${listOf(doc.fine.map((f) => f.band))} fine sweep${doc.fine.length > 1 ? "s" : ""} with calibration filled in` : "");
   }
+  // The bands in the NanoVNA's range for + Band: each one's fine sweep, or why it has none.
+  const r = vna.range;
+  const fineChoices: FineChoice[] = doc.source === "vna" && r && curve
+    ? bandsInRange(r.start / 1e6, r.stop / 1e6).flatMap((b): FineChoice[] => {
+      const c = fineCheck(r, b);
+      if (c === "outside") return [];
+      const why = c === "coarse" ? "calibration too coarse" : c === "close" ? "already swept closely"
+        : offScale(curve, b.lo, b.hi, settings) ? "all over the SWR scale" : null;
+      return [{ band: b.name, fine: why || typeof c === "string" ? null : c, why, swept: doc.fine.some((f) => f.band === b.name) }];
+    })
+    : [];
+  // The band the chart shows, as + 40m in the Fine row, when it can have a fine sweep and has none yet.
+  const viewBand = an && doc.view ? bandsInRange(an.fmin, an.fmax).find((b) => sameView(bandView(an, b), doc.view)) : undefined;
+  const fineSuggest = fineChoices.find((c) => c.band === viewBand?.name && c.fine && !c.swept) ?? null;
+  /** Fine-sweep a band, and show it on the chart. */
+  const onFine = (c: FineChoice): void => {
+    const b = bandsInRange(0, 1e6).find((x) => x.name === c.band);
+    if (an && b) setDoc((d) => ({ ...d, view: bandView(an, b) }));
+    if (c.fine) void vna.setFine(c.fine);
+  };
 
   return (
     <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")}>
@@ -460,7 +507,8 @@ export function App(): React.ReactElement {
         ) : (
           <div className="wrap">
             <aside>
-              <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} />
+              <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} fine={doc.fine} onClearFine={clearFine}
+                choices={fineChoices} suggest={fineSuggest} onFine={doc.source === "vna" ? onFine : undefined} />
               {doc.source === "image" && (
                 <>
                   <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr} straight={doc.straight} onStraight={onStraight}
@@ -484,15 +532,19 @@ export function App(): React.ReactElement {
                   onStraight={onStraight} mode={mode} onPenMode={() => toggleMode("pen")} onUndo={onUndo} canUndo={canUndo} onClearMarks={onClearMarks} canClear={canClear}
                   onCorners={onCorners} onPen={onPen} onRef={onRef} onHover={setHoverF} />
               )}
-              <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={peek ?? doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
-                manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote} />
+              <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
+                manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote}
+                live={vna.live ? vna.fine?.band ?? "" : null}
+                readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
+                scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
+                fine={doc.fine} />
               <div className="card" id="bandCard">
                 <h2>Band segments
                   <span style={{ flex: 1 }}></span>
                   <Switch id="bandsShown" label="Bands shown" value={prefs.bands} onChange={(v) => onPref("bands", v)}
                     options={[{ value: "all", label: "All" }, { value: "usable", label: "Usable" }]} />
                 </h2>
-                <div id="bandTable"><BandTable an={an} settings={settings} shown={prefs.bands} view={doc.view} onPeek={onPeekBand} onPick={onPickBand} /></div>
+                <div id="bandTable"><BandTable an={an} settings={settings} shown={prefs.bands} view={doc.view} onPick={onPickBand} /></div>
                 <p className="hint">US privileges per 47 CFR §97.301/305, checked against the ARRL frequency-allocations chart. 60 m is four 2.8 kHz channels plus the 5351.5–5366.5 kHz segment (USB/CW/data). Power limits and new rule changes aren't modeled, so check the current ARRL chart before you transmit.</p>
               </div>
               <div className={"card" + (prefs.points ? "" : " collapsed")} id="ptCard">

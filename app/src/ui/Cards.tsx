@@ -7,7 +7,8 @@ import { MODES, type LicenseClass, type OperatingMode } from "@/bands";
 import { fmtF } from "@/format";
 import { slotLabel } from "@/slots";
 import type { Range } from "@/vna";
-import type { Doc, FreqCheck, Fields, GridNote, OcrNote, Prefs } from "./model";
+import type { Fine } from "@/fine";
+import type { Doc, FineSpan, FreqCheck, Fields, GridNote, OcrNote, Prefs } from "./model";
 import { Confirm } from "./Confirm";
 import { Help } from "./Help";
 import { ShellWindow, type ShellEntry } from "./ShellWindow";
@@ -33,12 +34,55 @@ function useShell(vna: Vna): { show(): void; window: React.ReactNode } {
 /** Two ways in: the NanoVNA and a file. Either one marks the step done: a
  *  connected NanoVNA keeps its panel in view, and an open file shrinks the
  *  card to its name. Change brings back the other way in, and Disconnect. */
-export function LoadCard({ source, fileName, over, onBrowse, vna }: {
+/** A band the Fine row offers: its fine sweep, or why it has none, and whether it has one already. */
+export interface FineChoice { band: string; fine: Fine | null; why: string | null; swept: boolean }
+
+/** + Band: every band in the NanoVNA's range. One a fine sweep would not help is grayed, with the reason. */
+function FineMenu({ choices, onPick }: { choices: readonly FineChoice[]; onPick(c: FineChoice): void }): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: PointerEvent): void => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent): void => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", down);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("pointerdown", down); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  return (
+    <span className="fine-menu" ref={box}>
+      <button id="fineAdd" type="button" className="add" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>+ Band</button>
+      {open && (
+        <div id="fineMenu" role="menu" aria-label="Fine sweep a band">
+          <div className="hd">Fine sweep a band</div>
+          {choices.map((c) => (
+            <button key={c.band} type="button" role="menuitem" disabled={!c.fine}
+              onClick={() => { setOpen(false); onPick(c); }}>
+              <span>{c.band}</span><small>{c.why ?? (c.swept ? "swept · sweep again" : "")}</small>
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
+export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onClearFine, choices = [], suggest = null, onFine }: {
   source: Doc["source"];
   fileName: string | null;
   over: boolean;
   onBrowse(): void;
   vna: Vna;
+  /** The bands fine sweeps filled in. */
+  fine?: readonly FineSpan[];
+  /** ×: drop the fine sweeps and sweep the whole range. */
+  onClearFine?(): void;
+  /** The bands in the NanoVNA's range, for + Band. */
+  choices?: readonly FineChoice[];
+  /** The band the chart shows, when it can have a fine sweep and has none yet. */
+  suggest?: FineChoice | null;
+  /** Fine-sweep a band. Without it, as for a file, there is no Fine row. */
+  onFine?: ((c: FineChoice) => void) | undefined;
 }): React.ReactElement {
   const d = vna.device;
   const why = vna.unsupported || vna.note;
@@ -56,7 +100,7 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
   const device = d ? (
     <div className={"panel" + (vna.live ? " live" : "")} id="vnaPanel">
       <div className="panel-head">
-        <span className="status"><i />{vna.live ? "Sweeping live" : "Connected"}</span>
+        <span className="status"><i />{vna.live ? (vna.fine ? `Sweeping ${vna.fine.band} live` : "Sweeping live") : "Connected"}</span>
         {/* Quiet on purpose: the shell is for those who know the NanoVNA's commands. */}
         {/* Under Change it hides but keeps its room, so the row keeps its height. */}
         <span className="panel-tools" style={changing ? { visibility: "hidden" } : undefined}>
@@ -88,6 +132,31 @@ export function LoadCard({ source, fileName, over, onBrowse, vna }: {
         <div className="row">
           <label>Range</label>
           <span id="vnaRange">{rangeText(vna.range)}</span>
+        </div>
+      )}
+      {vna.range && onFine && (
+        <div className="row fine">
+          <label>Fine</label>
+          {/* Every band with a fine sweep. Sweep and Live repeat the one
+              pressed; a click on another makes it the one, and sweeps it.
+              Then the band the chart shows, and + Band for any other. */}
+          <span id="vnaFine" role="group" aria-label="Fine sweeps">
+            {fine.map((f) => (
+              <button key={f.band} type="button" aria-pressed={vna.fine?.band === f.band}
+                title={`${mhz(f.lo * 1e6)}–${mhz(f.hi * 1e6)} MHz. Sweep and Live repeat the band that is pressed.`}
+                onClick={() => void vna.setFine({ band: f.band, start: Math.round(f.lo * 1e6), stop: Math.round(f.hi * 1e6) })}>{f.band}</button>
+            ))}
+            {suggest && (
+              <button id="fineSuggest" type="button" className="add" title={`Fine-sweeps ${suggest.band}, the band the chart shows`}
+                onClick={() => onFine(suggest)}>+ {suggest.band}</button>
+            )}
+            <FineMenu choices={choices} onPick={onFine} />
+          </span>
+          {fine.length > 0 && (
+            <button id="fineClear" className="quiet" title="Drops the fine sweeps and sweeps the whole range again" aria-label="Sweep the whole range"
+              onClick={() => (onClearFine ? onClearFine() : void vna.setFine(null))}>×</button>
+          )}
+          <Help text="Sweeps one band with all the NanoVNA's points, for more detail than the whole range gives." />
         </div>
       )}
       <div className="panel-actions">
