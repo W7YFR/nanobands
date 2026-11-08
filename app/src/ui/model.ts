@@ -8,6 +8,7 @@ import { MODE_NAMES, bandAt, segmentAt, type Band, type LicenseClass, type Opera
 import { mappingFor, type Mapping, type Point, type Quad } from "@/geometry";
 import type { Pixels } from "@/pixels";
 import { rectify, type Rectified } from "@/rectify";
+import type { Readings } from "./draw-chart";
 
 /** A loaded photo: a working copy at most 4000 px on its long side, and its pixels. */
 export interface Photo {
@@ -56,9 +57,11 @@ export interface Prefs {
   points: boolean;
   /** Which bands the Band segments table lists: all of them, or only those with a usable part. */
   bands: "all" | "usable";
+  /** How the chart shows NanoVNA and file data: the line, the readings, or both. */
+  readings: Readings;
 }
 
-export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false, bands: "all" };
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both" };
 
 /** A fine sweep's band in the data: its name, and its span in MHz. */
 export interface FineSpan { band: string; lo: number; hi: number }

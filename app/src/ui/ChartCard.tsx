@@ -18,11 +18,14 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "re
 import type { Analysis } from "@/analysis";
 import { bandsInRange } from "@/bands";
 import { Help } from "./Help";
-import { bandTip, drawChart, freqAt, type ChartGeom, type KeyKind, type KeyPoint } from "./draw-chart";
+import { bandTip, drawChart, freqAt, type ChartGeom, type KeyKind, type KeyPoint, type Readings } from "./draw-chart";
 import { fitCanvas } from "./draw-photo";
 import type { Band } from "@/bands";
 import { bandView, fitView, sameView, type Curve, type FineSpan, type Settings } from "./model";
+import { Switch } from "./Switch";
 import { useNoSwipe } from "./useNoSwipe";
+
+const READINGS: { value: Readings; label: string }[] = [{ value: "line", label: "Line" }, { value: "points", label: "Points" }, { value: "both", label: "Both" }];
 
 /** A fine sweep the band in view can have: its band, whether it is the one
  *  Sweep and Live scan now, and how to start it. */
@@ -47,7 +50,7 @@ function Chips({ an, view, onView, fine, offer }: {
   );
 }
 
-export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = null, fineOffer = null }: {
+export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = null, fineOffer = null, readings = null, onReadings }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   an: Analysis | null;
   curve: Curve | null;
@@ -63,6 +66,9 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   /** The band a fine sweep filled in. */
   fine?: FineSpan | null;
   fineOffer?: FineOffer | null;
+  /** How to show readings, or null for a photo's trace, which has none. */
+  readings?: Readings | null;
+  onReadings?(v: Readings): void;
 }): React.ReactElement {
   const geom = useRef<ChartGeom | null>(null);
   /** A press on the chart. `pan` holds the view it started from. */
@@ -75,6 +81,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   /** On a touch screen: the next drag zooms instead of reading the curve. */
   const [zoomDrag, setZoomDrag] = useState(false);
   const touch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+  /** Readings are shown but too close together to draw. */
+  const [crowded, setCrowded] = useState(false);
   const [full, setFull] = useState(false);
 
   // Full screen: the page behind does not scroll, and Back or Escape leave.
@@ -104,20 +112,28 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
     const dpr = window.devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
     fitCanvas(c, ctx, Math.round(W * dpr), Math.round(H * dpr));
     geom.current = drawChart(ctx, W, H, dpr, {
-      settings, an, curve, range, manual, probe, hoverF, drag: drag.current?.zoom ? drag.current : null, fine,
+      settings, an, curve, range, manual, probe, hoverF, drag: drag.current?.zoom ? drag.current : null, fine, readings,
       snap, hoverNote: snap === "pin" ? (touch ? "tap to unpin" : "click to unpin") : snap === "probe" ? (touch ? "tap to pin" : "click to pin") : undefined,
     });
+    const busy = !!geom.current?.crowded;
+    if (busy !== crowded) setCrowded(busy);
   };
 
   const fit = (lo: number, hi: number): [number, number] | null => (an ? fitView(an, lo, hi) : null);
 
   /** The key point nearest (x, y), if one is close enough to snap to. */
   const snapAt = (x: number, y: number, finger: boolean): KeyPoint | null => {
+    const g = geom.current;
     let best: KeyPoint | null = null, bd = finger ? 24 : 14;
     // Pins come last, so a pin wins over a key point under it.
-    for (const p of geom.current?.points ?? []) {
+    for (const p of g?.points ?? []) {
       const d = Math.hypot(p.x - x, p.y - y);
       if (d <= bd) { bd = d; best = p; }
+    }
+    // Points shows only readings, so the hover and a click take the nearest one.
+    if (!best && readings === "points" && g?.readings.length && x >= g.x0 && x <= g.x1) {
+      const fx = freqAt(g, x), f = g.readings.reduce((a, b) => (Math.abs(b - fx) < Math.abs(a - fx) ? b : a));
+      best = { kind: "reading", f, x, y };
     }
     return best;
   };
@@ -183,8 +199,9 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
     <div className={"card" + (full ? " full" : "")} id="chartCard">
       <h2>SWR vs. frequency <Help align="start" text={touch
         ? "Drag along the chart to read the SWR; tap to clear the reading. Tap to pin your own marker; tap it again to remove it. Zoom, then drag across a range, to zoom in."
-        : "Click to pin a marker, click a pin to remove it. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} /> {resNote && <span id="resNote">{resNote}</span>}
+        : "Click to pin a marker, click a pin to remove it. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} /> {resNote && <span id="resNote">{resNote}{crowded ? " · zoom in to see readings" : ""}</span>}
         <span className="tools">
+          {readings && onReadings && <Switch id="readingsShown" label="Readings shown" value={readings} options={READINGS} onChange={onReadings} />}
           {touch && an && <button id="chartZoom" className={"small" + (zoomDrag ? " on" : "")} onClick={() => setZoomDrag(!zoomDrag)}>Zoom</button>}
           {full
             ? <button id="chartFull" className="small on" onClick={() => setFull(false)}>Done</button>
@@ -270,6 +287,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         <span><i style={{ background: "var(--phone)" }}></i>Phone / image</span>
         <span><i style={{ background: "var(--cw)" }}></i>CW only</span>
         <span><i style={{ background: "var(--all)" }}></i>All modes / 60 m channel</span>
+        {readings && readings !== "line" && <span><i className="dot"></i>Reading</span>}
+        {readings && readings !== "line" && curve && curve.s.some((w) => w > settings.top) && <span><i className="tri"></i>Reading over the scale</span>}
         {fine && <span id="fineKey"><i style={{ background: "var(--accent)" }}></i>Fine sweep, calibration filled in</span>}
       </div>
     </div>

@@ -433,7 +433,7 @@ export function App(): React.ReactElement {
     const W = cv.clientWidth, H = cv.clientHeight, c = document.createElement("canvas");
     c.width = W * 2;
     c.height = H * 2;
-    drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null, fine: doc.fine });
+    drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null, fine: doc.fine, readings: doc.source === "image" ? null : prefs.readings });
     download("swr-chart.png", c.toDataURL("image/png"));
   };
   const exportCsv = (): void => {
@@ -499,6 +499,7 @@ export function App(): React.ReactElement {
               )}
               <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={peek ?? doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
                 manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote}
+                readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
                 fine={doc.fine} fineOffer={fineOffer && { band: fineOffer.band, on: vna.fine?.band === fineOffer.band, run: () => void vna.setFine(fineOffer) }} />
               <div className="card" id="bandCard">
                 <h2>Band segments

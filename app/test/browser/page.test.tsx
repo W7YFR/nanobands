@@ -201,6 +201,8 @@ describe("the page", () => {
     fireEvent.change(input);
 
     await until(() => has("#fStop") && $<HTMLInputElement>("#fStop").value === "55");
+    // A photo's trace has no readings to show.
+    expect(has("#readingsShown")).toBe(false);
     expect($("#fileName").textContent).toBe("random-wire.jpg");
     expect($("#gridNote").textContent).toContain("Grid found");
     expect($("#calSummary").textContent).toBe("3–55 MHz · SWR 1–5");
@@ -953,7 +955,7 @@ describe("a connected NanoVNA", () => {
     expect([device.start, device.stop, device.points]).toEqual([3e6, 55e6, 401]);
     expect($("#vnaFine").textContent).toBe("40m · 7–7.3 MHz");
     // The 3 readings of the full sweep inside 40 m give way to 401.
-    expect($("#resNote").textContent).toBe("799 points from the NanoVNA, 40m fine sweep with calibration filled in");
+    expect($("#resNote").textContent).toBe("799 points from the NanoVNA, 40m fine sweep with calibration filled in · zoom in to see readings");
     expect($("#fineBtn").classList.contains("on")).toBe(true);
     chipBtn("Full sweep").click();
     await until(() => !has("#fineBtn"));
@@ -994,6 +996,25 @@ describe("a connected NanoVNA", () => {
     expect(await offered("4", "13–15 MHz · 101 points", "20m")).toBe(true);
     fireEvent.change(slot, { target: { value: "0" } });
     await until(() => $("#vnaRange").textContent === "144–148 MHz · 101 points");
+  });
+
+  it("offers Both by default, and in Points pins only readings", async () => {
+    const rows = (kind: string): Element[] => [...document.querySelectorAll("#ptTable tr")].filter((tr) => tr.children[2]?.textContent === kind);
+    const pressed = (): string => $("#readingsShown [aria-pressed=true]").textContent!;
+    expect(pressed()).toBe("Both");
+    [...document.querySelectorAll<HTMLButtonElement>("#readingsShown button")].find((b) => b.textContent === "Points")!.click();
+    await until(() => pressed() === "Points");
+    // Between the readings at 145.00 and 145.04 MHz, nearer the second.
+    const r = $("#chart").getBoundingClientRect(), x = r.left + 46 + ((145.03 - 144) / 4) * (r.width - 60), y = r.top + r.height / 2;
+    point($("#chart"), "pointermove", x, y, "mouse", 0);
+    point($("#chart"), "pointerdown", x, y);
+    point($("#chart"), "pointerup", x, y, "mouse", 0);
+    await until(() => rows("Pinned").length === 1);
+    expect(+rows("Pinned")[0]!.children[0]!.textContent!).toBe(145.04);
+    $<HTMLButtonElement>("#ptTable [data-del]").click();
+    await until(() => rows("Pinned").length === 0);
+    [...document.querySelectorAll<HTMLButtonElement>("#readingsShown button")].find((b) => b.textContent === "Both")!.click();
+    await until(() => pressed() === "Both");
   });
 
   it("disconnects from Change, and keeps the last sweep on the page", async () => {

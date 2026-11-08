@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 import { analyze } from "@/analysis";
-import { drawChart, type ChartGeom, type ChartScene } from "@/ui/draw-chart";
+import { drawChart, isReading, type ChartGeom, type ChartScene } from "@/ui/draw-chart";
 import { HIGH, MATCH, OK, PROBE } from "@/ui/colors";
 import type { Curve, Settings } from "@/ui/model";
 
@@ -76,6 +76,51 @@ describe("drawChart", () => {
     let white = 0;
     for (let i = 0; i < d.length; i += 4) if (d[i]! > 240 && d[i + 1]! > 240 && d[i + 2]! > 240) white++;
     expect(white).toBeGreaterThan(0);
+  });
+
+  describe("readings", () => {
+    /** Readings every 0.2 MHz over 13.5–14.5 MHz. */
+    const sparse = (s: number[]): Curve => ({ N: s.length, f: Float64Array.from(s, (_, i) => 13.5 + i * 0.2), s: Float64Array.from(s) });
+    const readingDots = (g: ChartGeom): number => g.points.filter((p) => p.kind === "reading").length;
+
+    it("puts a dot on each reading in Both, and none in Line or for a photo's trace", () => {
+      const c = sparse([2, 2, 2, 2, 2, 2]);
+      const both = draw(c, [], null, { readings: "both" }).g;
+      expect(readingDots(both)).toBe(6);
+      expect(both.crowded).toBe(false);
+      expect(readingDots(draw(c, [], null, { readings: "line" }).g)).toBe(0);
+      expect(readingDots(draw(c, [], null, { readings: null }).g)).toBe(0);
+    });
+
+    it("draws no line between readings in Points", () => {
+      const c = sparse([2, 2, 2, 2, 2, 2]);
+      const both = draw(c, [], null, { readings: "both" }), pts = draw(c, [], null, { readings: "points" });
+      expect(colorsAt(both.ctx, both.g, xOf(both.g, 13.6)).size).toBe(1);
+      expect(colorsAt(pts.ctx, pts.g, xOf(pts.g, 13.6)).size).toBe(0);
+      expect(readingDots(pts.g)).toBe(6);
+    });
+
+    it("leaves out readings too close together to tell apart", () => {
+      // 1001 readings across the plot: under a pixel apart.
+      const { g } = draw(vee(13.8), [], null, { readings: "both" });
+      expect(g.crowded).toBe(true);
+      expect(readingDots(g)).toBe(0);
+      expect(g.readings).toHaveLength(1001);
+    });
+
+    it("marks a reading over the top of the scale with a ▲ at the top", () => {
+      const c = sparse([2, 12, 2, 2, 2, 2]), top = (g: ChartGeom): number => g.y0 + 24;
+      const both = draw(c, [], null, { readings: "both" }), line = draw(c, [], null, { readings: "line" });
+      const x = xOf(both.g, 13.7);
+      expect(colorsAt(both.ctx, both.g, x, top(both.g) - 5, top(both.g) - 2)).toEqual(new Set([HIGH]));
+      expect(colorsAt(line.ctx, line.g, x, top(line.g) - 5, top(line.g) - 2).size).toBe(0);
+    });
+
+    it("tells a reading from a value between readings", () => {
+      const c = sparse([2, 3, 4]);
+      expect(isReading(c, 13.7)).toBe(true);
+      expect(isReading(c, 13.6)).toBe(false);
+    });
   });
 
   it("colors a dip the way the curve is colored there", () => {

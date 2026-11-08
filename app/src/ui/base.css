@@ -232,6 +232,9 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 }
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
 .legend i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+/* A reading's dot, and the ▲ of a reading over the scale, as the chart draws them. */
+.legend i.dot{width:8px;height:8px;border-radius:50%;background:var(--text);vertical-align:0}
+.legend i.tri{width:0;height:0;border-radius:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid #e3c84a;vertical-align:0}
 /* On a wide screen a band's name and pill sit in its own column. */
 .bands td.band .pill{margin-top:4px}
 .bands td.none{color:var(--muted)}
