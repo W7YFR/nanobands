@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { bandsInRange, type Band } from "@/bands";
-import { fineFor, mergeScan, offScale } from "@/fine";
+import { fineCheck, mergeScan, offScale } from "@/fine";
 import { mappingFor, solveRefs, type Quad } from "@/geometry";
 import { detectGrid } from "@/grid";
 import { fixedWords } from "@/ocr-zeros";
@@ -20,7 +20,7 @@ import { parseSweepText } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { autoTrace } from "@/trace";
 import { toTouchstone, type Scan } from "@/vna";
-import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type Mode } from "./Cards";
+import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type FineChoice, type Mode } from "./Cards";
 import { ChartCard } from "./ChartCard";
 import { drawChart } from "./draw-chart";
 import { Disclaimer } from "./Disclaimer";
@@ -478,10 +478,26 @@ export function App(): React.ReactElement {
       : `${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`
         + (doc.fine.length ? `, ${listOf(doc.fine.map((f) => f.band))} fine sweep${doc.fine.length > 1 ? "s" : ""} with calibration filled in` : "");
   }
-  // A fine sweep for the band the chart shows, when one would add to it.
+  // The bands in the NanoVNA's range for + Band: each one's fine sweep, or why it has none.
+  const r = vna.range;
+  const fineChoices: FineChoice[] = doc.source === "vna" && r && curve
+    ? bandsInRange(r.start / 1e6, r.stop / 1e6).flatMap((b): FineChoice[] => {
+      const c = fineCheck(r, b);
+      if (c === "outside") return [];
+      const why = c === "coarse" ? "calibration too coarse" : c === "close" ? "already swept closely"
+        : offScale(curve, b.lo, b.hi, settings) ? "all over the SWR scale" : null;
+      return [{ band: b.name, fine: why || typeof c === "string" ? null : c, why, swept: doc.fine.some((f) => f.band === b.name) }];
+    })
+    : [];
+  // The band the chart shows, as + 40m in the Fine row, when it can have a fine sweep and has none yet.
   const viewBand = an && doc.view ? bandsInRange(an.fmin, an.fmax).find((b) => sameView(bandView(an, b), doc.view)) : undefined;
-  const fineOffer = doc.source === "vna" && vna.range && curve && viewBand && !offScale(curve, viewBand.lo, viewBand.hi, settings)
-    ? fineFor(vna.range, viewBand) : null;
+  const fineSuggest = fineChoices.find((c) => c.band === viewBand?.name && c.fine && !c.swept) ?? null;
+  /** Fine-sweep a band, and show it on the chart. */
+  const onFine = (c: FineChoice): void => {
+    const b = bandsInRange(0, 1e6).find((x) => x.name === c.band);
+    if (an && b) setDoc((d) => ({ ...d, view: bandView(an, b) }));
+    if (c.fine) void vna.setFine(c.fine);
+  };
 
   return (
     <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")}>
@@ -495,7 +511,8 @@ export function App(): React.ReactElement {
         ) : (
           <div className="wrap">
             <aside>
-              <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} fine={doc.fine} onClearFine={clearFine} />
+              <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} fine={doc.fine} onClearFine={clearFine}
+                choices={fineChoices} suggest={fineSuggest} onFine={doc.source === "vna" ? onFine : undefined} />
               {doc.source === "image" && (
                 <>
                   <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr} straight={doc.straight} onStraight={onStraight}
@@ -524,7 +541,7 @@ export function App(): React.ReactElement {
                 live={vna.live ? vna.fine?.band ?? "" : null}
                 readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
                 scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
-                fine={doc.fine} fineOffer={fineOffer && { band: fineOffer.band, on: vna.fine?.band === fineOffer.band, run: () => void vna.setFine(fineOffer) }} />
+                fine={doc.fine} />
               <div className="card" id="bandCard">
                 <h2>Band segments
                   <span style={{ flex: 1 }}></span>

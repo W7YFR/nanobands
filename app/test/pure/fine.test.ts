@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { BANDS } from "@/bands";
-import { fineFor, mergeScan, offScale } from "@/fine";
+import { fineCheck, fineFor, mergeScan, offScale } from "@/fine";
 import type { Scan } from "@/vna";
 
 const band = (name: string) => BANDS.find((b) => b.name === name)!;
@@ -41,6 +41,15 @@ describe("fineFor", () => {
     const r = { start: 3 * MHZ, stop: 52 * MHZ, points: 401 };
     expect(fineFor(r, band("6m"))).toEqual({ band: "6m", start: 50 * MHZ, stop: 52 * MHZ });
     expect(fineFor({ start: 3 * MHZ, stop: 30 * MHZ, points: 401 }, band("6m"))).toBeNull();
+  });
+});
+
+describe("fineCheck", () => {
+  it("says why a band gets no fine sweep", () => {
+    expect(fineCheck({ start: 14 * MHZ, stop: 14.35 * MHZ, points: 101 }, band("20m"))).toBe("close");
+    expect(fineCheck({ start: 0.05 * MHZ, stop: 900 * MHZ, points: 101 }, band("2m"))).toBe("coarse");
+    expect(fineCheck({ start: 3 * MHZ, stop: 30 * MHZ, points: 401 }, band("6m"))).toBe("outside");
+    expect(fineCheck({ start: 3 * MHZ, stop: 55 * MHZ, points: 401 }, band("40m"))).toEqual({ band: "40m", start: 7 * MHZ, stop: 7.3 * MHZ });
   });
 });
 

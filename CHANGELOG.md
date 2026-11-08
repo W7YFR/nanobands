@@ -9,10 +9,11 @@ them.
 
 ### Added
 
-- **Fine sweep**, at the end of the band chips when the chart shows a band, sweeps that band with all the NanoVNA's points. The chart puts those readings in the band, marks it, and notes that its calibration is filled in.
-- Fine sweeps of several bands all stay on the chart. A **Fine** row lists them, and **Sweep** and **Live** repeat the band pressed there.
+- **+ Band**, in the NanoVNA panel's **Fine** row, sweeps a band with all the NanoVNA's points and shows it on the chart. The chart puts those readings in the band, marks it, and notes that its calibration is filled in.
+- When the chart shows a band, the **Fine** row offers it, such as **+ 40m**.
+- **+ Band** grays out a band that a fine sweep would not help, and says why: the slot already sweeps it closely, its calibration is too coarse, or it is all over the SWR scale.
+- Fine sweeps of several bands all stay on the chart. The **Fine** row lists them, and **Sweep** and **Live** repeat the band pressed there.
 - While **Live** runs, the chart and the NanoVNA panel say what it sweeps, such as "Live: 40m only". The **Fine** row's × drops the fine sweeps at once and sweeps the whole range again.
-- **Fine sweep** shows only where it adds readings, the calibrated points are at most 1 MHz apart, and some of the band is under the top of the SWR scale.
 - **Line**, **Points** and **Both**, in the chart's header, show the line between readings, the readings, or both, for a NanoVNA sweep or a Touchstone file. **Both** is the default. Readings too close together to tell apart are left out, and the chart's note says to zoom in. A reading over the top of the scale shows as a ▲.
 - The hover readout says whether its SWR is a reading or an estimate. In **Points** it moves to the nearest reading.
 - **SWR**, in the chart's header, sets the top of the SWR scale to 3, 5 or 10 for a NanoVNA sweep or a Touchstone file. 5 is the default.

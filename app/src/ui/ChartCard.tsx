@@ -28,12 +28,8 @@ import { useNoSwipe } from "./useNoSwipe";
 const READINGS: { value: Readings; label: string }[] = [{ value: "line", label: "Line" }, { value: "points", label: "Points" }, { value: "both", label: "Both" }];
 const SCALES: { value: ScaleTop; label: string }[] = [{ value: "3", label: "3" }, { value: "5", label: "5" }, { value: "10", label: "10" }];
 
-/** A fine sweep the band in view can have: its band, whether it is the one
- *  Sweep and Live scan now, and how to start it. */
-export interface FineOffer { band: string; on: boolean; run(): void }
-
-function Chips({ an, view, onView, fine, offer }: {
-  an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void; fine: readonly FineSpan[]; offer: FineOffer | null;
+function Chips({ an, view, onView, fine }: {
+  an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void; fine: readonly FineSpan[];
 }): React.ReactElement {
   const chips: [string, [number, number] | null][] = [["Full sweep", null], ...bandsInRange(an.fmin, an.fmax).map((b): [string, [number, number]] => [b.name, bandView(an, b)])];
   return (
@@ -41,17 +37,11 @@ function Chips({ an, view, onView, fine, offer }: {
       {chips.map(([name, v]) => (
         <button key={name} className={(sameView(v, view) ? "on" : "") + (fine.some((f) => f.band === name) ? " fined" : "")} onClick={() => onView(v)}>{name}</button>
       ))}
-      {offer && (
-        <button id="fineBtn" className={"fine" + (offer.on ? " on" : "")} onClick={offer.run}
-          title="Sweeps this band with all the NanoVNA's points. Calibration between its calibrated points is filled in.">
-          Fine sweep {offer.band}
-        </button>
-      )}
     </div>
   );
 }
 
-export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], fineOffer = null, readings = null, onReadings, live = null, scaleTop = null, onScaleTop }: {
+export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], readings = null, onReadings, live = null, scaleTop = null, onScaleTop }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   an: Analysis | null;
   curve: Curve | null;
@@ -66,7 +56,6 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   resNote: string;
   /** The bands fine sweeps filled in. */
   fine?: readonly FineSpan[];
-  fineOffer?: FineOffer | null;
   /** The top of the SWR scale, or null for a photo, whose scale comes from the photo. */
   scaleTop?: ScaleTop | null;
   onScaleTop?(v: ScaleTop): void;
@@ -223,7 +212,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
             : <button id="chartFull" className="small" onClick={() => setFull(true)}>⤢ Full screen</button>}
         </span>
       </h2>
-      {an && <Chips an={an} view={view} onView={onView} fine={fine} offer={fineOffer} />}
+      {an && <Chips an={an} view={view} onView={onView} fine={fine} />}
       <canvas id="chart" ref={canvasRef}
         style={panning ? { cursor: "grabbing" } : snap === "pin" || snap === "probe" || tip ? { cursor: "pointer" } : undefined}
         // Stops the middle button's autoscroll.

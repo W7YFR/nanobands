@@ -26,16 +26,26 @@ export interface Fine {
   stop: number;
 }
 
+/** Why a band gets no fine sweep on this range: it lies outside it, the
+ *  calibration is too coarse to fill in, or the sweep already has it closely. */
+export type NoFine = "outside" | "coarse" | "close";
+
+/** The fine sweep a band could have on this range, or why it has none. */
+export function fineCheck(r: Range, b: Band): Fine | NoFine {
+  const start = Math.max(r.start, Math.round(b.lo * 1e6)), stop = Math.min(r.stop, Math.round(b.hi * 1e6));
+  if (stop <= start) return "outside";
+  const step = (r.stop - r.start) / (r.points - 1);
+  if (step > FINE_STEP_HZ) return "coarse";
+  // The sweep's own readings in the band, against the fine sweep's.
+  const have = Math.floor((stop - r.start) / step) - Math.ceil((start - r.start) / step) + 1;
+  return r.points >= 2 * Math.max(1, have) ? { band: b.name, start, stop } : "close";
+}
+
 /** The fine sweep a band could have on this range, or null when it would add
  *  nothing or the calibration is too coarse to fill in. */
 export function fineFor(r: Range, b: Band): Fine | null {
-  const step = (r.stop - r.start) / (r.points - 1);
-  if (step > FINE_STEP_HZ) return null;
-  const start = Math.max(r.start, Math.round(b.lo * 1e6)), stop = Math.min(r.stop, Math.round(b.hi * 1e6));
-  if (stop <= start) return null;
-  // The sweep's own readings in the band, against the fine sweep's.
-  const have = Math.floor((stop - r.start) / step) - Math.ceil((start - r.start) / step) + 1;
-  return r.points >= 2 * Math.max(1, have) ? { band: b.name, start, stop } : null;
+  const f = fineCheck(r, b);
+  return typeof f === "string" ? null : f;
 }
 
 /** Whether the sweep has every reading over lo–hi (MHz) at the top of the
