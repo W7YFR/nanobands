@@ -119,7 +119,11 @@ export function App(): React.ReactElement {
 
   /* ---------------- What the page shows ---------------- */
 
-  const settings = useMemo(() => settingsOf(doc.fields, prefs), [doc.fields, prefs]);
+  // NanoVNA and file data run from SWR 1 to the scale top chosen on the chart.
+  const settings = useMemo(() => {
+    const s = settingsOf(doc.fields, prefs);
+    return doc.source === "image" ? s : { ...s, top: +prefs.scaleTop, bot: 1 };
+  }, [doc.fields, doc.source, prefs]);
   const curve = useMemo(() => curveOf(doc.trace, settings), [doc.trace, settings]);
   const an = useMemo(() => analysisOf(curve, settings), [curve, settings]);
   const map = useMemo(() => (doc.corners ? mappingFor(doc.corners) : null), [doc.corners]);
@@ -519,6 +523,7 @@ export function App(): React.ReactElement {
                 manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote}
                 live={vna.live ? vna.fine?.band ?? "" : null}
                 readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
+                scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
                 fine={doc.fine} fineOffer={fineOffer && { band: fineOffer.band, on: vna.fine?.band === fineOffer.band, run: () => void vna.setFine(fineOffer) }} />
               <div className="card" id="bandCard">
                 <h2>Band segments

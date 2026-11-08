@@ -201,8 +201,9 @@ describe("the page", () => {
     fireEvent.change(input);
 
     await until(() => has("#fStop") && $<HTMLInputElement>("#fStop").value === "55");
-    // A photo's trace has no readings to show.
+    // A photo's trace has no readings to show, and its scale comes from the photo.
     expect(has("#readingsShown")).toBe(false);
+    expect(has("#scaleTop")).toBe(false);
     expect($("#fileName").textContent).toBe("random-wire.jpg");
     expect($("#gridNote").textContent).toContain("Grid found");
     expect($("#calSummary").textContent).toBe("3–55 MHz · SWR 1–5");
@@ -1058,6 +1059,22 @@ describe("a connected NanoVNA", () => {
     await until(() => rows("Pinned").length === 0);
     [...document.querySelectorAll<HTMLButtonElement>("#readingsShown button")].find((b) => b.textContent === "Both")!.click();
     await until(() => pressed() === "Both");
+  });
+
+  it("sets the top of the SWR scale, so a peak over 5 reads as its value at 10", async () => {
+    const peakSwr = (): string[] => [...document.querySelectorAll("#ptTable tr")].filter((tr) => tr.children[2]?.textContent === "Peak").map((tr) => tr.children[1]!.textContent!);
+    const pressed = (): string => $("#scaleTop [aria-pressed=true]").textContent!;
+    const pick = (v: string): void => [...document.querySelectorAll<HTMLButtonElement>("#scaleTop button")].find((b) => b.textContent === v)!.click();
+    expect(pressed()).toBe("5");
+    // Slot 0's peak, near 145.6 MHz, is about SWR 7.15: over a top of 5.
+    if (!has("#ptTable")) $("#ptCard h2 button")?.click();
+    await until(() => peakSwr().length > 0);
+    expect(peakSwr().every((v) => v === "≥ 5")).toBe(true);
+    pick("10");
+    await until(() => pressed() === "10" && peakSwr().every((v) => /^\d+\.\d\d$/.test(v)));
+    expect(+peakSwr()[0]!).toBeGreaterThan(7);
+    pick("5");
+    await until(() => pressed() === "5");
   });
 
   it("pins a band edge itself when a click snaps to its tick", async () => {

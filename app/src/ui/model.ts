@@ -59,9 +59,14 @@ export interface Prefs {
   bands: "all" | "usable";
   /** How the chart shows NanoVNA and file data: the line, the readings, or both. */
   readings: Readings;
+  /** The top of the SWR scale for NanoVNA and file data. A photo's comes from the photo. */
+  scaleTop: ScaleTop;
 }
 
-export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both" };
+/** The tops the SWR scale offers for NanoVNA and file data. */
+export type ScaleTop = "3" | "5" | "10";
+
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both", scaleTop: "5" };
 
 /** A fine sweep's band in the data: its name, and its span in MHz. */
 export interface FineSpan { band: string; lo: number; hi: number }

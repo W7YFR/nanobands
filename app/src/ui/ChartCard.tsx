@@ -21,11 +21,12 @@ import { Help } from "./Help";
 import { bandTip, drawChart, freqAt, type ChartGeom, type KeyKind, type KeyPoint, type Readings } from "./draw-chart";
 import { fitCanvas } from "./draw-photo";
 import type { Band } from "@/bands";
-import { bandView, fitView, sameView, type Curve, type FineSpan, type Settings } from "./model";
+import { bandView, fitView, sameView, type Curve, type FineSpan, type ScaleTop, type Settings } from "./model";
 import { Switch } from "./Switch";
 import { useNoSwipe } from "./useNoSwipe";
 
 const READINGS: { value: Readings; label: string }[] = [{ value: "line", label: "Line" }, { value: "points", label: "Points" }, { value: "both", label: "Both" }];
+const SCALES: { value: ScaleTop; label: string }[] = [{ value: "3", label: "3" }, { value: "5", label: "5" }, { value: "10", label: "10" }];
 
 /** A fine sweep the band in view can have: its band, whether it is the one
  *  Sweep and Live scan now, and how to start it. */
@@ -50,7 +51,7 @@ function Chips({ an, view, onView, fine, offer }: {
   );
 }
 
-export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], fineOffer = null, readings = null, onReadings, live = null }: {
+export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], fineOffer = null, readings = null, onReadings, live = null, scaleTop = null, onScaleTop }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   an: Analysis | null;
   curve: Curve | null;
@@ -66,6 +67,9 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   /** The bands fine sweeps filled in. */
   fine?: readonly FineSpan[];
   fineOffer?: FineOffer | null;
+  /** The top of the SWR scale, or null for a photo, whose scale comes from the photo. */
+  scaleTop?: ScaleTop | null;
+  onScaleTop?(v: ScaleTop): void;
   /** While Live sweeps: the band it sweeps, "" for the whole range. Null when not live. */
   live?: string | null;
   /** How to show readings, or null for a photo's trace, which has none. */
@@ -206,6 +210,12 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         {live !== null && <span id="liveNote"><i />{live ? `Live: ${live} only` : "Live"}</span>}
         {resNote && <span id="resNote">{resNote}{crowded ? " · zoom in to see readings" : ""}</span>}
         <span className="tools">
+          {scaleTop && onScaleTop && (
+            <span className="labeled" title="The top of the SWR scale">
+              <span className="lbl" aria-hidden="true">SWR</span>
+              <Switch id="scaleTop" label="Top of the SWR scale" value={scaleTop} options={SCALES} onChange={onScaleTop} />
+            </span>
+          )}
           {readings && onReadings && <Switch id="readingsShown" label="Readings shown" value={readings} options={READINGS} onChange={onReadings} />}
           {touch && an && <button id="chartZoom" className={"small" + (zoomDrag ? " on" : "")} onClick={() => setZoomDrag(!zoomDrag)}>Zoom</button>}
           {full
