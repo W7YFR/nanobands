@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.12.0 — 2026-11-08
+
 ### Added
 
 - **+ Band**, in the NanoVNA panel's **Fine** row, sweeps a band with all the NanoVNA's points and shows it on the chart. The chart puts those readings in the band, marks it, and notes that its calibration is filled in.
