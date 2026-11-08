@@ -116,6 +116,25 @@ export function segsFor(b: Band, s: { cls: LicenseClass; mode: OperatingMode }):
   return b.priv[s.cls].filter((g) => s.mode === "any" || MODES[g[2]].modes.includes(s.mode));
 }
 
+/** A band's edge, or a segment's, and what starts or ends there. */
+export interface Edge { f: number; band: string; label: string }
+
+/** The edges of the bands that reach into lo–hi (MHz): each band's ends and
+ *  the ends of the segments the settings allow, low to high. Where two meet,
+ *  one edge names both; a band's end names the band. */
+export function bandEdges(lo: number, hi: number, s: { cls: LicenseClass; mode: OperatingMode }): Edge[] {
+  const out: Edge[] = [];
+  for (const b of bandsInRange(lo, hi)) {
+    const at = new Map<number, string[]>();
+    const add = (f: number, label: string): void => { at.set(f, [...(at.get(f) ?? []), label]); };
+    for (const [a, c, k] of segsFor(b, s)) { add(a, `${MODES[k].label} starts`); add(c, `${MODES[k].label} ends`); }
+    at.set(b.lo, ["band starts"]);
+    at.set(b.hi, ["band ends"]);
+    for (const [f, labels] of at) out.push({ f, band: b.name, label: labels.join(", ") });
+  }
+  return out.sort((a, b) => a.f - b.f);
+}
+
 /** Whether f lies in one of the segments the settings allow. */
 export function inSegment(f: number, s: { cls: LicenseClass; mode: OperatingMode }): boolean {
   return BANDS.some((b) => f >= b.lo && f <= b.hi && segsFor(b, s).some((g) => f >= g[0] && f <= g[1]));

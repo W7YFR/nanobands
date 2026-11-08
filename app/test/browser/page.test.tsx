@@ -13,7 +13,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import "@/ui/base.css";
 import photo from "../data/random-wire-3-55mhz.jpg?url";
 import pkg from "../../../package.json";
-import { FakeNanoVNA } from "@/vna-fake";
+import { FakeNanoVNA, fakeSwr } from "@/vna-fake";
 import { detectGrid } from "@/grid";
 import { openStore } from "@/store";
 import type { Snapshot } from "@/ui/session";
@@ -1015,6 +1015,20 @@ describe("a connected NanoVNA", () => {
     await until(() => rows("Pinned").length === 0);
     [...document.querySelectorAll<HTMLButtonElement>("#readingsShown button")].find((b) => b.textContent === "Both")!.click();
     await until(() => pressed() === "Both");
+  });
+
+  it("pins a band edge itself when a click snaps to its tick", async () => {
+    const rows = (kind: string): Element[] => [...document.querySelectorAll("#ptTable tr")].filter((tr) => tr.children[2]?.textContent === kind);
+    // Slot 0, 144–148 MHz: 2 m ends at the chart's right edge.
+    const r = $("#chart").getBoundingClientRect(), x = r.right - 14;
+    const w = Math.min(5, fakeSwr(148e6)), py0 = r.top + 54, py1 = r.bottom - 108, y = py1 - ((w - 1) / 4) * (py1 - py0);
+    point($("#chart"), "pointermove", x - 4, y + 3, "mouse", 0);
+    point($("#chart"), "pointerdown", x - 4, y + 3);
+    point($("#chart"), "pointerup", x - 4, y + 3, "mouse", 0);
+    await until(() => rows("Pinned").length === 1);
+    expect(+rows("Pinned")[0]!.children[0]!.textContent!).toBe(148);
+    $<HTMLButtonElement>("#ptTable [data-del]").click();
+    await until(() => rows("Pinned").length === 0);
   });
 
   it("disconnects from Change, and keeps the last sweep on the page", async () => {

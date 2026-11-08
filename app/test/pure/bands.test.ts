@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { BANDS, MODES, bandAt, bandsInRange, inSegment, segsFor, type LicenseClass, type OperatingMode } from "@/bands";
+import { BANDS, MODES, bandAt, bandEdges, bandsInRange, inSegment, segsFor, type LicenseClass, type OperatingMode } from "@/bands";
 
 const band = (name: string) => {
   const b = BANDS.find((x) => x.name === name);
@@ -65,6 +65,33 @@ describe("privileges by class", () => {
   it("makes 30 m CW and data only", () => {
     expect(segs("30m", "G", "phone")).toEqual([]);
     expect(segs("30m", "G", "data")).toEqual([[10.1, 10.15, "data"]]);
+  });
+});
+
+describe("bandEdges", () => {
+  const at = (cls: LicenseClass, mode: OperatingMode = "any") =>
+    bandEdges(6.9, 7.4, { cls, mode }).map((e) => [e.f, e.label]);
+
+  it("gives a band's ends and the ends of each segment the class allows", () => {
+    expect(at("G")).toEqual([
+      [7.0, "band starts"], [7.025, "CW/RTTY/data starts"], [7.125, "CW/RTTY/data ends"], [7.175, "Phone/image starts"], [7.3, "band ends"],
+    ]);
+  });
+
+  it("names both segments where they meet, and the band at its end", () => {
+    expect(at("E")).toEqual([[7.0, "band starts"], [7.125, "CW/RTTY/data ends, Phone/image starts"], [7.3, "band ends"]]);
+  });
+
+  it("follows the mode", () => {
+    expect(at("G", "phone").map((e) => e[0])).toEqual([7.0, 7.175, 7.3]);
+  });
+
+  it("names the band each edge belongs to", () => {
+    expect(bandEdges(143, 149, { cls: "G", mode: "any" })).toEqual([
+      { f: 144, band: "2m", label: "band starts" },
+      { f: 144.1, band: "2m", label: "CW only ends, All modes starts" },
+      { f: 148, band: "2m", label: "band ends" },
+    ]);
   });
 });
 

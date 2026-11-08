@@ -7,10 +7,16 @@
  * shows as a dot once readings are at least READING_GAP px apart; closer,
  * they would only thicken the line. A reading over the top of the scale shows
  * as a ▲ at the top. A photo's trace has no readings.
+ *
+ * Each band's ends, and the ends of the segments the settings allow, are
+ * key points too: a short tick across the curve, which the hover snaps to and
+ * names. A band's ticks show once the band is EDGE_BAND px wide, so a wide
+ * view stays clean, and a tick within EDGE_GAP px of the one before is left
+ * out.
  */
 
 import { atTop, segUsable, usableLimit, type Analysis } from "@/analysis";
-import { MODES, bandAt, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
+import { MODES, bandAt, bandEdges, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import { swrOn, type Curve, type FineSpan, type Settings } from "./model";
 import { BAD, FINE, HIGH, MATCH, OK, PROBE, curveColor } from "./colors";
@@ -39,8 +45,14 @@ export type Readings = "line" | "points" | "both";
 /** The least space between readings, in px, for each to show as a dot. */
 export const READING_GAP = 5;
 
+/** The least space between band edges, in px, for each to show its tick. */
+export const EDGE_GAP = 8;
+
+/** The least width of a band on the chart, in px, for its edges to show. */
+export const EDGE_BAND = 80;
+
 /** `probe` is the frequency typed in the Analyze card, not pinned yet. */
-export type KeyKind = "dip" | "peak" | "crossing" | "pin" | "probe" | "reading";
+export type KeyKind = "dip" | "peak" | "crossing" | "pin" | "probe" | "reading" | "edge";
 export interface KeyPoint { kind: KeyKind; f: number; x: number; y: number }
 
 export const freqAt = (g: ChartGeom, x: number): number => g.lo + ((x - g.x0) / (g.x1 - g.x0)) * (g.hi - g.lo);
@@ -227,6 +239,21 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     }
   }
 
+  // Band and segment edges: a tick across the curve where the sweep has one.
+  const wide = new Set(bandsInRange(lo, hi).filter((b) => X(b.hi) - X(b.lo) >= EDGE_BAND).map((b) => b.name));
+  const edges = bandEdges(lo, hi, s).filter((e) => wide.has(e.band));
+  let lastEdge = -Infinity;
+  ctx.strokeStyle = "#e6edf3"; ctx.lineWidth = 2; ctx.lineCap = "round";
+  for (const e of edges) {
+    const w = swr(e.f), x = X(e.f);
+    if (e.f < lo || e.f > hi || Number.isNaN(w) || x - lastEdge < EDGE_GAP) continue;
+    lastEdge = x;
+    const y = Y(w);
+    ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x, y + 6); ctx.stroke();
+    points.push({ kind: "edge", f: e.f, x, y });
+  }
+  ctx.lineCap = "butt";
+
   // Max SWR's line, over the curve. Max SWR over the top of the scale draws at the top.
   ctx.strokeStyle = BAD; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.moveTo(x0, Y(s.thr)); ctx.lineTo(x1, Y(s.thr)); ctx.stroke(); ctx.setLineDash([]);
@@ -358,7 +385,9 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     const ly = Number.isNaN(dy) ? y0 + 10 : dy - off >= y0 + 10 ? dy - off : Math.min(dy + off, y1 - 10);
     // NanoVNA and file data say whether the value is a reading or the line's estimate.
     const from = !mode || Number.isNaN(w) ? "" : isReading(t, f) ? " · reading" : " · estimate";
-    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : atTop(w, s) ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${from}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s));
+    // An edge the hover snapped to says what starts or ends there.
+    const edge = snapped?.kind === "edge" ? edges.find((e) => e.f === f) : undefined;
+    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : atTop(w, s) ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${edge ? " · " + edge.label : ""}${from}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s));
   }
   return { x0, x1, y0, y1, lo, hi, points, bands: bandBoxes, readings: readings.map((i) => t.f[i]!), crowded };
 }

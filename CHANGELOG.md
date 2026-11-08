@@ -14,6 +14,7 @@ them.
 - **Fine sweep** shows only where it adds readings, the calibrated points are at most 1 MHz apart, and some of the band is under the top of the SWR scale.
 - **Line**, **Points** and **Both**, in the chart's header, show the line between readings, the readings, or both, for a NanoVNA sweep or a Touchstone file. **Both** is the default. Readings too close together to tell apart are left out, and the chart's note says to zoom in. A reading over the top of the scale shows as a ▲.
 - The hover readout says whether its SWR is a reading or an estimate. In **Points** it moves to the nearest reading.
+- Each band's ends, and the ends of the segments your license class and **Mode** allow, show as ticks on the curve once the band is wide enough on the chart. The hover snaps to a tick and names the edge, and a click pins it.
 
 ### Fixed
 
@@ -24,6 +25,7 @@ them.
 - Tests cover which bands get a fine sweep, how it fills in the full sweep, **Live** and ×.
 - A chart test covers a curve that crosses the top of the SWR scale.
 - Chart and page tests cover readings: their dots, the ▲, **Points** and its snap to a reading.
+- Tests cover band edges: which ones each class and **Mode** get, the ticks, and a click that pins one.
 
 ## v1.11.3 — 2026-11-07
 
