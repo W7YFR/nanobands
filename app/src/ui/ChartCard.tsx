@@ -32,13 +32,13 @@ const READINGS: { value: Readings; label: string }[] = [{ value: "line", label: 
 export interface FineOffer { band: string; on: boolean; run(): void }
 
 function Chips({ an, view, onView, fine, offer }: {
-  an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void; fine: FineSpan | null; offer: FineOffer | null;
+  an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void; fine: readonly FineSpan[]; offer: FineOffer | null;
 }): React.ReactElement {
   const chips: [string, [number, number] | null][] = [["Full sweep", null], ...bandsInRange(an.fmin, an.fmax).map((b): [string, [number, number]] => [b.name, bandView(an, b)])];
   return (
     <div className="chips" id="chips">
       {chips.map(([name, v]) => (
-        <button key={name} className={(sameView(v, view) ? "on" : "") + (fine?.band === name ? " fined" : "")} onClick={() => onView(v)}>{name}</button>
+        <button key={name} className={(sameView(v, view) ? "on" : "") + (fine.some((f) => f.band === name) ? " fined" : "")} onClick={() => onView(v)}>{name}</button>
       ))}
       {offer && (
         <button id="fineBtn" className={"fine" + (offer.on ? " on" : "")} onClick={offer.run}
@@ -50,7 +50,7 @@ function Chips({ an, view, onView, fine, offer }: {
   );
 }
 
-export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = null, fineOffer = null, readings = null, onReadings }: {
+export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], fineOffer = null, readings = null, onReadings, live = null }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   an: Analysis | null;
   curve: Curve | null;
@@ -63,9 +63,11 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   hoverF: number | null;
   onHover(f: number | null): void;
   resNote: string;
-  /** The band a fine sweep filled in. */
-  fine?: FineSpan | null;
+  /** The bands fine sweeps filled in. */
+  fine?: readonly FineSpan[];
   fineOffer?: FineOffer | null;
+  /** While Live sweeps: the band it sweeps, "" for the whole range. Null when not live. */
+  live?: string | null;
   /** How to show readings, or null for a photo's trace, which has none. */
   readings?: Readings | null;
   onReadings?(v: Readings): void;
@@ -197,9 +199,12 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   const tipBox = tip && an && curve ? bandTip(tip.band, settings, an, curve) : null;
   return (
     <div className={"card" + (full ? " full" : "")} id="chartCard">
-      <h2>SWR vs. frequency <Help align="start" text={touch
+      <h2><span className="title">SWR vs. frequency</span> <Help align="start" text={touch
         ? "Drag along the chart to read the SWR; tap to clear the reading. Tap to pin your own marker; tap it again to remove it. Zoom, then drag across a range, to zoom in."
-        : "Click to pin a marker, click a pin to remove it. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} /> {resNote && <span id="resNote">{resNote}{crowded ? " · zoom in to see readings" : ""}</span>}
+        : "Click to pin a marker, click a pin to remove it. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} />
+        {/* What Live sweeps, first: the rest of the chart holds still while it sweeps one band. */}
+        {live !== null && <span id="liveNote"><i />{live ? `Live: ${live} only` : "Live"}</span>}
+        {resNote && <span id="resNote">{resNote}{crowded ? " · zoom in to see readings" : ""}</span>}
         <span className="tools">
           {readings && onReadings && <Switch id="readingsShown" label="Readings shown" value={readings} options={READINGS} onChange={onReadings} />}
           {touch && an && <button id="chartZoom" className={"small" + (zoomDrag ? " on" : "")} onClick={() => setZoomDrag(!zoomDrag)}>Zoom</button>}
@@ -289,7 +294,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         <span><i style={{ background: "var(--all)" }}></i>All modes / 60 m channel</span>
         {readings && readings !== "line" && <span><i className="dot"></i>Reading</span>}
         {readings && readings !== "line" && curve && curve.s.some((w) => w > settings.top) && <span><i className="tri"></i>Reading over the scale</span>}
-        {fine && <span id="fineKey"><i style={{ background: "var(--accent)" }}></i>Fine sweep, calibration filled in</span>}
+        {fine.length > 0 && <span id="fineKey"><i style={{ background: "var(--accent)" }}></i>Fine sweep, calibration filled in</span>}
       </div>
     </div>
   );

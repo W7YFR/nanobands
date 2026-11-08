@@ -105,8 +105,8 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
     // The device's point count, so it keeps its settings.
     const scan = await d.scan(f ? { start: f.start, stop: f.stop, points: r.points } : r);
     if (!hold) await d.resume();
-    // Disconnected, or a recall changed the range, while it swept.
-    if (dev.current !== d || rng.current !== r) return;
+    // Disconnected, a recall changed the range, or the fine band changed, while it swept.
+    if (dev.current !== d || rng.current !== r || fineRef.current !== f) return;
     if (scan.hz.length < 2) throw new VnaError("The sweep came back empty.");
     sink.current(scan, d.info.board, r, f);
   }, []);

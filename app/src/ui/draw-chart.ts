@@ -72,8 +72,8 @@ export interface ChartScene {
   snap?: KeyKind | null;
   /** Added to the hover readout, such as how to unpin a snapped pin. */
   hoverNote?: string | undefined;
-  /** The band a fine sweep filled in, tinted. */
-  fine?: FineSpan | null;
+  /** The bands fine sweeps filled in, tinted. */
+  fine?: readonly FineSpan[];
   /** How to show readings. Null for a photo's trace, which has none. */
   readings?: Readings | null;
 }
@@ -156,8 +156,9 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     }
   }
   // A fine sweep's band: a light tint, and a line along the plot's top.
-  if (sc.fine && sc.fine.hi > lo && sc.fine.lo < hi) {
-    const fa = X(sc.fine.lo), fw = Math.max(3, X(sc.fine.hi) - fa);
+  for (const fs of sc.fine ?? []) {
+    if (fs.hi <= lo || fs.lo >= hi) continue;
+    const fa = X(fs.lo), fw = Math.max(3, X(fs.hi) - fa);
     ctx.fillStyle = FINE + "14"; ctx.fillRect(fa, y0, fw, y1 - y0);
     // Clear of the segments' bars along the top.
     ctx.fillStyle = FINE; ctx.fillRect(fa, y0 - 5, fw, 2);

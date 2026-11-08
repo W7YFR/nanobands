@@ -186,7 +186,10 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 #vnaRange,#vnaFine{font-size:13px;font-variant-numeric:tabular-nums}
 /* The fine band, and its × at the row's end, on one line. */
 .panel .row.fine{flex-wrap:nowrap}
-#vnaFine{color:var(--accent);flex:1;min-width:0}
+#vnaFine{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:4px}
+/* A fine-swept band, as a chip; the one Sweep and Live repeat is pressed. */
+#vnaFine button{padding:1px 8px;font-size:12px;border-radius:12px;color:var(--muted)}
+#vnaFine button[aria-pressed="true"]{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 #fineClear{flex:none}
 .panel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}button.quiet{background:none;border-color:transparent;color:var(--muted);padding:2px 6px;font-size:12px}
 button.quiet:hover{color:var(--text);border-color:var(--line)}
@@ -217,6 +220,12 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 .chips #fineBtn.on{background:color-mix(in srgb, var(--accent) 18%, transparent)}
 .chips button.fined::after{content:" ✦";color:var(--accent);font-size:10px}
 #resNote{text-transform:none;letter-spacing:0;font-weight:400}
+/* While Live sweeps: a pulsing green mark, as the NanoVNA panel's status has. */
+#liveNote{display:inline-flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ok);font-weight:600;white-space:nowrap}
+#chartCard h2 .title{white-space:nowrap}
+/* The note gives way first: it wraps, and the title, the Live mark and the tools keep their lines. */
+@media (min-width:601px){ #resNote{flex:1 1 200px;min-width:0} }
+#liveNote i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(63,185,80,.2);animation:pulse 1s ease-in-out infinite}
 #resNote::before{content:"· "}
 /* On a phone: the resolution on its own line under the title, and the band
    chips in one row that scrolls sideways, fading out at the right edge where

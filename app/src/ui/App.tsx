@@ -42,6 +42,9 @@ import { useVna } from "./useVna";
 
 const PREFS_KEY = "swrfit";
 
+/** Names joined for a sentence: "40m", "40m and 20m", "40m, 20m and 15m". */
+const listOf = (names: string[]): string => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
 function loadPrefs(): Prefs {
   try {
     return { ...DEFAULT_PREFS, ...(JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Partial<Prefs>) };
@@ -144,8 +147,8 @@ export function App(): React.ReactElement {
   }, [store]);
 
   /** Show Touchstone data. A repeat sweep of the same range keeps the pins and
-   *  the zoom. `fine` is the band a fine sweep filled in. */
-  const showTouchstone = useCallback((text: string, name: string, source: "s1p" | "vna", repeat: boolean, fine: FineSpan | null = null): void => {
+   *  the zoom. `fine` lists the bands fine sweeps filled in. */
+  const showTouchstone = useCallback((text: string, name: string, source: "s1p" | "vna", repeat: boolean, fine: FineSpan[] = []): void => {
     const { f, s } = parseTouchstone(text);
     if (f.length < 2) { alert("Couldn't find S11 data in that file."); return; }
     setDoc((d) => ({
@@ -212,20 +215,35 @@ export function App(): React.ReactElement {
 
   /* ---------------- The NanoVNA ---------------- */
 
-  /** The last sweep of the whole range, for a fine sweep to fill in. */
+  /** The last sweep of the whole range, and each band's latest fine sweep
+   *  to fill it in with. A sweep of the whole range drops the fine sweeps. */
   const fullScan = useRef<Scan | null>(null);
-  const vna = useVna((scan, board, r, fine) => {
-    if (!fine) fullScan.current = scan;
-    const base = fullScan.current, data = fine && base ? mergeScan(base, scan) : scan;
-    const span = fine ? { band: fine.band, lo: fine.start / 1e6, hi: fine.stop / 1e6 } : null;
+  const fineScans = useRef(new Map<string, { span: FineSpan; scan: Scan }>());
+  /** Show the full sweep with the fine sweeps kept, and keep it for a refresh. */
+  const showSweep = (board: string, r: { start: number; stop: number }): void => {
+    const fines = [...fineScans.current.values()].sort((a, b) => a.span.lo - b.span.lo);
+    if (!fullScan.current) return;
+    const data = fines.reduce((d, x) => mergeScan(d, x.scan), fullScan.current);
+    const spans = fines.map((x) => x.span);
     // A fine sweep keeps the range's name: it is that sweep, filled in.
     const name = `nanovna-${mhz(r.start)}-${mhz(r.stop)}mhz.s1p`, text = toTouchstone(data, board);
     const d = docRef.current, repeat = d.source === "vna" && d.s1p?.name === name;
     const blob = new Blob([text], { type: "text/plain" });
     if (repeat) void store.set("file", { blob, name, fromVna: true });
     else saveFile(blob, name, true);
-    showTouchstone(text, name, "vna", repeat, span);
+    showTouchstone(text, name, "vna", repeat, spans);
+  };
+  const vna = useVna((scan, board, r, fine) => {
+    if (fine) fineScans.current.set(fine.band, { span: { band: fine.band, lo: fine.start / 1e6, hi: fine.stop / 1e6 }, scan });
+    else { fullScan.current = scan; fineScans.current.clear(); }
+    showSweep(board, r);
   });
+  /** ×: drop the fine sweeps from the page at once, then sweep the whole range. */
+  const clearFine = (): void => {
+    fineScans.current.clear();
+    if (vna.device && vna.range) showSweep(vna.device.info.board, vna.range);
+    void vna.setFine(null);
+  };
 
   /* ---------------- The saved session ---------------- */
 
@@ -454,7 +472,7 @@ export function App(): React.ReactElement {
     resNote = doc.source === "image"
       ? `Traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point`
       : `${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`
-        + (doc.fine ? `, ${doc.fine.band} fine sweep with calibration filled in` : "");
+        + (doc.fine.length ? `, ${listOf(doc.fine.map((f) => f.band))} fine sweep${doc.fine.length > 1 ? "s" : ""} with calibration filled in` : "");
   }
   // A fine sweep for the band the chart shows, when one would add to it.
   const viewBand = an && doc.view ? bandsInRange(an.fmin, an.fmax).find((b) => sameView(bandView(an, b), doc.view)) : undefined;
@@ -473,7 +491,7 @@ export function App(): React.ReactElement {
         ) : (
           <div className="wrap">
             <aside>
-              <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} />
+              <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} fine={doc.fine} onClearFine={clearFine} />
               {doc.source === "image" && (
                 <>
                   <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr} straight={doc.straight} onStraight={onStraight}
@@ -499,6 +517,7 @@ export function App(): React.ReactElement {
               )}
               <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={peek ?? doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
                 manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote}
+                live={vna.live ? vna.fine?.band ?? "" : null}
                 readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
                 fine={doc.fine} fineOffer={fineOffer && { band: fineOffer.band, on: vna.fine?.band === fineOffer.band, run: () => void vna.setFine(fineOffer) }} />
               <div className="card" id="bandCard">

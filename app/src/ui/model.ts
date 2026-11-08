@@ -82,8 +82,8 @@ export interface Doc {
   manual: number[];
   /** Chart zoom, [lo, hi] in MHz. */
   view: [number, number] | null;
-  /** The band a fine sweep filled in, in MHz, or null. */
-  fine: FineSpan | null;
+  /** The bands fine sweeps filled in, low to high. */
+  fine: FineSpan[];
   collapsed: boolean;
   /** The user typed the sweep, so text recognition offers its reading instead of using it. */
   sweepTyped: boolean;
@@ -96,7 +96,7 @@ export interface Doc {
 
 export const EMPTY_DOC: Doc = {
   source: null, fileName: null, photo: null, corners: null, straight: false, trace: null, s1p: null,
-  refs: [], manual: [], view: null, fine: null, collapsed: false, sweepTyped: false, retrace: false,
+  refs: [], manual: [], view: null, fine: [], collapsed: false, sweepTyped: false, retrace: false,
   fields: DEFAULT_FIELDS, grid: null, ocr: null,
 };
 

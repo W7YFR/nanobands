@@ -938,6 +938,8 @@ describe("a connected NanoVNA", () => {
   });
 
   it("fine-sweeps a band, merges it into the full sweep, repeats it live, and goes back with ×", async () => {
+    const fineRow = (): string[] => [...document.querySelectorAll("#vnaFine button")].map((b) => b.textContent!);
+    const repeats = (): string | undefined => $("#vnaFine [aria-pressed=true]")?.textContent ?? undefined;
     const chipBtn = (name: string): HTMLButtonElement =>
       [...document.querySelectorAll<HTMLButtonElement>("#chips button")].find((b) => b.textContent === name)!;
     const slot = $<HTMLSelectElement>("#vnaSlot");
@@ -953,7 +955,8 @@ describe("a connected NanoVNA", () => {
     await until(() => has("#vnaFine") && $("#resNote").textContent!.includes("fine sweep"));
     expect(device.log.slice(from)).toEqual(["scan 7000000 7300000 401 3", "resume"]);
     expect([device.start, device.stop, device.points]).toEqual([3e6, 55e6, 401]);
-    expect($("#vnaFine").textContent).toBe("40m · 7–7.3 MHz");
+    expect(fineRow()).toEqual(["40m"]);
+    expect(repeats()).toBe("40m");
     // The 3 readings of the full sweep inside 40 m give way to 401.
     expect($("#resNote").textContent).toBe("799 points from the NanoVNA, 40m fine sweep with calibration filled in · zoom in to see readings");
     expect($("#fineBtn").classList.contains("on")).toBe(true);
@@ -962,19 +965,59 @@ describe("a connected NanoVNA", () => {
     expect(chipBtn("40m").classList.contains("fined")).toBe(true);
     expect($("#bandTable").textContent).toContain("20m");
 
-    // Live scans the band, and resumes the device when it stops.
+    // Live scans the band, says so, and resumes the device when it stops.
     const fines = (): number => device.log.filter((c) => c === "scan 7000000 7300000 401 3").length;
     const before = fines();
     $("#liveBtn").click();
     await until(() => fines() >= before + 3);
+    expect($("#vnaPanel .status").textContent).toBe("Sweeping 40m live");
+    expect($("#liveNote").textContent).toBe("Live: 40m only");
     $("#liveBtn").click();
     await until(() => $("#liveBtn").textContent === "Live" && !device.paused);
+    expect($("#vnaPanel .status").textContent).toBe("Connected");
+    expect(has("#liveNote")).toBe(false);
 
-    // × sweeps the whole range again.
+    // A second band's fine sweep keeps the first's, and Sweep then repeats the second.
+    chipBtn("20m").click();
+    await until(() => has("#fineBtn"));
+    $("#fineBtn").click();
+    await until(() => repeats() === "20m" && $("#resNote").textContent!.includes("40m and 20m"));
+    expect(fineRow()).toEqual(["40m", "20m"]);
+    // 3 readings each in 40 m and 20 m give way to 401 each.
+    expect($("#resNote").textContent).toMatch(/^1197 points from the NanoVNA, 40m and 20m fine sweeps with calibration filled in/);
+    expect(chipBtn("40m").classList.contains("fined")).toBe(true);
+    expect(chipBtn("20m").classList.contains("fined")).toBe(true);
+    const sent = device.log.length;
+    $("#sweepBtn").click();
+    await until(() => device.log.length > sent + 1);
+    expect(device.log.slice(sent)[0]).toBe("scan 14000000 14350000 401 3");
+
+    // A click on 40m in the row makes it the one repeated, and sweeps it.
+    const again = device.log.length;
+    [...document.querySelectorAll<HTMLButtonElement>("#vnaFine button")].find((b) => b.textContent === "40m")!.click();
+    await until(() => repeats() === "40m" && device.log.length > again + 1);
+    expect(device.log.slice(again)[0]).toBe("scan 7000000 7300000 401 3");
+    expect(fineRow()).toEqual(["40m", "20m"]);
+
+    // × drops the fine sweeps at once, while Live's pass of 40m is still running,
+    // and that pass does not bring 40m back.
+    device.scanMs = 200;
+    $("#liveBtn").click();
+    await until(() => device.log.at(-1) === "scan 7000000 7300000 401 3");
     $("#fineClear").click();
-    await until(() => !has("#vnaFine") && !$("#resNote").textContent!.includes("fine"));
-    expect(device.log.filter((c) => c.startsWith("scan")).at(-1)).toBe("scan 3000000 55000000 401 3");
+    await frames(2);
+    expect(has("#vnaFine")).toBe(false);
+    expect($("#resNote").textContent).not.toContain("fine");
     expect(chipBtn("40m").classList.contains("fined")).toBe(false);
+    expect($("#liveNote").textContent).toBe("Live");
+    // Live's next pass sweeps the whole range; the 40m pass before it was dropped.
+    await until(() => device.log.at(-1) === "scan 3000000 55000000 401 3");
+    await frames(2);
+    expect(chipBtn("40m").classList.contains("fined")).toBe(false);
+    expect(chipBtn("20m").classList.contains("fined")).toBe(false);
+    $("#liveBtn").click();
+    await until(() => $("#liveBtn").textContent === "Live" && !device.paused);
+    device.scanMs = 0;
   });
 
   it("offers no fine sweep where it would add nothing, the band is off the scale, or the calibration is too coarse", async () => {

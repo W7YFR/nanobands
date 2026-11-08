@@ -15,8 +15,8 @@ export interface Snapshot {
   refs: { u: number; f: number }[];
   manual: number[];
   view: [number, number] | null;
-  /** The band a fine sweep filled in, so a refresh marks it again. */
-  fine: FineSpan | null;
+  /** The bands fine sweeps filled in, so a refresh marks them again. */
+  fine: FineSpan[];
   straight: boolean;
   sweepTyped: boolean;
   collapsed: boolean;
@@ -53,8 +53,8 @@ export function applySnapshot(d: Doc, sv: Partial<Snapshot>, traceIt: (d: Doc) =
   // A Touchstone file's sweep is in the file, not in the fields.
   out.fields = d.source === "image" ? fields : { ...fields, start: d.fields.start, stop: d.fields.stop };
   if (d.source !== "image") {
-    const f = sv.fine;
-    return f && typeof f.band === "string" && Number.isFinite(f.lo) && Number.isFinite(f.hi) ? { ...out, fine: f } : out;
+    const ok = (f: FineSpan): boolean => typeof f?.band === "string" && Number.isFinite(f.lo) && Number.isFinite(f.hi);
+    return Array.isArray(sv.fine) ? { ...out, fine: sv.fine.filter(ok) } : out;
   }
   const isNote = (n: unknown): boolean => typeof n === "object" && n !== null && "kind" in n;
   out = {
