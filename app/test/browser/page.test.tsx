@@ -79,6 +79,13 @@ async function penStroke(el: Element, x0: number, y0: number, x1: number, y1: nu
   point(el, "pointerup", x1, y1, pointerType, 0);
 }
 
+/** A pen stroke whose moves all come before the page draws again, as a fast hand's can. */
+function fastPenStroke(el: Element, x0: number, y0: number, x1: number, y1: number): void {
+  point(el, "pointerdown", x0, y0);
+  for (let k = 1; k <= 10; k++) point(el, "pointermove", x0 + ((x1 - x0) * k) / 10, y0 + ((y1 - y0) * k) / 10);
+  point(el, "pointerup", x1, y1, "mouse", 0);
+}
+
 /** Open a file through the page's file input, as Browse does. */
 function openFile(file: File): void {
   const dt = new DataTransfer();
@@ -597,6 +604,22 @@ describe("the page", () => {
       // A low line from about 11 to 41 MHz.
       await penStroke(c, r.left + r.width * 0.2, r.top + r.height * 0.8, r.left + r.width * 0.7, r.top + r.height * 0.8);
       await until(() => note() === "Traced with the pen");
+      expect($("#bandTable").textContent).toMatch(/20m\s*all usable/);
+      $("#penBtn").click();
+      await until(() => !$("#photoPen").classList.contains("on"));
+    });
+
+    it("keeps every stretch of a stroke drawn faster than the page redraws", async () => {
+      $("#clearBtn").click();
+      await until(() => note().startsWith("No trace yet"));
+      $("#penBtn").click();
+      await until(() => $("#photoPen").classList.contains("on"));
+      const c = $("#photo"), r = c.getBoundingClientRect();
+      // The same low line as above, in one go: 20 m is near its start, so it
+      // is usable only if the stroke's first stretches stay.
+      fastPenStroke(c, r.left + r.width * 0.2, r.top + r.height * 0.8, r.left + r.width * 0.7, r.top + r.height * 0.8);
+      await until(() => note() === "Traced with the pen");
+      await frames(2);
       expect($("#bandTable").textContent).toMatch(/20m\s*all usable/);
       $("#penBtn").click();
       await until(() => !$("#photoPen").classList.contains("on"));
