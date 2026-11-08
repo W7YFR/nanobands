@@ -370,6 +370,9 @@ export function App(): React.ReactElement {
     const next: Trace = { ...t, v: tv, edited: true };
     const top = strokes.current.at(-1);
     if (top) top.after = next;
+    // The next move builds on this one at once: a fast stroke can bring several
+    // moves before the page draws again and docRef catches up.
+    docRef.current = { ...d, trace: next };
     setDoc((cur) => ({ ...cur, trace: next }));
   };
   // Undo takes back the last stroke only while the trace is still the one it

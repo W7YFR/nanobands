@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- A fast stroke with **Pen fix** no longer loses the start of its line.
+
+### Development
+
+- A page test draws a pen stroke faster than the page redraws.
+
 ## v1.12.0 — 2026-11-08
 
 ### Added
