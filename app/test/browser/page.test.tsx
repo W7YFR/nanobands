@@ -241,13 +241,12 @@ describe("the page", () => {
     const enter = (name: string): boolean => rows(name).querySelector("td")!.dispatchEvent(new PointerEvent("pointerover", { pointerType: "mouse", bubbles: true }));
     const leave = (name: string): boolean => rows(name).querySelector("td")!.dispatchEvent(new PointerEvent("pointerout", { pointerType: "mouse", bubbles: true, relatedTarget: document.body }));
 
-    it("shows a band on the chart while the mouse is over its rows", async () => {
+    it("leaves the chart as it is while the mouse is over a band's rows", async () => {
       expect(chip()).toBe("Full sweep");
       enter("20m");
-      await until(() => chip() === "20m");
-      expect(rows("20m").classList.contains("on")).toBe(false);
+      await frames(3);
+      expect(chip()).toBe("Full sweep");
       leave("20m");
-      await until(() => chip() === "Full sweep");
     });
 
     it("keeps a band on the chart on a click, and goes back to the view before on a second", async () => {

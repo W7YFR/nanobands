@@ -336,7 +336,7 @@ header h1{position:relative;z-index:5}
 /* A joined button has no left border: a hovered or pressed one draws that edge as a shadow. */
 .modeswitch button+button:hover,.modeswitch button+button[aria-pressed="true"]{box-shadow:-1px 0 0 var(--accent)}
 .card h2 .modeswitch button{text-transform:none;letter-spacing:0}
-/* A band's rows: the pointer over them shows the band on the chart, a click keeps it there. */
+/* A band's rows: a click shows the band on the chart; the pointer over them only highlights them. */
 .bands tbody.band{cursor:pointer}
 .bands tbody.band:hover td{background:rgba(255,255,255,.03)}
 .bands tbody.band.on td{background:#1c2a40}

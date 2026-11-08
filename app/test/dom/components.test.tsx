@@ -422,16 +422,13 @@ describe("the tables", () => {
     expect(screen.getByText("No usable band segments in this sweep.")).toBeInTheDocument();
   });
 
-  it("show a band on the chart while the mouse is over it, and pick it on a click", () => {
-    const onPeek = vi.fn(), onPick = vi.fn();
-    render(<BandTable an={an} settings={settings} onPeek={onPeek} onPick={onPick} />);
+  it("pick a band on a click, and not as the mouse passes over it", () => {
+    const onPick = vi.fn();
+    render(<BandTable an={an} settings={settings} onPick={onPick} />);
     const rows = document.querySelector('tbody[data-band="40m"]')!;
-    fireEvent.pointerEnter(rows, { pointerType: "touch" });
-    expect(onPeek).not.toHaveBeenCalled();
     fireEvent.pointerEnter(rows, { pointerType: "mouse" });
-    expect(onPeek).toHaveBeenLastCalledWith(expect.objectContaining({ name: "40m" }));
     fireEvent.pointerLeave(rows, { pointerType: "mouse" });
-    expect(onPeek).toHaveBeenLastCalledWith(null);
+    expect(onPick).not.toHaveBeenCalled();
     fireEvent.click(screen.getByText("40m"));
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ name: "40m" }));
   });

@@ -19,6 +19,10 @@ them.
 - **SWR**, in the chart's header, sets the top of the SWR scale to 3, 5 or 10 for a NanoVNA sweep or a Touchstone file. 5 is the default.
 - Each band's ends, and the ends of the segments your license class and **Mode** allow, show as ticks on the curve once the band is wide enough on the chart. The hover snaps to a tick and names the edge, and a click pins it.
 
+### Changed
+
+- The pointer over a band's rows in the Band segments table no longer moves the chart. A click still shows the band.
+
 ### Fixed
 
 - Where a NanoVNA sweep or a Touchstone file rises past the top of the chart, the curve no longer leaves the top early. The hover's dot now stays on the curve.

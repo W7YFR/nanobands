@@ -103,7 +103,6 @@ export function App(): React.ReactElement {
   const [mode, setMode] = useState<Mode>("idle");
   const [hoverF, setHoverF] = useState<number | null>(null);
   /** The chart's view while the pointer is over a band's rows in Band segments. */
-  const [peek, setPeek] = useState<[number, number] | null>(null);
   /** The band a click in Band segments put on the chart, and the view before it. */
   const picked = useRef<Picked | null>(null);
   /** The name of a photo being opened, while its grid and trace are worked out. */
@@ -425,13 +424,10 @@ export function App(): React.ReactElement {
     chartRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [prefs.freq, an]);
 
-  const onPeekBand = useCallback((b: Band | null): void => setPeek(b && an ? bandView(an, b) : null), [an]);
   const onPickBand = useCallback((b: Band): void => {
     if (!an) return;
     const r = pickBand(doc.view, picked.current, bandView(an, b));
     picked.current = r.picked;
-    // The pick shows at once. The hover shows again when the pointer comes back.
-    setPeek(null);
     setDoc((d) => ({ ...d, view: r.view }));
   }, [an, doc.view]);
 
@@ -536,7 +532,7 @@ export function App(): React.ReactElement {
                   onStraight={onStraight} mode={mode} onPenMode={() => toggleMode("pen")} onUndo={onUndo} canUndo={canUndo} onClearMarks={onClearMarks} canClear={canClear}
                   onCorners={onCorners} onPen={onPen} onRef={onRef} onHover={setHoverF} />
               )}
-              <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={peek ?? doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
+              <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
                 manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote}
                 live={vna.live ? vna.fine?.band ?? "" : null}
                 readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
@@ -548,7 +544,7 @@ export function App(): React.ReactElement {
                   <Switch id="bandsShown" label="Bands shown" value={prefs.bands} onChange={(v) => onPref("bands", v)}
                     options={[{ value: "all", label: "All" }, { value: "usable", label: "Usable" }]} />
                 </h2>
-                <div id="bandTable"><BandTable an={an} settings={settings} shown={prefs.bands} view={doc.view} onPeek={onPeekBand} onPick={onPickBand} /></div>
+                <div id="bandTable"><BandTable an={an} settings={settings} shown={prefs.bands} view={doc.view} onPick={onPickBand} /></div>
                 <p className="hint">US privileges per 47 CFR §97.301/305, checked against the ARRL frequency-allocations chart. 60 m is four 2.8 kHz channels plus the 5351.5–5366.5 kHz segment (USB/CW/data). Power limits and new rule changes aren't modeled, so check the current ARRL chart before you transmit.</p>
               </div>
               <div className={"card" + (prefs.points ? "" : " collapsed")} id="ptCard">
