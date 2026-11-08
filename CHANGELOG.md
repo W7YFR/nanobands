@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.12.1 — 2026-11-08
+
 ### Fixed
 
 - A fast stroke with **Pen fix** no longer loses the start of its line.
