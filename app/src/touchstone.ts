@@ -3,19 +3,21 @@
  * The option line (`# MHz S RI R 50`) says the frequency unit and how S11 is
  * written: real and imaginary (RI), magnitude and angle (MA), or dB and angle
  * (DB). Only the magnitude of S11 matters for SWR. An .s2p file has S11 in the
- * same columns, so it reads the same way.
+ * same columns, so it reads the same way. A file of Y, Z, G or H parameters
+ * holds no S11, so it reads as empty.
  */
 
 export interface Sweep {
   /** Frequencies in MHz. */
   f: number[];
-  /** SWR at each frequency. 999 stands for a total reflection. */
+  /** SWR at each frequency. 999 stands for 999 or more. */
   s: number[];
 }
 
-/** SWR from the magnitude of the reflection coefficient. */
+/** SWR from the magnitude of the reflection coefficient, capped at 999. */
 export function swrFromGamma(g: number): number {
-  return g >= 0.999 ? 999 : (1 + g) / (1 - g);
+  const s = (1 + g) / (1 - g);
+  return g >= 1 || s > 999 ? 999 : s;
 }
 
 export function parseTouchstone(text: string): Sweep {
@@ -32,6 +34,7 @@ export function parseTouchstone(text: string): Sweep {
         else if (w === "MHZ") unit = 1e6;
         else if (w === "GHZ") unit = 1e9;
         else if (w === "MA" || w === "DB" || w === "RI") fmt = w;
+        else if (w === "Y" || w === "Z" || w === "G" || w === "H") return { f: [], s: [] };
       }
       continue;
     }

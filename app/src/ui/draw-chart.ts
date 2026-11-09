@@ -15,7 +15,7 @@
  * out.
  */
 
-import { atTop, segUsable, usableLimit, type Analysis } from "@/analysis";
+import { alongTop, atTop, segUsable, usableLimit, type Analysis } from "@/analysis";
 import { MODES, bandAt, bandEdges, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import { swrOn, type Curve, type FineSpan, type Settings } from "./model";
@@ -172,7 +172,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   // With Max SWR at or over the top of the scale, Max SWR's line lies along
   // the top, so the curve is left out where it runs flat along it: the line
   // shows those stretches alone.
-  const thrAtTop = atTop(s.thr, s);
+  const thrAtTop = alongTop(s.thr, s);
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
   const path = new Path2D();
   let pen = false, prevTop = false, pf = NaN, ps = NaN;
@@ -187,7 +187,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     const fi = t.f[i]!, si = t.s[i]!;
     if (Number.isNaN(si) || Number.isNaN(fi)) { pen = false; continue; }
     if ((fi < lo || fi > hi) && !reaches(i, i - 1) && !reaches(i, i + 1)) { pen = false; continue; }
-    const top = thrAtTop && atTop(si, s);
+    const top = thrAtTop && alongTop(si, s);
     // A step from the top or onto it is drawn, so the curve meets the line.
     if (top && prevTop) pen = false;
     prevTop = top;

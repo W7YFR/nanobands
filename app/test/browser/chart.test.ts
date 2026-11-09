@@ -9,7 +9,7 @@ import { HIGH, MATCH, OK, PROBE } from "@/ui/colors";
 import type { Curve, Settings } from "@/ui/model";
 
 const W = 800, H = 460;
-const settings: Settings = { start: 13.5, stop: 14.5, top: 5, bot: 1, thr: 3, cls: "G", mode: "any", prom: 0.2, sens: 0 };
+const settings: Settings = { start: 13.5, stop: 14.5, top: 5, bot: 1, thr: 3, cls: "G", mode: "any", prom: 0.2, sens: 0, clip: true };
 
 /** A V-shaped curve over 13.5–14.5 MHz with its dip at `dip`. */
 function vee(dip: number, slope = 4): Curve {

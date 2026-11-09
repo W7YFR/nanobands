@@ -37,6 +37,17 @@ export interface AnalysisOptions {
   top: number;
   /** The bottom of the scale. 1 when left out. */
   bot?: number;
+  /** False when every reading is known, as from the NanoVNA or a file: an
+   *  SWR over the top of the scale is then a number, not a line along the
+   *  top. True, or left out, for a photo. */
+  clip?: boolean;
+}
+
+/** The SWR scale, and whether a reading along its top is clipped. */
+export interface Scale {
+  top: number;
+  bot?: number | undefined;
+  clip?: boolean | undefined;
 }
 
 /** An SWR over the top of the scale draws as a flat line along the top.
@@ -44,19 +55,22 @@ export interface AnalysisOptions {
  *  that line, so its real value is unknown. */
 const CLIP_SHARE = 0.015;
 
-/** Whether SWR `w` is at the top of the scale, so it may be any higher. */
-export const atTop = (w: number, s: { top: number; bot?: number | undefined }): boolean =>
+/** Whether SWR `w` draws along the top line of the scale. */
+export const alongTop = (w: number, s: Scale): boolean =>
   w >= s.top - CLIP_SHARE * (s.top - (s.bot ?? 1));
 
-/** Whether SWR `w` is usable: at or under the maximum, and known. An SWR at
- *  the top of the scale is never usable, since it may be any higher. */
-export const usableSwr = (w: number, s: { thr: number; top: number; bot?: number | undefined }): boolean =>
+/** Whether SWR `w` is clipped at the top of the scale, so it may be any higher. */
+export const atTop = (w: number, s: Scale): boolean => s.clip !== false && alongTop(w, s);
+
+/** Whether SWR `w` is usable: at or under the maximum, and known. A clipped
+ *  SWR is never usable, since it may be any higher. */
+export const usableSwr = (w: number, s: Scale & { thr: number }): boolean =>
   w <= s.thr && !atTop(w, s);
 
 /** The highest usable SWR: the maximum, or just under the top of the scale
- *  when that is lower. */
-export const usableLimit = (s: { thr: number; top: number; bot?: number | undefined }): number =>
-  Math.min(s.thr, s.top - CLIP_SHARE * (s.top - (s.bot ?? 1)));
+ *  when that is lower and readings along the top are clipped. */
+export const usableLimit = (s: Scale & { thr: number }): number =>
+  s.clip === false ? s.thr : Math.min(s.thr, s.top - CLIP_SHARE * (s.top - (s.bot ?? 1)));
 
 /** Analyze SWR `w` at frequencies `f`. NaN in either marks a gap. */
 export function analyze(f: ArrayLike<number>, w: ArrayLike<number>, o: AnalysisOptions): Analysis | null {

@@ -26,7 +26,7 @@ const vnaStub = (over: Partial<Vna> = {}): Vna => ({
   connect: vi.fn(async () => undefined), disconnect: vi.fn(async () => undefined), sweep: vi.fn(async () => undefined),
   setLive: vi.fn(), recall: vi.fn(async () => undefined),
   slots: null, slot: null, reading: false, readSlots: vi.fn(async () => undefined), command: vi.fn(async () => []), reread: vi.fn(async () => undefined),
-  fine: null, setFine: vi.fn(async () => undefined), ...over,
+  fine: null, setFine: vi.fn(async () => undefined), cal: null, ...over,
 });
 
 describe("AnalyzeCard", () => {
@@ -173,6 +173,18 @@ describe("LoadCard", () => {
     // The device is on a known slot, so Read starts at once.
     fireEvent.click(screen.getByRole("button", { name: "Read" }));
     expect(vna.readSlots).toHaveBeenCalledOnce();
+  });
+
+  it("warns when the device applies no calibration", () => {
+    const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
+    const range = { start: 3e6, stop: 55e6, points: 401 };
+    const { container, rerender } = render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range, cal: ["load", "open", "short"] })} />);
+    expect(container.querySelector("#vnaUncal")).toHaveTextContent("No calibration applied");
+    rerender(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range, cal: ["load", "isoln", "Es", "Er", "Et", "cal'ed"] })} />);
+    expect(container.querySelector("#vnaUncal")).toBeNull();
+    // Before the terms are read, there is nothing to warn about yet.
+    rerender(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range, cal: null })} />);
+    expect(container.querySelector("#vnaUncal")).toBeNull();
   });
 
   it("warns before Read when the device may hold a calibration no slot keeps", () => {

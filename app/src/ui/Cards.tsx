@@ -5,7 +5,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { MODES, type LicenseClass, type OperatingMode } from "@/bands";
 import { fmtF } from "@/format";
-import { slotLabel } from "@/slots";
+import { calibrated, slotLabel } from "@/slots";
 import type { Range } from "@/vna";
 import type { Fine } from "@/fine";
 import type { Doc, FineSpan, FreqCheck, Fields, GridNote, OcrNote, Prefs } from "./model";
@@ -121,6 +121,12 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
           {Array.from({ length: d.info.slots }, (_, i) => <option key={i} value={i}>{slotLabel(i, vna.slots?.[i])}</option>)}
         </select>
       </div>
+      {/* Raw readings give a wrong SWR either way, so the warning stays until a calibration applies. */}
+      {vna.cal && !calibrated(vna.cal) && (
+        <p className="disclaimer vna-warn" id="vnaUncal">
+          <b>No calibration applied.</b> The NanoVNA's readings are raw, so the SWR shown is wrong. Calibrate it, or load a slot that holds a calibration.
+        </p>
+      )}
       {asking && (
         <Confirm title="Read the slots?" action="Read slots" onConfirm={read} onCancel={cancelAsk}>
           <p>Reading loads each calibration slot on the NanoVNA in turn, then returns to the one it started on.</p>

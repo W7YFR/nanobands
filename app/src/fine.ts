@@ -12,7 +12,7 @@
  * settings, and its range is never left.
  */
 
-import { atTop, swrAt } from "./analysis";
+import { alongTop, swrAt } from "./analysis";
 import type { Band } from "./bands";
 import type { Range, Scan } from "./vna";
 
@@ -55,7 +55,7 @@ export function offScale(c: { f: ArrayLike<number>; s: ArrayLike<number> }, lo: 
   const w = [swrAt(c.f, c.s, lo), swrAt(c.f, c.s, hi)];
   for (let i = 0; i < c.f.length; i++) if (c.f[i]! > lo && c.f[i]! < hi) w.push(c.s[i]!);
   const known = w.filter((x) => !Number.isNaN(x));
-  return known.length > 0 && known.every((x) => atTop(x, scale));
+  return known.length > 0 && known.every((x) => alongTop(x, scale));
 }
 
 /** The full sweep with a fine sweep in place of its readings over the same span. */

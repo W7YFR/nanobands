@@ -111,6 +111,10 @@ export interface Settings {
   stop: number;
   top: number;
   bot: number;
+  /** Whether an SWR along the top of the scale may be any higher. True for a
+   *  photo, where the screen clips the curve; false for NanoVNA and file
+   *  data, where every reading is known. */
+  clip: boolean;
   thr: number;
   cls: LicenseClass;
   mode: OperatingMode;
@@ -121,7 +125,7 @@ export interface Settings {
 export function settingsOf(f: Fields, p: Prefs): Settings {
   return {
     start: parseFloat(f.start), stop: parseFloat(f.stop),
-    top: parseFloat(f.top) || 5, bot: parseFloat(f.bot) || 1,
+    top: parseFloat(f.top) || 5, bot: parseFloat(f.bot) || 1, clip: true,
     thr: parseFloat(p.thr) || 3, cls: p.cls, mode: p.mode,
     prom: Math.max(0.01, parseFloat(p.prom) || 0.2), sens: +f.sens,
   };

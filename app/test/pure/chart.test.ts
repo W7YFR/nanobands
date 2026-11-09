@@ -7,7 +7,7 @@ import { HIGH, MATCH, OK, curveColor } from "@/ui/colors";
 import { BANDS } from "@/bands";
 import type { Curve, Settings } from "@/ui/model";
 
-const settings: Settings = { start: 13.5, stop: 14.5, top: 5, bot: 1, thr: 3, cls: "G", mode: "any", prom: 0.2, sens: 0 };
+const settings: Settings = { start: 13.5, stop: 14.5, top: 5, bot: 1, thr: 3, cls: "G", mode: "any", prom: 0.2, sens: 0, clip: true };
 const band20 = BANDS.find((b) => b.name === "20m")!;
 
 /** A curve over 13.5–14.5 MHz with SWR w(f). */

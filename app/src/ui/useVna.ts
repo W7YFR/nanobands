@@ -47,6 +47,9 @@ export interface Vna {
   fine: Fine | null;
   /** Sweep a band finely from now on, or the whole range again with null. */
   setFine(f: Fine | null): Promise<void>;
+  /** The calibration terms the device reports, such as `load isoln Es Er Et
+   *  cal'ed`, or null before they are read. */
+  cal: string[] | null;
 }
 
 const log = (line: unknown): void => console.info("[NanoVNA]", line);
@@ -61,6 +64,7 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
   const [slot, setSlot] = useState<number | null>(null);
   const [reading, setReading] = useState(false);
   const [fine, setFineState] = useState<Fine | null>(null);
+  const [cal, setCal] = useState<string[] | null>(null);
   const fineRef = useRef<Fine | null>(null);
   const keepFine = (f: Fine | null): void => { fineRef.current = f; setFineState(f); };
   const slotList = useRef<Slot[] | null>(null);
@@ -85,6 +89,7 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
     setRange(null);
     setSlots(null);
     setSlot(null);
+    setCal(null);
     keepFine(null);
     await d?.resume().catch(() => undefined);
     await d?.close();
@@ -118,10 +123,11 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
       if (!link) return;
       const d = await NanoVNA.open(link, log);
       log(d.info);
-      const r = await d.range();
+      const r = await d.range(), terms = await d.cal();
       const list = loadSlots(d.info);
       setSlots(list);
-      setSlot(slotOf(list, { range: r, cal: await d.cal() }));
+      setSlot(slotOf(list, { range: r, cal: terms }));
+      setCal(terms);
       dev.current = d;
       rng.current = r;
       keepFine(null);
@@ -181,6 +187,7 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
       if (!r) { setNote(`Slot ${slot} is empty. The NanoVNA kept its calibration.`); return; }
       setNote("");
       setSlot(slot);
+      setCal(await d.cal());
       rng.current = r;
       setRange(r);
       if (!liveOn.current) await sweepOnce();
@@ -191,10 +198,11 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
 
   /** Read the device's range and slot again, and sweep when the range changed. */
   const follow = useCallback(async (d: NanoVNA): Promise<void> => {
-    const was = rng.current, r = await d.range();
-    const at = slotOf(slotList.current, { range: r, cal: await d.cal() });
+    const was = rng.current, r = await d.range(), terms = await d.cal();
+    const at = slotOf(slotList.current, { range: r, cal: terms });
     if (dev.current !== d) return;
     setSlot(at);
+    setCal(terms);
     if (was && r.start === was.start && r.stop === was.stop && r.points === was.points) return;
     keepFine(null);
     rng.current = r;
@@ -240,11 +248,12 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
     const n = /^save\s+(\d+)$/.exec(line)?.[1];
     const list = slotList.current;
     if (n === undefined || !list || +n >= list.length) return;
-    const next = list.slice();
-    next[+n] = { kind: "set", range: await d.range(), cal: await d.cal() };
+    const next = list.slice(), terms = await d.cal();
+    next[+n] = { kind: "set", range: await d.range(), cal: terms };
     storeSlots(d.info, next);
     setSlots(next);
     setSlot(+n);
+    setCal(terms);
   };
 
   const command = useCallback(async (line: string): Promise<string[]> => {
@@ -269,6 +278,6 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
 
   return {
     unsupported: typeof serial === "string" ? serial : "",
-    device, range, live, note, connect, disconnect, sweep, setLive, recall, slots, slot, reading, readSlots, command, reread, fine, setFine,
+    device, range, live, note, connect, disconnect, sweep, setLive, recall, slots, slot, reading, readSlots, command, reread, fine, setFine, cal,
   };
 }
