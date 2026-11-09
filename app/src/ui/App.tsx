@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { bandsInRange, type Band } from "@/bands";
+import { bandsInRange, type Band, type LicenseClass } from "@/bands";
 import { fineCheck, mergeScan, offScale } from "@/fine";
 import { mappingFor, solveRefs, type Quad } from "@/geometry";
 import { detectGrid } from "@/grid";
@@ -41,13 +41,22 @@ import { useFileDrop } from "./useFileDrop";
 import { useVna } from "./useVna";
 
 const PREFS_KEY = "swrfit";
+/** The license class lives apart from the other preferences. Only a pick
+ *  from the License list writes it, so a visitor who never picks one gets
+ *  Technician, the class with the fewest privileges. */
+const CLS_KEY = "nanobands-license";
+const CLASSES: readonly string[] = ["E", "A", "G", "T"];
 
 /** Names joined for a sentence: "40m", "40m and 20m", "40m, 20m and 15m". */
 const listOf = (names: string[]): string => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
 function loadPrefs(): Prefs {
   try {
-    return { ...DEFAULT_PREFS, ...(JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Partial<Prefs>) };
+    const cls = localStorage.getItem(CLS_KEY);
+    return {
+      ...DEFAULT_PREFS, ...(JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Partial<Prefs>),
+      cls: cls !== null && CLASSES.includes(cls) ? cls as LicenseClass : DEFAULT_PREFS.cls,
+    };
   } catch {
     return DEFAULT_PREFS; // storage blocked: defaults stand
   }
@@ -298,7 +307,7 @@ export function App(): React.ReactElement {
 
   // Preferences outlive a file: they survive Clear and apply to the next one.
   useEffect(() => {
-    try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* storage blocked: not remembered */ }
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify({ ...prefs, cls: undefined })); } catch { /* storage blocked: not remembered */ }
   }, [prefs]);
 
   /* ---------------- Editing ---------------- */
@@ -402,7 +411,10 @@ export function App(): React.ReactElement {
     if (Number.isFinite(f)) setDoc((d) => withRefs(d, [...d.refs, { u, f }]));
   };
 
-  const onPref = useCallback(<K extends keyof Prefs>(k: K, v: Prefs[K]): void => setPrefs((p) => ({ ...p, [k]: v })), []);
+  const onPref = useCallback(<K extends keyof Prefs>(k: K, v: Prefs[K]): void => {
+    if (k === "cls") try { localStorage.setItem(CLS_KEY, v as LicenseClass); } catch { /* storage blocked: not remembered */ }
+    setPrefs((p) => ({ ...p, [k]: v }));
+  }, []);
   const onRemovePin = useCallback((f: number): void => setDoc((d) => ({ ...d, manual: d.manual.filter((m) => m !== f) })), []);
 
   const onTogglePin = (f: number, tol: number): void => {

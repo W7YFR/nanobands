@@ -18,7 +18,9 @@ function vSweep(): { f: number[]; s: number[] } {
   const f = Array.from({ length: 541 }, (_, i) => 3 + (27 * i) / 540);
   return { f, s: f.map((x) => 1.1 + 0.6 * Math.abs(x - 14.2)) };
 }
-const settings = settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30" }, DEFAULT_PREFS);
+/** General, whose HF segments these tests use. The page defaults to Technician. */
+const GENERAL = { ...DEFAULT_PREFS, cls: "G" as const };
+const settings = settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30" }, GENERAL);
 const an = (() => { const { f, s } = vSweep(); return analyze(f, s, { thr: 3, prom: 0.2, top: 5 })!; })();
 
 const vnaStub = (over: Partial<Vna> = {}): Vna => ({
@@ -81,7 +83,7 @@ describe("AnalyzeCard", () => {
   });
 
   it("says not to transmit at the top of the scale, even with the top at Max SWR", () => {
-    const s3 = settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30", top: "3" }, DEFAULT_PREFS);
+    const s3 = settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30", top: "3" }, GENERAL);
     const flat = { ...curve, s: curve.s.map((w) => Math.min(3, w)) };
     render(<AnalyzeCard prefs={DEFAULT_PREFS} onPref={vi.fn()} onPin={vi.fn()} onView={vi.fn()} check={checkAt(flat, s3, 21.3)}
       sweep={[an.fmin, an.fmax]} thr={3} top={3} />);
