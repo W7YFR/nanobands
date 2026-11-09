@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Terms · NanoBands</title>
+<meta name="description" content="The terms of use for NanoBands: what it reads, what it does not check, your responsibility, and what stays on your machine.">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#12151a">
+<meta name="robots" content="noindex">
+<style>
+/* The app's palette and header, so this page reads as part of it. */
+:root{
+  --bg:#12151a;--panel:#1a1f27;--line:#2e3644;--text:#e6eaf0;--muted:#97a3b6;--faint:#66708a;--accent:#6aa9ff;--warn:#f2cc60;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scrollbar-gutter:stable;scrollbar-color:color-mix(in srgb, var(--faint) 45%, transparent) transparent}
+*{scrollbar-width:thin}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.callsign{display:block;color:var(--faint);text-decoration:none;flex:none}
+.callsign:hover,.callsign:focus-visible{color:var(--accent)}
+.callsign .art{display:block;white-space:pre;font-family:var(--mono);font-size:calc(26px / 6);line-height:1;font-weight:400;letter-spacing:0}
+header .div{width:1px;align-self:stretch;background:var(--line)}
+header h1{margin:0;color:var(--accent)}
+header h1 a{color:inherit;text-decoration:none}
+header h1 .art{display:block;white-space:pre;font-family:var(--mono);font-size:calc(34px / 6);line-height:1;font-weight:400;letter-spacing:0}
+main{max-width:680px;margin:0 auto;padding:28px 16px 8px}
+main h2{font-size:22px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+.dated{color:var(--faint);font-size:12px;margin:0 0 24px}
+main h3{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:26px 0 8px;font-weight:600}
+main p{margin:0 0 10px}
+main a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.colophon{padding:16px 20px 24px;text-align:center;font-size:11px;color:var(--faint)}
+.colophon a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.colophon a:hover,.colophon a:focus-visible{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <a class="callsign" href="https://www.w7yfr.com" aria-label="W7YFR — back to w7yfr.com"><span class="art" aria-hidden="true">██╗    ██╗███████╗██╗   ██╗███████╗██████╗
+██║    ██║╚════██║╚██╗ ██╔╝██╔════╝██╔══██╗
+██║ █╗ ██║    ██╔╝ ╚████╔╝ █████╗  ██████╔╝
+██║███╗██║   ██╔╝   ╚██╔╝  ██╔══╝  ██╔══██╗
+╚███╔███╔╝   ██║     ██║   ██║     ██║  ██║
+ ╚══╝╚══╝    ╚═╝     ╚═╝   ╚═╝     ╚═╝  ╚═╝</span></a>
+  <span class="div"></span>
+  <h1><a href="./" aria-label="NanoBands — back to the app"><span class="art" role="img" aria-label="NanoBands">███╗   ██╗ █████╗ ███╗   ██╗ ██████╗ ██████╗  █████╗ ███╗   ██╗██████╗ ███████╗
+████╗  ██║██╔══██╗████╗  ██║██╔═══██╗██╔══██╗██╔══██╗████╗  ██║██╔══██╗██╔════╝
+██╔██╗ ██║███████║██╔██╗ ██║██║   ██║██████╔╝███████║██╔██╗ ██║██║  ██║███████╗
+██║╚██╗██║██╔══██║██║╚██╗██║██║   ██║██╔══██╗██╔══██║██║╚██╗██║██║  ██║╚════██║
+██║ ╚████║██║  ██║██║ ╚████║╚██████╔╝██████╔╝██║  ██║██║ ╚████║██████╔╝███████║
+╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝ ╚══════╝</span></a></h1>
+</header>
+
+<main>
+  <h2>Terms of use</h2>
+  <p class="dated">Last updated November 8, 2026</p>
+
+  <p>NanoBands is a free tool for reading a NanoVNA SWR sweep against the US amateur band plan. By using it you agree to these terms. They are short. Please read them.</p>
+
+  <h3>1. What NanoBands does</h3>
+  <p>NanoBands takes a photo of a NanoVNA's SWR screen, a Touchstone <code>.s1p</code> file, or a live sweep from a NanoVNA over USB. It shows the SWR curve, lays the US amateur band plan over it, and says which segments of which bands are at or under the maximum SWR you set, for the license class and mode you choose.</p>
+
+  <h3>2. How it reads a sweep</h3>
+  <p><b>A photo</b> is read by eye. NanoBands finds the plot grid, reads the sweep's start, stop and SWR scale off the screen's text, and traces the yellow curve. Every step is an estimate. A skewed shot, glare, a misread label, or text drawn over the curve can move the result. The page shows what it read, so you can check and correct it.</p>
+  <p><b>A sweep or a file</b> gives the NanoVNA's own readings, with the calibration the device holds applied as it stands. NanoBands does not check that calibration. A stale one, one taken at the wrong point in the feed line, or none at all gives a wrong SWR. The page says when the device applies no calibration. Between readings the chart draws a straight line, so a narrow dip or peak between two readings does not show.</p>
+
+  <h3>3. What it does not check</h3>
+  <p>The SWR is at the point where the NanoVNA is connected, not at the radio. A tuner, a different cable, or a change in the antenna's surroundings changes it. NanoBands knows nothing of your power, your equipment, or the rules in force on the day. The band plan follows 47 CFR §97.301 and §97.305 as published. Power limits are not modeled.</p>
+
+  <h3>4. Your responsibility</h3>
+  <p>You are responsible for every transmission you make. Confirm each result on the NanoVNA itself before you transmit. "You may transmit" means only that the SWR shown is at or under your maximum, inside a segment the band plan allows your license class in that mode. It is not advice, and it is not a promise that your equipment is safe to use. Check the current rules before you transmit.</p>
+
+  <h3>5. No warranty</h3>
+  <p>NanoBands is provided as is and as available, with no warranty of any kind, express or implied, including any warranty of accuracy, fitness for a particular purpose, or that it will work without error.</p>
+
+  <h3>6. Limitation of liability</h3>
+  <p>To the fullest extent the law allows, the author of NanoBands is not liable for any loss or damage that comes from using it or relying on it. That includes damage to your transmitter, your antenna, anything connected to them, and any consequence of a transmission you make. You use it at your own risk.</p>
+
+  <h3>7. Privacy</h3>
+  <p>Everything runs in your browser. There is no account, no upload and no server. A photo, a sweep and your settings never leave your machine. They stay in the browser's own storage until you clear them. A live sweep talks to the NanoVNA over Web Serial and to nothing else. There are no analytics and no cookies.</p>
+  <p>The first time the page reads a photo, it loads its text-recognition library (Tesseract.js) from the jsDelivr content delivery network, which sees that request as it sees any web request. The photo itself is not sent anywhere.</p>
+
+  <h3>8. Source and license</h3>
+  <p>The source is on <a href="https://github.com/W7YFR/nanobands">GitHub</a> under the MIT license, which carries its own no-warranty terms for the code. Bugs and ideas are welcome there.</p>
+
+  <h3>9. Changes</h3>
+  <p>These terms may change. The date at the top says when they last did. Using NanoBands after a change means you accept the new terms.</p>
+</main>
+
+<footer class="colophon">
+  © <span id="year"></span> <a href="https://www.qrz.com/db/W7YFR">W7YFR</a> · <a href="./">NanoBands</a>
+</footer>
+<script>document.getElementById("year").textContent = new Date().getFullYear();</script>
+</body>
+</html>

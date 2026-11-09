@@ -190,6 +190,16 @@ describe("the page", () => {
     expect($("#year").textContent).toBe(String(new Date().getFullYear()));
   });
 
+  it("links to the terms from its footer, and the page is served beside it", async () => {
+    expect($<HTMLAnchorElement>("#termsLink").getAttribute("href")).toBe("terms.html");
+    const r = await fetch("/terms.html");
+    expect(r.ok).toBe(true);
+    const html = await r.text();
+    expect(html).toContain("<title>Terms · NanoBands</title>");
+    expect(html).toContain("You use it at your own risk.");
+    expect(html).toContain("never leave your machine");
+  });
+
   it("starts on the landing, with no Clear and no page", () => {
     expect(has(".app.no-data")).toBe(true);
     expect(has("#landing")).toBe(true);
@@ -220,6 +230,7 @@ describe("the page", () => {
     expect($("#clearAll").classList.contains("ghost")).toBe(false);
     expect(has("#landing")).toBe(false);
     expect($("#disclaimer").textContent).toContain("Reading a photo is best effort");
+    expect($("#disclaimer a.terms").getAttribute("href")).toBe("terms.html");
     // At the top of the page, over both columns.
     expect($("#disclaimer").getBoundingClientRect().bottom).toBeLessThanOrEqual($(".wrap").getBoundingClientRect().top);
     expect(getComputedStyle($("header h1")).visibility).toBe("visible");
