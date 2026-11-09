@@ -7,6 +7,12 @@ them.
 
 ## Unreleased
 
+## v1.12.3 — 2026-11-09
+
+### Added
+
+- **Terms**, in the footer and at the right of the warning at the top of the page, opens the terms of use: what NanoBands reads, what it does not check, your responsibility, and that nothing leaves the browser.
+
 ## v1.12.2 — 2026-11-09
 
 ### Changed
