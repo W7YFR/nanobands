@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.12.2 — 2026-11-09
+
 ### Changed
 
 - The warning at the top of the page shows for a NanoVNA sweep and a Touchstone file too, worded for the device's readings.
