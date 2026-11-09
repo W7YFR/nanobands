@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.12.4 — 2026-11-09
+
 ### Changed
 
 - **License** starts on Technician until you pick a class. Pick your class again if you picked one before.
