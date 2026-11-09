@@ -118,10 +118,11 @@ export function App(): React.ReactElement {
 
   /* ---------------- What the page shows ---------------- */
 
-  // NanoVNA and file data run from SWR 1 to the scale top chosen on the chart.
+  // NanoVNA and file data run from SWR 1 to the scale top chosen on the chart,
+  // and every reading is known, so none is clipped at the top.
   const settings = useMemo(() => {
     const s = settingsOf(doc.fields, prefs);
-    return doc.source === "image" ? s : { ...s, top: +prefs.scaleTop, bot: 1 };
+    return doc.source === "image" ? s : { ...s, top: +prefs.scaleTop, bot: 1, clip: false };
   }, [doc.fields, doc.source, prefs]);
   const curve = useMemo(() => curveOf(doc.trace, settings), [doc.trace, settings]);
   const an = useMemo(() => analysisOf(curve, settings), [curve, settings]);
@@ -504,7 +505,7 @@ export function App(): React.ReactElement {
         <Header nameRef={nameRef} subRef={subRef} onClear={doc.source ? clear : null} />
         <input type="file" id="file" ref={fileIn} accept="image/*,.s1p,.s2p,.txt" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-        {!landing && doc.source === "image" && <div className="page-top"><Disclaimer id="photoDisclaimer" /></div>}
+        {!landing && doc.source && <div className="page-top"><Disclaimer source={doc.source} id="disclaimer" /></div>}
         {landing ? (
           <Landing heroRef={heroRef} onConnect={() => void vna.connect()} unsupported={vna.unsupported} note={vna.note} onOpen={() => fileIn.current?.click()} />
         ) : (

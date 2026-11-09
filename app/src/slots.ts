@@ -90,11 +90,15 @@ export async function readSlots(d: SlotDevice, count: number): Promise<SlotRead>
 
 const mhz = (hz: number): number => +(hz / 1e6).toFixed(6);
 
+/** Whether the terms `cal` reports say a calibration is applied. Without
+ *  one, the device's readings are raw. */
+export const calibrated = (cal: readonly string[]): boolean => cal.includes("cal'ed");
+
 /** The menu's name for a slot, such as "Slot 6 · 3–55 MHz". The Range row shows its points. */
 export function slotLabel(i: number, s: Slot | undefined): string {
   if (!s) return `Slot ${i}`;
   if (s.kind !== "set") return `Slot ${i} · ${s.kind}`;
-  const cal = !s.cal.includes("cal'ed") ? " · no calibration" : !s.cal.includes("Et") ? " · S11 only" : "";
+  const cal = !calibrated(s.cal) ? " · no calibration" : !s.cal.includes("Et") ? " · S11 only" : "";
   return `Slot ${i} · ${mhz(s.range.start)}–${mhz(s.range.stop)} MHz${cal}`;
 }
 

@@ -7,6 +7,19 @@ them.
 
 ## Unreleased
 
+## v1.12.2 — 2026-11-09
+
+### Changed
+
+- The warning at the top of the page shows for a NanoVNA sweep and a Touchstone file too, worded for the device's readings.
+
+### Fixed
+
+- A connected NanoVNA with no calibration applied now says so under **Calibration**, since its readings are raw.
+- NanoVNA and file readings near the top of the SWR scale no longer count as off the scale. The usable stretches, the key points and the frequency check take every reading as known.
+- A Touchstone file of Y, Z, G or H parameters no longer reads as S11.
+- An SWR reading never shows above 999.
+
 ## v1.12.1 — 2026-11-08
 
 ### Fixed

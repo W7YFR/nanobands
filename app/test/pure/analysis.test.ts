@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyze, segUsable, swrAt } from "@/analysis";
+import { alongTop, analyze, atTop, segUsable, swrAt, usableLimit, usableSwr } from "@/analysis";
 
 /** A curve sampled at `n` points from `lo` to `hi` MHz. */
 function sample(fn: (f: number) => number, lo = 3, hi = 55, n = 521): { f: number[]; s: number[] } {
@@ -51,6 +51,23 @@ describe("analyze", () => {
     const near = sample(() => 4.95);
     expect(analyze(near.f, near.s, { thr: 5, prom: 0.2, top: 5, bot: 1 })!.usable).toEqual([]);
     expect(analyze(near.f, near.s, { thr: 5, prom: 0.2, top: 5, bot: 4.5 })!.usable).toEqual([[3, 55]]);
+  });
+
+  it("takes every reading as known when the data is not clipped", () => {
+    // NanoVNA and file data: a reading along the top of the scale is a number.
+    const data = { thr: 3, prom: 0.2, top: 3, bot: 1, clip: false };
+    const near = sample(() => 2.98);
+    expect(analyze(near.f, near.s, data)!.usable).toEqual([[3, 55]]);
+    expect(usableLimit(data)).toBe(3);
+    expect(usableSwr(2.98, data)).toBe(true);
+    expect(atTop(4.95, { top: 5, clip: false })).toBe(false);
+    expect(alongTop(4.95, { top: 5, clip: false })).toBe(true);
+    // A peak over the top keeps its SWR instead of reading as clipped.
+    const over = sample((f) => 1.5 + 20 * Math.exp(-((f - 14) ** 2)));
+    const peak = analyze(over.f, over.s, { ...data, top: 5 })!.extrema.find((e) => e.type === "peak")!;
+    expect(peak.clipped).toBe(false);
+    expect(peak.s).toBeCloseTo(21.5, 1);
+    expect(analyze(over.f, over.s, { thr: 3, prom: 0.2, top: 5, bot: 1 })!.extrema.find((e) => e.type === "peak")!.clipped).toBe(true);
   });
 
   it("reports a stretch that runs off either end of the sweep", () => {

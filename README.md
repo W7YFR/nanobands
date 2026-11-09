@@ -61,6 +61,13 @@ applies as is. **Live** sweeps again and again until **Hold**. **Calibration**
 loads one of the device's saved slots, and its range, as the device's RECALL
 menu does. Quit NanoVNA-Saver first: one program at a time can hold the port.
 
+The readings are the device's own. With no calibration applied, the card says
+so, and the SWR shown is wrong until one is. Between readings the chart draws a
+straight line, so a narrow dip or peak between two readings does not show; a
+fine sweep of the band finds it. Firmware older than 1.0 sweeps with the
+calibration in the slot last loaded or saved, not one the device holds unsaved,
+so save a fresh calibration to a slot before you sweep.
+
 The NanoVNA, -H, -H4 and -F family work. The V2, SAA-2 and LiteVNA use a
 different protocol and do not. For work without the device, `make dev` at
 `/?fake` connects a stand-in NanoVNA instead.

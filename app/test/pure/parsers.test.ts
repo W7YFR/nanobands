@@ -11,6 +11,14 @@ describe("swrFromGamma", () => {
     expect(swrFromGamma(0.5)).toBeCloseTo(3);
     expect(swrFromGamma(1)).toBe(999);
   });
+
+  it("never falls as the reflection grows: 999 stands for 999 or more", () => {
+    expect(swrFromGamma(0.99)).toBeCloseTo(199);
+    expect(swrFromGamma(0.998)).toBeCloseTo(999);
+    expect(swrFromGamma(0.9985)).toBe(999);
+    expect(swrFromGamma(0.999)).toBe(999);
+    expect(swrFromGamma(1.01)).toBe(999);
+  });
 });
 
 describe("parseTouchstone", () => {
@@ -36,6 +44,13 @@ describe("parseTouchstone", () => {
   it("reads S11 out of an .s2p line and skips comments and junk", () => {
     const { f } = parseTouchstone("# MHz S RI R 50\n! comment\n7.1 0.1 0.1 0.9 0 0 0 0.1 0.1 ! trailing\nnot a number line\n\n");
     expect(f).toEqual([7.1]);
+  });
+
+  it("reads nothing out of a file of Y, Z, G or H parameters", () => {
+    // Impedance or admittance in S11's columns would read as a reflection.
+    expect(parseTouchstone("# MHz Z RI R 50\n7.1 50 0\n").f).toEqual([]);
+    expect(parseTouchstone("# MHz Y MA R 50\n7.1 0.02 0\n").f).toEqual([]);
+    expect(parseTouchstone("# MHz S RI R 50\n7.1 0.5 0\n").f).toEqual([7.1]);
   });
 
   it("knows the file names it reads", () => {

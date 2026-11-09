@@ -350,6 +350,8 @@ header h1{position:relative;z-index:5}
 .disclaimer{margin:0;padding:8px 12px;border-left:3px solid var(--warn);background:color-mix(in srgb, var(--warn) 6%, transparent);border-radius:0 6px 6px 0;color:var(--muted);font-size:12px;line-height:1.5}
 .disclaimer b{color:var(--text);font-weight:600}
 .disclaimer .line{display:block}
+/* The NanoVNA panel's warning, between its rows. */
+.disclaimer.vna-warn{margin:8px 0}
 /* The Shell window: the whole page, a log above a prompt, and the commands
    beside them while the "?" is on. On a phone the commands sit above the log,
    so the prompt stays at the bottom by the keyboard. */
