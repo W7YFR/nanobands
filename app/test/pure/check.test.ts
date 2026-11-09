@@ -16,7 +16,9 @@ function vCurve(): Curve {
   }
   return { N, f, s };
 }
-const at = (p: Partial<Prefs> = {}) => settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30" }, { ...DEFAULT_PREFS, ...p });
+/** General, whose HF segments these checks use. The page defaults to Technician. */
+const GENERAL: Prefs = { ...DEFAULT_PREFS, cls: "G" };
+const at = (p: Partial<Prefs> = {}) => settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30" }, { ...GENERAL, ...p });
 
 describe("segmentAt", () => {
   it("finds the segment a class may use in a mode", () => {
@@ -67,7 +69,7 @@ describe("checkAt", () => {
   });
 
   it("does not let you transmit at the top of the scale, even with the top at Max SWR", () => {
-    const s = settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30", top: "3" }, { ...DEFAULT_PREFS, thr: "3" });
+    const s = settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30", top: "3" }, { ...GENERAL, thr: "3" });
     const flat: Curve = { ...c, s: c.s.map((w) => Math.min(3, w)) };
     expect(checkAt(flat, s, 21.3)).toMatchObject({ clipped: true, ok: false });
     expect(checkAt(flat, s, 14.3)).toMatchObject({ clipped: false, ok: true });

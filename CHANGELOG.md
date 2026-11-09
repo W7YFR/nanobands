@@ -7,6 +7,16 @@ them.
 
 ## Unreleased
 
+## v1.12.4 — 2026-11-09
+
+### Changed
+
+- **License** starts on Technician until you pick a class. Pick your class again if you picked one before.
+
+### Development
+
+- The tests that read HF segments set the license class to General.
+
 ## v1.12.3 — 2026-11-09
 
 ### Added

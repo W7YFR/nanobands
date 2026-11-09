@@ -162,6 +162,8 @@ beforeAll(async () => {
   Element.prototype.setPointerCapture = () => undefined;
   indexedDB.deleteDatabase("nanobands");
   localStorage.clear();
+  // The page defaults to Technician. These tests read General's HF segments.
+  localStorage.setItem("nanobands-license", "G");
   window.Tesseract = tesseract(SCREEN_TEXT);
   Object.defineProperty(navigator, "serial", { value: device.serial(), configurable: true });
   await mount();
@@ -1170,5 +1172,22 @@ describe("a connected NanoVNA", () => {
     $("#vnaBtn").click();
     await until(() => has("#vnaPanel"));
     expect(has("#fileName")).toBe(false);
+  });
+});
+
+describe("the License list", () => {
+  afterAll(() => localStorage.setItem("nanobands-license", "G"));
+
+  it("starts on Technician until you pick a class, and remembers your pick", async () => {
+    localStorage.removeItem("nanobands-license");
+    // Preferences saved before the License list kept its own key hold General.
+    localStorage.setItem("swrfit", JSON.stringify({ ...JSON.parse(localStorage.getItem("swrfit") ?? "{}"), cls: "G" }));
+    await mount();
+    expect($<HTMLSelectElement>("#cls").value).toBe("T");
+
+    fireEvent.change($("#cls"), { target: { value: "E" } });
+    await until(() => localStorage.getItem("nanobands-license") === "E");
+    await mount();
+    expect($<HTMLSelectElement>("#cls").value).toBe("E");
   });
 });

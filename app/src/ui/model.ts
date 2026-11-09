@@ -66,7 +66,7 @@ export interface Prefs {
 /** The tops the SWR scale offers for NanoVNA and file data. */
 export type ScaleTop = "3" | "5" | "10";
 
-export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "G", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both", scaleTop: "5" };
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "T", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both", scaleTop: "5" };
 
 /** A fine sweep's band in the data: its name, and its span in MHz. */
 export interface FineSpan { band: string; lo: number; hi: number }
