@@ -131,10 +131,7 @@ export default defineConfig({
           api: { port: 63415, strictPort: true },
           browser: {
             enabled: true,
-            /* Full Chromium, not the headless shell. The shell scales a
-               photo differently, and OCR reads it differently from a real
-               browser. */
-            provider: playwright({ launchOptions: { channel: "chromium" } }),
+            provider: playwright(),
             headless: true,
             instances: [{ browser: "chromium" }],
           },

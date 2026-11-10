@@ -8,8 +8,9 @@
  * change that fixes it fails here too and gets noticed. A null is a reading
  * the page did not get at all.
  *
- * The readings are Chromium's, not the headless shell's: the shell scales
- * the photo differently and reads START on the 3–55 MHz photo as 0.003.
+ * The readings are from a browser without a GPU, as on CI. A browser with a
+ * GPU shrinks the photo differently, and OCR reads some of it differently:
+ * START on the 3–55 MHz photo reads 3 there, not 0.003.
  *
  * The 2 m photos are one antenna across 144–148 MHz on three SWR scales, one
  * of them at three angles, one with glare. The HF photo is a 6–50 MHz sweep
@@ -47,7 +48,9 @@ async function read(name: string): Promise<Reading & { text: string }> {
   const text = data.lines?.length ? words.map((l) => l.map((w) => w.text).join(" ")).join("\n") : data.text;
   const sweep = parseSweepText(text), per = parsePerDivision(text);
   const fit = g ? fitScale(axisLabels(words.flat(), mappingFor(g.corners).back), per) : null;
-  return { start: sweep?.start ?? null, stop: sweep?.stop ?? null, per, top: fit?.top ?? null, bot: fit?.bot ?? null, text };
+  // To six places, past the float noise of a unit conversion.
+  const r = (x: number | null | undefined): number | null => (x == null ? null : +x.toFixed(6));
+  return { start: r(sweep?.start), stop: r(sweep?.stop), per: r(per), top: r(fit?.top), bot: r(fit?.bot), text };
 }
 
 interface Case {
@@ -59,15 +62,15 @@ interface Case {
 }
 
 const CASES: Case[] = [
-  { photo: "random-wire-3-55mhz.jpg", screen: { start: 3, stop: 55, per: 0.5, top: 5, bot: 1 } },
+  { photo: "random-wire-3-55mhz.jpg", screen: { start: 3, stop: 55, per: 0.5, top: 5, bot: 1 }, misses: { start: 0.003 } },
   { photo: "random-wire-3-55mhz-no-labels.jpg", screen: { start: null, stop: null, per: 0.5, top: 5, bot: 1 } },
   { photo: "random-wire-3-55mhz-top-3.jpg", screen: { start: 3, stop: 55, per: 0.25, top: 3, bot: 1 }, misses: { stop: 65 } },
   { photo: "2m-144-148mhz-top-2.5.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 }, misses: { start: null, stop: null, top: null, bot: null } },
-  { photo: "2m-144-148mhz-top-2.5-tilted.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 }, misses: { start: 144.0006, stop: 148.080809, top: null, bot: null } },
+  { photo: "2m-144-148mhz-top-2.5-tilted.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 }, misses: { start: 144.6006, stop: 148.080009, top: null, bot: null } },
   { photo: "2m-144-148mhz-top-2.5-glare.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 }, misses: { start: null, stop: null, per: null, top: null, bot: null } },
-  { photo: "2m-144-148mhz-top-2.jpg", screen: { start: 144, stop: 148, per: 0.125, top: 2, bot: 1 }, misses: { start: null, stop: null, top: null, bot: null } },
+  { photo: "2m-144-148mhz-top-2.jpg", screen: { start: 144, stop: 148, per: 0.125, top: 2, bot: 1 }, misses: { start: null, stop: null, per: null, top: null, bot: null } },
   { photo: "2m-144-148mhz-top-4.jpg", screen: { start: 144, stop: 148, per: 0.375, top: 4, bot: 1 }, misses: { start: null, stop: null } },
-  { photo: "hf-6-50mhz-top-100.jpg", screen: { start: 6, stop: 50, per: 12.38, top: 100, bot: 1 }, misses: { start: 6.60088, stop: 50.9086, per: 0.012387, top: null, bot: null } },
+  { photo: "hf-6-50mhz-top-100.jpg", screen: { start: 6, stop: 50, per: 12.38, top: 100, bot: 1 }, misses: { start: 6.60088, stop: 50.00086, per: 0.012367, top: null, bot: null } },
 ];
 
 describe("OCR on real photos", () => {

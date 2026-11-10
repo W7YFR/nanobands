@@ -19,7 +19,6 @@ them.
 - The page test replaces the `tesseract.js` module in place of a stand-in on `window.Tesseract`.
 - `ocr.test.ts` runs real OCR on every photo in `app/test/data`. It lists what each screen says, and what Tesseract misreads.
 - Six new photos: a 2 m sweep on three SWR scales, at three angles and with glare, and a 6–50 MHz sweep on a 1–100 scale.
-- The browser tier runs full Chromium, not the headless shell. The shell reads some photos differently from a real browser.
 
 ## v1.12.4 — 2026-11-09
 
