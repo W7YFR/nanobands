@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.13.0 — 2026-11-10
+
 ### Added
 
 - A photo that does not look like a NanoVNA screen says so under **Calibrate**.
