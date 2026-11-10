@@ -39,7 +39,9 @@ export async function recognize(canvas: HTMLCanvasElement): Promise<OcrResult> {
     langPath: FILES,
   });
   await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
-  const { data } = await worker.recognize(canvas);
+  const { data } = await worker.recognize(canvas, {}, { text: true, blocks: true });
   await worker.terminate();
-  return data;
+  // Lines with their words and glyph boxes. The blocks hold them in paragraphs.
+  const lines = data.blocks?.flatMap((b) => b.paragraphs.flatMap((p) => p.lines));
+  return { text: data.text, lines: lines ?? null };
 }
