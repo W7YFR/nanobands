@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.13.2 — 2026-11-10
+
 ### Fixed
 
 - More photos read START and STOP right, such as 2 m sweeps whose zeros read as 6 or 8. They read the same in every browser.
