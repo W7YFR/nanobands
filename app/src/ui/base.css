@@ -400,3 +400,5 @@ html.shell-open{overflow:hidden}
 .modal h2{margin:0 0 8px;font-size:15px}
 .modal p{margin:0 0 8px;color:var(--muted);font-size:13px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.modal-field{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.modal-field input{flex:1;width:auto}

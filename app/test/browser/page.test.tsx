@@ -540,39 +540,44 @@ describe("the page", () => {
   it("works out the sweep from two frequency references", async () => {
     if ($("#straightBtn").textContent === "Straighten") $("#straightBtn").click();
     await until(() => $("#straightBtn").textContent === "Edit corners");
-    const answers: (string | null)[] = ["16", "42", null], real = window.prompt;
-    window.prompt = () => answers.shift() ?? null;
-    try {
-      // Straightened, the grid spans the photo less a margin of 7% of its width each side.
-      const c = $("#photo"), r = c.getBoundingClientRect(), y = r.top + r.height / 2;
-      const ref = async (u: number): Promise<void> => {
-        $("#refBtn").click();
-        await until(() => $("#refBtn").classList.contains("on"));
-        const x = r.left + (r.width * (0.07 + u)) / 1.14;
-        point(c, "pointerdown", x, y);
-        point(c, "pointerup", x, y, "mouse", 0);
-        await until(() => !$("#refBtn").classList.contains("on"));
-      };
-      // 16 and 42 MHz sit a quarter and three quarters across a 3–55 MHz grid.
-      await ref(0.25);
-      expect($("#refs").textContent).toContain("16 MHz");
-      expect($("#refs").textContent).toContain("add one more…");
-      await ref(0.75);
-      expect($("#refs").textContent).toContain("42 MHz");
-      expect(+$<HTMLInputElement>("#fStart").value).toBeCloseTo(3, 1);
-      expect(+$<HTMLInputElement>("#fStop").value).toBeCloseTo(55, 1);
-      // A cancelled prompt adds no reference.
-      await ref(0.5);
-      expect(document.querySelectorAll("#refs i")).toHaveLength(2);
-      // Removing one keeps the sweep; removing both clears the list.
-      $("#refs i").click();
-      await until(() => document.querySelectorAll("#refs i").length === 1);
-      expect(+$<HTMLInputElement>("#fStop").value).toBeCloseTo(55, 1);
-      $("#refs i").click();
-      await until(() => !has("#refs"));
-    } finally {
-      window.prompt = real;
-    }
+    // Straightened, the grid spans the photo less a margin of 7% of its width each side.
+    const c = $("#photo"), r = c.getBoundingClientRect(), y = r.top + r.height / 2;
+    /** Click a point `u` across the grid, and answer the question with `f`, or Cancel. */
+    const ref = async (u: number, f: string | null): Promise<void> => {
+      $("#refBtn").click();
+      await until(() => $("#refBtn").classList.contains("on"));
+      const x = r.left + (r.width * (0.07 + u)) / 1.14;
+      point(c, "pointerdown", x, y);
+      point(c, "pointerup", x, y, "mouse", 0);
+      await until(() => has("#askNumber"));
+      expect($("#modalTitle").textContent).toBe("Frequency at this point");
+      expect(document.activeElement).toBe($("#askNumber"));
+      if (f === null) {
+        modalButton("Cancel").click();
+      } else {
+        fireEvent.change($("#askNumber"), { target: { value: f } });
+        fireEvent.submit($("#askNumber").closest("form")!);
+      }
+      await until(() => !has("#askNumber"));
+      expect($("#refBtn").classList.contains("on")).toBe(false);
+    };
+    // 16 and 42 MHz sit a quarter and three quarters across a 3–55 MHz grid.
+    await ref(0.25, "16");
+    expect($("#refs").textContent).toContain("16 MHz");
+    expect($("#refs").textContent).toContain("add one more…");
+    await ref(0.75, "42");
+    expect($("#refs").textContent).toContain("42 MHz");
+    expect(+$<HTMLInputElement>("#fStart").value).toBeCloseTo(3, 1);
+    expect(+$<HTMLInputElement>("#fStop").value).toBeCloseTo(55, 1);
+    // A cancelled question adds no reference.
+    await ref(0.5, null);
+    expect(document.querySelectorAll("#refs i")).toHaveLength(2);
+    // Removing one keeps the sweep; removing both clears the list.
+    $("#refs i").click();
+    await until(() => document.querySelectorAll("#refs i").length === 1);
+    expect(+$<HTMLInputElement>("#fStop").value).toBeCloseTo(55, 1);
+    $("#refs i").click();
+    await until(() => !has("#refs"));
   });
 
   describe("Pen fix", () => {
