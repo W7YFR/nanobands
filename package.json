@@ -40,7 +40,9 @@
     "vitest": "^5.0.5"
   },
   "dependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "tesseract.js": "5.1.1"
   }
 }

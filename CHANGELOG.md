@@ -7,6 +7,15 @@ them.
 
 ## Unreleased
 
+### Changed
+
+- Reading a photo's text no longer loads anything from a third-party site. The text-recognition library comes from NanoBands itself. **Terms** says so.
+
+### Development
+
+- Tesseract.js 5.1.1 and its English data are package dependencies. The build writes the worker, the core and the data to `tesseract/5.1.1/`, and the dev server serves them from `node_modules`.
+- The browser tier replaces the `tesseract.js` module in place of a stand-in on `window.Tesseract`.
+
 ## v1.12.4 — 2026-11-09
 
 ### Changed

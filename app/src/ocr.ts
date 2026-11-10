@@ -1,38 +1,16 @@
 /* Reading text off the photo with Tesseract.js.
  *
- * Loaded from a CDN the first time a photo is opened, pinned to one version
- * and checked against a subresource integrity hash. Not a package dependency:
- * the library fetches its worker, its WebAssembly core and its language data
- * from the same CDN anyway, so bundling the entry point would save nothing.
+ * Bundled with the page. The library is loaded the first time a photo is
+ * opened. Its worker, its WebAssembly core and its English data are served
+ * from the site under tesseract/<version>/ (see vite.config.ts), not from a
+ * CDN.
  */
 
+import { version } from "tesseract.js/package.json";
 import type { OcrResult } from "./ocr-zeros";
 
-const TESSERACT = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
-const TESSERACT_SRI = "sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F";
-
-interface TesseractWorker {
-  setParameters(p: Record<string, string>): Promise<unknown>;
-  recognize(image: HTMLCanvasElement): Promise<{ data: OcrResult }>;
-  terminate(): Promise<unknown>;
-}
-declare global {
-  interface Window {
-    Tesseract?: { createWorker(lang: string): Promise<TesseractWorker> };
-  }
-}
-
-function loadScript(src: string, integrity: string): Promise<void> {
-  return new Promise((res, rej) => {
-    const s = document.createElement("script");
-    s.src = src;
-    s.integrity = integrity;
-    s.crossOrigin = "anonymous";
-    s.onload = () => res();
-    s.onerror = rej;
-    document.head.appendChild(s);
-  });
-}
+/** Where the build puts the files the worker loads, beside the page. */
+const FILES = `tesseract/${version}/`;
 
 /** Black-on-white copy of `src` at most 2000 px wide, keeping only bright
  *  text (white or yellow). Ignoring blue suppresses the bluish grid. */
@@ -54,9 +32,13 @@ export function ocrCanvas(src: HTMLCanvasElement): { canvas: HTMLCanvasElement; 
 
 /** Run OCR over sparse text scattered around a screen. */
 export async function recognize(canvas: HTMLCanvasElement): Promise<OcrResult> {
-  if (!window.Tesseract) await loadScript(TESSERACT, TESSERACT_SRI);
-  const worker = await window.Tesseract!.createWorker("eng");
-  await worker.setParameters({ tessedit_pageseg_mode: "11" });
+  const { createWorker, PSM } = await import("tesseract.js");
+  const worker = await createWorker("eng", undefined, {
+    workerPath: `${FILES}worker.min.js`,
+    corePath: FILES,
+    langPath: FILES,
+  });
+  await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
   const { data } = await worker.recognize(canvas);
   await worker.terminate();
   return data;

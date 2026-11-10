@@ -96,9 +96,9 @@ components in `app/src/ui`, and the photo and the chart are drawn on canvases
 by `draw-photo.ts` and `draw-chart.ts`.
 
 Reading START and STOP off the screen uses [Tesseract.js](https://tesseract.projectnaptha.com/),
-loaded from a CDN the first time a photo is opened and pinned to one version
-with a subresource integrity hash. Without a network it still works; you type
-the frequencies.
+a package dependency. The build copies its worker, its WebAssembly core and its
+English data to `tesseract/<version>/` beside the page, and the page loads them
+the first time a photo is opened. Nothing comes from a CDN.
 
 ## Working on it
 

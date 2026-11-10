@@ -1,15 +1,15 @@
 /* The page end to end: the React app mounted in Chromium, a real photo
  * dropped on it, and a stand-in NanoVNA connected to it.
  *
- * OCR is the one thing replaced. The real Tesseract.js comes from a CDN and
- * takes seconds; a stand-in on window.Tesseract answers with the text the
- * NanoVNA's screen says, so what is tested is the wiring around it.
+ * OCR is the one thing replaced. The real Tesseract.js takes seconds; a
+ * stand-in for the tesseract.js module answers with the text the NanoVNA's
+ * screen says, so what is tested is the wiring around it.
  */
 
 import { StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { fireEvent } from "@testing-library/react";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import "@/ui/base.css";
 import photo from "../data/random-wire-3-55mhz.jpg?url";
 import pkg from "../../../package.json";
@@ -114,14 +114,21 @@ async function downloads(fn: () => void | Promise<void>): Promise<{ name: string
   return got;
 }
 
-/** A Tesseract stand-in that reads `text`, after `wait` when given. */
-const tesseract = (text: string, wait?: Promise<void>): NonNullable<Window["Tesseract"]> => ({
-  createWorker: async () => ({
-    setParameters: async () => undefined,
-    recognize: async () => { await wait; return { data: { text, lines: null } }; },
-    terminate: async () => undefined,
-  }),
-});
+/** What OCR reads: `text`, after `wait` when given, or a failure to load. */
+type Ocr = { text: string; wait?: Promise<void> } | "fails";
+const ocr = vi.hoisted(() => ({ now: null as unknown as Ocr }));
+vi.mock("tesseract.js", () => ({
+  PSM: { SPARSE_TEXT: "11" },
+  createWorker: async () => {
+    const now = ocr.now;
+    if (now === "fails") throw new Error("Tesseract did not load");
+    return {
+      setParameters: async () => undefined,
+      recognize: async () => { await now.wait; return { data: { text: now.text, lines: null } }; },
+      terminate: async () => undefined,
+    };
+  },
+}));
 const SCREEN_TEXT = "YSTL SUR 500n/ 2.970\nSTART 3.000 000 MHz\nBW:1000Hz 401p\nSTOP 55.000 000 MHz";
 
 /** What a status line in the sidebar says, without its ✓, ! or … mark. */
@@ -164,7 +171,7 @@ beforeAll(async () => {
   localStorage.clear();
   // The page defaults to Technician. These tests read General's HF segments.
   localStorage.setItem("nanobands-license", "G");
-  window.Tesseract = tesseract(SCREEN_TEXT);
+  ocr.now = { text: SCREEN_TEXT };
   Object.defineProperty(navigator, "serial", { value: device.serial(), configurable: true });
   await mount();
 });
@@ -799,11 +806,11 @@ describe("an opened .s1p file", () => {
 
 describe("reading the sweep off a photo", () => {
   const note = (): string => stat("ocrNote");
-  afterEach(() => { window.Tesseract = tesseract(SCREEN_TEXT); });
+  afterEach(() => { ocr.now = { text: SCREEN_TEXT }; });
 
   it("offers what it read when the sweep was typed meanwhile, and uses it on Use it", async () => {
     let done = (): void => undefined;
-    window.Tesseract = tesseract(SCREEN_TEXT, new Promise((r) => { done = r; }));
+    ocr.now = { text: SCREEN_TEXT, wait: new Promise((r) => { done = r; }) };
     openFile(await photoFile());
     await until(() => note() === "Reading the sweep from the photo");
     fireEvent.change($("#fStart"), { target: { value: "3.5" } });
@@ -820,7 +827,7 @@ describe("reading the sweep off a photo", () => {
   });
 
   it("says when the photo shows no sweep, and fills the tables from a typed one", async () => {
-    window.Tesseract = tesseract("");
+    ocr.now = { text: "" };
     openFile(await photoFile());
     await until(() => note() === "No sweep found on the photo. Enter it below.");
     expect($("#gridNote").textContent).toContain("Grid found");
@@ -832,30 +839,15 @@ describe("reading the sweep off a photo", () => {
   });
 
   it("says when it cannot read the photo's text, as when Tesseract does not load", async () => {
-    delete window.Tesseract;
-    const head = document.head, real = head.appendChild;
-    let asked = false;
-    head.appendChild = (<T extends Node>(n: T): T => {
-      if (n instanceof HTMLScriptElement && n.src.includes("tesseract")) {
-        asked = true;
-        setTimeout(() => n.onerror?.(new Event("error")), 0);
-        return n;
-      }
-      return real.call(head, n) as T;
-    }) as typeof head.appendChild;
-    try {
-      openFile(await photoFile());
-      await until(() => note() === "Couldn't read the photo's text. Enter the sweep below.");
-      expect(asked).toBe(true);
-      expect($("#gridNote").textContent).toContain("Grid found");
-      expect($<HTMLInputElement>("#fStart").value).toBe("");
-    } finally {
-      head.appendChild = real;
-    }
+    ocr.now = "fails";
+    openFile(await photoFile());
+    await until(() => note() === "Couldn't read the photo's text. Enter the sweep below.");
+    expect($("#gridNote").textContent).toContain("Grid found");
+    expect($<HTMLInputElement>("#fStart").value).toBe("");
   });
 
   it("says when there is no grid, and Detect grid finds none either", async () => {
-    window.Tesseract = tesseract("");
+    ocr.now = { text: "" };
     const oc = new OffscreenCanvas(800, 480), ox = oc.getContext("2d")!;
     ox.fillStyle = "#000";
     ox.fillRect(0, 0, 800, 480);
