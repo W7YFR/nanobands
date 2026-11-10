@@ -26,15 +26,17 @@ function devIcon(): Plugin {
 /* Tesseract.js loads its worker, its WebAssembly core and its English data at
    run time, by URL. This serves them from node_modules on the dev server and
    writes them into the build, under tesseract/<version>/, so the page never
-   fetches them from a CDN. The core comes in three builds, for relaxed SIMD,
-   SIMD and neither; the worker picks one. The version in the path keeps a
-   browser from mixing files of two versions. */
+   fetches them from a CDN. The worker picks the relaxed SIMD core where the
+   browser has it, as Chrome does, and the SIMD core elsewhere. The core
+   without SIMD is left out: every browser since Safari 16.4 has SIMD, and in
+   an older one the photo's text goes unread and the user types the sweep.
+   The version in the path keeps a browser from mixing files of two
+   versions. */
 const tesseractVersion: string = JSON.parse(readFileSync(new URL("./node_modules/tesseract.js/package.json", import.meta.url), "utf8")).version;
 const TESSERACT_FILES: Record<string, string> = {
   "worker.min.js": "tesseract.js/dist/worker.min.js",
   "tesseract-core-relaxedsimd-lstm.wasm.js": "tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js",
   "tesseract-core-simd-lstm.wasm.js": "tesseract.js-core/tesseract-core-simd-lstm.wasm.js",
-  "tesseract-core-lstm.wasm.js": "tesseract.js-core/tesseract-core-lstm.wasm.js",
   "eng.traineddata.gz": "@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz",
 };
 function tesseractFiles(): Plugin {

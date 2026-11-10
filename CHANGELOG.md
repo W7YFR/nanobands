@@ -7,6 +7,12 @@ them.
 
 ## Unreleased
 
+## v1.12.6 — 2026-11-10
+
+### Changed
+
+- Reading a photo's text needs Chrome 91, Firefox 89, Safari 16.4 or later. In an older browser, you type the sweep.
+
 ## v1.12.5 — 2026-11-10
 
 ### Changed
