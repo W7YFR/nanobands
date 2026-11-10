@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.13.3 — 2026-11-10
+
 ### Fixed
 
 - More photos read their SWR scale, such as 2 m sweeps and a 1–100 scale.
