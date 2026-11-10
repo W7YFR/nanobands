@@ -23,6 +23,40 @@ function devIcon(): Plugin {
   };
 }
 
+/* Tesseract.js loads its worker, its WebAssembly core and its English data at
+   run time, by URL. This serves them from node_modules on the dev server and
+   writes them into the build, under tesseract/<version>/, so the page never
+   fetches them from a CDN. The core comes in three builds, for relaxed SIMD,
+   SIMD and neither; the worker picks one. The version in the path keeps a
+   browser from mixing files of two versions. */
+const tesseractVersion: string = JSON.parse(readFileSync(new URL("./node_modules/tesseract.js/package.json", import.meta.url), "utf8")).version;
+const TESSERACT_FILES: Record<string, string> = {
+  "worker.min.js": "tesseract.js/dist/worker.min.js",
+  "tesseract-core-relaxedsimd-lstm.wasm.js": "tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js",
+  "tesseract-core-simd-lstm.wasm.js": "tesseract.js-core/tesseract-core-simd-lstm.wasm.js",
+  "tesseract-core-lstm.wasm.js": "tesseract.js-core/tesseract-core-lstm.wasm.js",
+  "eng.traineddata.gz": "@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz",
+};
+function tesseractFiles(): Plugin {
+  const dir = `tesseract/${tesseractVersion}/`;
+  const read = (name: string): Buffer => readFileSync(new URL(`./node_modules/${TESSERACT_FILES[name]}`, import.meta.url));
+  return {
+    name: "tesseract-files",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const name = req.url?.split("?")[0]?.match(/\/tesseract\/[^/]+\/([^/]+)$/)?.[1];
+        if (!name || !(name in TESSERACT_FILES)) return next();
+        /* No Content-Encoding on the .gz: the worker unzips it itself. */
+        res.setHeader("Content-Type", name.endsWith(".js") ? "text/javascript" : "application/octet-stream");
+        res.end(read(name));
+      });
+    },
+    generateBundle() {
+      for (const name of Object.keys(TESSERACT_FILES)) this.emitFile({ type: "asset", fileName: dir + name, source: read(name) });
+    },
+  };
+}
+
 /* Three test tiers, chosen by directory, as in cwt:
 
      test/pure     no DOM at all. The band plan, the parsers, the analysis, and
@@ -39,7 +73,7 @@ function devIcon(): Plugin {
    and needs `npx playwright install chromium` once. */
 export default defineConfig({
   root: "app",
-  plugins: [react(), devIcon()],
+  plugins: [react(), devIcon(), tesseractFiles()],
   // Relative, so the build works at the domain root or under /nanobands/.
   base: "./",
   server: {

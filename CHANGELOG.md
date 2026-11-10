@@ -7,6 +7,19 @@ them.
 
 ## Unreleased
 
+## v1.12.5 — 2026-11-10
+
+### Changed
+
+- Reading a photo's text no longer loads anything from a third-party site. The text-recognition library comes from NanoBands itself. **Terms** says so.
+
+### Development
+
+- Tesseract.js is 7.0.0. It and its English data are package dependencies. The build writes the worker, the cores and the data to `tesseract/7.0.0/`, and the dev server serves them from `node_modules`.
+- The page test replaces the `tesseract.js` module in place of a stand-in on `window.Tesseract`.
+- `ocr.test.ts` runs real OCR on every photo in `app/test/data`. It lists what each screen says, and what Tesseract misreads.
+- Six new photos: a 2 m sweep on three SWR scales, at three angles and with glare, and a 6–50 MHz sweep on a 1–100 scale.
+
 ## v1.12.4 — 2026-11-09
 
 ### Changed
