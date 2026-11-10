@@ -226,7 +226,8 @@ describe("the page", () => {
     input.files = dt.files;
     fireEvent.change(input);
 
-    await until(() => has("#fStop") && $<HTMLInputElement>("#fStop").value === "55");
+    // The card folds a render after the sweep lands, so wait for the fold.
+    await until(() => has("#calSummary"));
     // A photo's trace has no readings to show, and its scale comes from the photo.
     expect(has("#readingsShown")).toBe(false);
     expect(has("#scaleTop")).toBe(false);
