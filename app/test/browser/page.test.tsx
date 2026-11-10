@@ -847,13 +847,14 @@ describe("reading the sweep off a photo", () => {
     expect($<HTMLInputElement>("#fStart").value).toBe("");
   });
 
-  it("says when there is no grid, and Detect grid finds none either", async () => {
-    ocr.now = { text: "" };
+  it("says when a photo is not of a NanoVNA, and Detect grid finds no grid in it", async () => {
+    ocr.now = { text: "Quarterly totals\nRevenue 12,400" };
     const oc = new OffscreenCanvas(800, 480), ox = oc.getContext("2d")!;
     ox.fillStyle = "#000";
     ox.fillRect(0, 0, 800, 480);
     openFile(new File([await oc.convertToBlob({ type: "image/png" })], "blank.png", { type: "image/png" }));
-    await until(() => has("#gridNote") && $("#fileName").textContent === "blank.png" && note().startsWith("No sweep"));
+    await until(() => has("#gridNote") && $("#fileName").textContent === "blank.png" && note() !== "Reading the sweep from the photo");
+    expect(note()).toBe("This doesn't look like a NanoVNA screen. Try another photo, or enter the sweep below.");
     expect(stat("gridNote")).toBe("No grid found. Drag the photo's corners onto it.");
     expect(stat("traceNote")).toContain("No trace yet");
     expect($("#straightBtn").textContent).toBe("Straighten");

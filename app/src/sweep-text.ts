@@ -31,3 +31,14 @@ export function parseSweepText(text: string): SweepRange | null {
   if (c && s && s.f > 0) return { start: c.f - s.f / 2, stop: c.f + s.f / 2, raw: `CENTER ${c.raw} / SPAN ${s.raw}` };
   return null;
 }
+
+/** The words a NanoVNA prints on its screen, as OCR tends to read them. */
+const SCREEN_WORDS = [/START/, /STOP/, /CENTER/, /SPAN/, /[S$]1[1IL]/, /S[WU]R/, /M[HI][ZI=]/, /B[WULY]:/];
+
+/** Whether a photo shows a NanoVNA screen: two of its words or more in the
+ *  text OCR read, or a grid of 9 SWR lines. One word alone could be
+ *  anything, a stop sign say. `swrLines` is null when no grid was found. */
+export function looksLikeScreen(text: string, swrLines: number | null): boolean {
+  const t = text.toUpperCase();
+  return SCREEN_WORDS.filter((w) => w.test(t)).length >= 2 || swrLines === 9;
+}

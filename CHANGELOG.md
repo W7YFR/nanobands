@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Added
+
+- A photo that does not look like a NanoVNA screen says so under **Calibrate**.
+
+### Development
+
+- `ocr.test.ts` checks that real OCR takes every real photo for a NanoVNA screen, and a drawn spreadsheet for something else.
+
 ## v1.12.7 — 2026-11-10
 
 ### Fixed

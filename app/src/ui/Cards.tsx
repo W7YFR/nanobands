@@ -252,6 +252,7 @@ function OcrStat({ note, onUse }: { note: OcrNote; onUse(): void }): React.React
     case "read": return <Stat ok id="ocrNote">Sweep read from the photo: {f(note.start)}–{f(note.stop)} MHz{note.scale ? `, SWR ${f(note.scale.bot)}–${f(note.scale.top)}` : ""}</Stat>;
     case "offer": return <Stat ok={null} id="ocrNote">The photo says {f(note.start)}–{f(note.stop)} MHz. <TextButton id="ocrUse" onClick={onUse}>Use it</TextButton></Stat>;
     case "none": return <Stat ok={false} id="ocrNote">No sweep found on the photo. Enter it below.</Stat>;
+    case "foreign": return <Stat ok={false} id="ocrNote">This doesn't look like a NanoVNA screen. Try another photo, or enter the sweep below.</Stat>;
     case "failed": return <Stat ok={false} id="ocrNote">Couldn't read the photo's text. Enter the sweep below.</Stat>;
   }
 }

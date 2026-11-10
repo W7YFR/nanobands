@@ -16,7 +16,7 @@ import { fixedWords } from "@/ocr-zeros";
 import { ocrCanvas, recognize } from "@/ocr";
 import { axisLabels, DIVISIONS, fitScale, parsePerDivision, type SwrScale } from "@/scale-text";
 import { openStore } from "@/store";
-import { parseSweepText } from "@/sweep-text";
+import { looksLikeScreen, parseSweepText } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { autoTrace } from "@/trace";
 import { toTouchstone, type Scan } from "@/vna";
@@ -186,7 +186,7 @@ export function App(): React.ReactElement {
         if (was.photo !== photo) return was;
         const labels = was.corners ? axisLabels(words.flat(), mappingFor(was.corners).back) : [];
         const d = withScale(was, fitScale(labels, per), per), scaleRead = d !== was ? { top: +d.fields.top, bot: +d.fields.bot } : undefined;
-        if (!r) return { ...d, ocr: { kind: "none" } };
+        if (!r) return { ...d, ocr: { kind: looksLikeScreen(text, was.grid?.kind === "found" ? was.grid.horizontal : null) ? "none" : "foreign" } };
         return d.sweepTyped ? { ...d, ocr: { kind: "offer", start: r.start, stop: r.stop, raw: r.raw } } : withSweep(d, { ...r, scale: scaleRead });
       });
     } catch {

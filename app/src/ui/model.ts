@@ -31,6 +31,8 @@ export type OcrNote =
   | { kind: "read"; start: number; stop: number; raw: string; scale?: { top: number; bot: number } }
   | { kind: "offer"; start: number; stop: number; raw: string }
   | { kind: "none" }
+  /** Neither the screen's words nor its grid: not a NanoVNA, it seems. */
+  | { kind: "foreign" }
   | { kind: "failed" };
 
 export type GridNote = { kind: "found"; horizontal: number; vertical: number } | { kind: "missing" };
