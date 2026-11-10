@@ -16,12 +16,13 @@ import { fixedWords } from "@/ocr-zeros";
 import { ocrCanvas, recognize } from "@/ocr";
 import { axisLabels, DIVISIONS, fitScale, parsePerDivision, type SwrScale } from "@/scale-text";
 import { openStore } from "@/store";
-import { parseSweepText } from "@/sweep-text";
+import { looksLikeScreen, parseSweepText } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { autoTrace } from "@/trace";
 import { toTouchstone, type Scan } from "@/vna";
 import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type FineChoice, type Mode } from "./Cards";
 import { ChartCard } from "./ChartCard";
+import { Confirm } from "./Confirm";
 import { drawChart } from "./draw-chart";
 import { Disclaimer } from "./Disclaimer";
 import { drawPhoto } from "./draw-photo";
@@ -186,7 +187,7 @@ export function App(): React.ReactElement {
         if (was.photo !== photo) return was;
         const labels = was.corners ? axisLabels(words.flat(), mappingFor(was.corners).back) : [];
         const d = withScale(was, fitScale(labels, per), per), scaleRead = d !== was ? { top: +d.fields.top, bot: +d.fields.bot } : undefined;
-        if (!r) return { ...d, ocr: { kind: "none" } };
+        if (!r) return { ...d, ocr: { kind: looksLikeScreen(text, was.grid?.kind === "found" ? was.grid.horizontal : null) ? "none" : "foreign" } };
         return d.sweepTyped ? { ...d, ocr: { kind: "offer", start: r.start, stop: r.stop, raw: r.raw } } : withSweep(d, { ...r, scale: scaleRead });
       });
     } catch {
@@ -511,74 +512,88 @@ export function App(): React.ReactElement {
     if (c.fine) void vna.setFine(c.fine);
   };
 
+  /** The photo does not look like a NanoVNA screen, and the user has not said to use it anyway. */
+  const foreign = doc.source === "image" && doc.ocr?.kind === "foreign";
+
+  // The file input and the question sit outside the page, which takes no
+  // input while the question is open.
   return (
-    <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")}>
-      <Flight landing={landing} hero={heroRef} name={nameRef} sub={subRef}>
-        <Header nameRef={nameRef} subRef={subRef} onClear={doc.source ? clear : null} />
-        <input type="file" id="file" ref={fileIn} accept="image/*,.s1p,.s2p,.txt" className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-        {!landing && doc.source && <div className="page-top"><Disclaimer source={doc.source} id="disclaimer" /></div>}
-        {landing ? (
-          <Landing heroRef={heroRef} onConnect={() => void vna.connect()} unsupported={vna.unsupported} note={vna.note} onOpen={() => fileIn.current?.click()} />
-        ) : (
-          <div className="wrap">
-            <aside>
-              <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} fine={doc.fine} onClearFine={clearFine}
-                choices={fineChoices} suggest={fineSuggest} onFine={doc.source === "vna" ? onFine : undefined} />
-              {doc.source === "image" && (
-                <>
-                  <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr} straight={doc.straight} onStraight={onStraight}
-                    onUseOcr={() => setDoc((d) => (d.ocr?.kind === "offer" ? withSweep(d, d.ocr) : d))}
-                    onDetectGrid={onDetectGrid} mode={mode} onRefMode={() => toggleMode("ref")}
-                    refs={doc.refs} onRemoveRef={(j) => setDoc((d) => withRefs(d, d.refs.filter((_, i) => i !== j)))} />
-                  <TraceCard trace={doc.trace?.kind === "photo" ? doc.trace : null} mode={mode} onAutoTrace={() => setDoc(traced)} onPen={() => toggleMode("pen")}
-                    onErase={() => setDoc((d) => ({ ...d, trace: null }))} sens={doc.fields.sens} onSens={onSens} retrace={doc.retrace} />
-                </>
-              )}
-              <AnalyzeCard prefs={prefs} onPref={onPref} onPin={onPinFreq} onView={onViewFreq} check={check} sweep={sweep} thr={settings.thr} top={settings.top} />
-              <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p} />            </aside>
-            <main>
-              {opening ? (
-                <div className="card" id="opening">
-                  <h2>Photo</h2>
-                  <p className="empty">Opening {opening}…</p>
+    <>
+      <input type="file" id="file" ref={fileIn} accept="image/*,.s1p,.s2p,.txt" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+      {foreign && (
+        <Confirm title="This doesn't look like a NanoVNA screen." action="Choose another photo" cancel="Use it anyway" must
+          onConfirm={() => fileIn.current?.click()}
+          onCancel={() => setDoc((d) => (d.ocr?.kind === "foreign" ? { ...d, ocr: { kind: "none" } } : d))}>
+          <p>NanoBands reads photos of a NanoVNA's SWR sweep. No grid or screen text was found in this image.</p>
+        </Confirm>
+      )}
+      <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")} inert={foreign}>
+        <Flight landing={landing} hero={heroRef} name={nameRef} sub={subRef}>
+          <Header nameRef={nameRef} subRef={subRef} onClear={doc.source ? clear : null} />
+          {!landing && doc.source && <div className="page-top"><Disclaimer source={doc.source} id="disclaimer" /></div>}
+          {landing ? (
+            <Landing heroRef={heroRef} onConnect={() => void vna.connect()} unsupported={vna.unsupported} note={vna.note} onOpen={() => fileIn.current?.click()} />
+          ) : (
+            <div className="wrap">
+              <aside>
+                <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} fine={doc.fine} onClearFine={clearFine}
+                  choices={fineChoices} suggest={fineSuggest} onFine={doc.source === "vna" ? onFine : undefined} />
+                {doc.source === "image" && (
+                  <>
+                    <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr} straight={doc.straight} onStraight={onStraight}
+                      onUseOcr={() => setDoc((d) => (d.ocr?.kind === "offer" ? withSweep(d, d.ocr) : d))}
+                      onDetectGrid={onDetectGrid} mode={mode} onRefMode={() => toggleMode("ref")}
+                      refs={doc.refs} onRemoveRef={(j) => setDoc((d) => withRefs(d, d.refs.filter((_, i) => i !== j)))} />
+                    <TraceCard trace={doc.trace?.kind === "photo" ? doc.trace : null} mode={mode} onAutoTrace={() => setDoc(traced)} onPen={() => toggleMode("pen")}
+                      onErase={() => setDoc((d) => ({ ...d, trace: null }))} sens={doc.fields.sens} onSens={onSens} retrace={doc.retrace} />
+                  </>
+                )}
+                <AnalyzeCard prefs={prefs} onPref={onPref} onPin={onPinFreq} onView={onViewFreq} check={check} sweep={sweep} thr={settings.thr} top={settings.top} />
+                <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p} />            </aside>
+              <main>
+                {opening ? (
+                  <div className="card" id="opening">
+                    <h2>Photo</h2>
+                    <p className="empty">Opening {opening}…</p>
+                  </div>
+                ) : photoScene && (
+                  <PhotoCard scene={photoScene} kRef={kRef} collapsed={doc.collapsed} onCollapse={() => setCollapsed(!doc.collapsed)}
+                    onStraight={onStraight} mode={mode} onPenMode={() => toggleMode("pen")} onUndo={onUndo} canUndo={canUndo} onClearMarks={onClearMarks} canClear={canClear}
+                    onCorners={onCorners} onPen={onPen} onRef={onRef} onHover={setHoverF} bare={foreign} />
+                )}
+                <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
+                  manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote}
+                  live={vna.live ? vna.fine?.band ?? "" : null}
+                  readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
+                  scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
+                  fine={doc.fine} />
+                <div className="card" id="bandCard">
+                  <h2>Band segments
+                    <span style={{ flex: 1 }}></span>
+                    <Switch id="bandsShown" label="Bands shown" value={prefs.bands} onChange={(v) => onPref("bands", v)}
+                      options={[{ value: "all", label: "All" }, { value: "usable", label: "Usable" }]} />
+                  </h2>
+                  <div id="bandTable"><BandTable an={an} settings={settings} shown={prefs.bands} view={doc.view} onPick={onPickBand} /></div>
+                  <p className="hint">US privileges per 47 CFR §97.301/305, checked against the ARRL frequency-allocations chart. 60 m is four 2.8 kHz channels plus the 5351.5–5366.5 kHz segment (USB/CW/data). Power limits and new rule changes aren't modeled, so check the current ARRL chart before you transmit.</p>
                 </div>
-              ) : photoScene && (
-                <PhotoCard scene={photoScene} kRef={kRef} collapsed={doc.collapsed} onCollapse={() => setCollapsed(!doc.collapsed)}
-                  onStraight={onStraight} mode={mode} onPenMode={() => toggleMode("pen")} onUndo={onUndo} canUndo={canUndo} onClearMarks={onClearMarks} canClear={canClear}
-                  onCorners={onCorners} onPen={onPen} onRef={onRef} onHover={setHoverF} />
-              )}
-              <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
-                manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote}
-                live={vna.live ? vna.fine?.band ?? "" : null}
-                readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
-                scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
-                fine={doc.fine} />
-              <div className="card" id="bandCard">
-                <h2>Band segments
-                  <span style={{ flex: 1 }}></span>
-                  <Switch id="bandsShown" label="Bands shown" value={prefs.bands} onChange={(v) => onPref("bands", v)}
-                    options={[{ value: "all", label: "All" }, { value: "usable", label: "Usable" }]} />
-                </h2>
-                <div id="bandTable"><BandTable an={an} settings={settings} shown={prefs.bands} view={doc.view} onPick={onPickBand} /></div>
-                <p className="hint">US privileges per 47 CFR §97.301/305, checked against the ARRL frequency-allocations chart. 60 m is four 2.8 kHz channels plus the 5351.5–5366.5 kHz segment (USB/CW/data). Power limits and new rule changes aren't modeled, so check the current ARRL chart before you transmit.</p>
-              </div>
-              <div className={"card" + (prefs.points ? "" : " collapsed")} id="ptCard">
-                <h2>Key points <span id="ptCount">{an ? `· ${an.crossings.length + an.extrema.length + doc.manual.length}` : ""}</span>
-                  <span style={{ flex: 1 }}></span>
-                  <button id="ptToggle" className="small" onClick={() => onPref("points", !prefs.points)}>{prefs.points ? "Collapse" : "Expand"}</button>
-                </h2>
-                <div id="ptTable" hidden={!prefs.points}>
-                  <PointsTable an={an} settings={settings} manual={doc.manual} swr={swr}
-                    onRemove={onRemovePin} />
+                <div className={"card" + (prefs.points ? "" : " collapsed")} id="ptCard">
+                  <h2>Key points <span id="ptCount">{an ? `· ${an.crossings.length + an.extrema.length + doc.manual.length}` : ""}</span>
+                    <span style={{ flex: 1 }}></span>
+                    <button id="ptToggle" className="small" onClick={() => onPref("points", !prefs.points)}>{prefs.points ? "Collapse" : "Expand"}</button>
+                  </h2>
+                  <div id="ptTable" hidden={!prefs.points}>
+                    <PointsTable an={an} settings={settings} manual={doc.manual} swr={swr}
+                      onRemove={onRemovePin} />
+                  </div>
                 </div>
-              </div>
-            </main>
-          </div>
-        )}
-        <Footer />
-      </Flight>
-      {over && <div id="dropping" aria-hidden="true"><p>Drop a photo or .s1p file to open it</p></div>}
-    </div>
+              </main>
+            </div>
+          )}
+          <Footer />
+        </Flight>
+        {over && <div id="dropping" aria-hidden="true"><p>Drop a photo or .s1p file to open it</p></div>}
+      </div>
+    </>
   );
 }

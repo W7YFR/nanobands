@@ -7,6 +7,16 @@ them.
 
 ## Unreleased
 
+## v1.13.0 — 2026-11-10
+
+### Added
+
+- A photo that does not look like a NanoVNA screen opens a question over the page: **Choose another photo** or **Use it anyway**.
+
+### Development
+
+- `ocr.test.ts` checks that real OCR takes every real photo for a NanoVNA screen, and a drawn spreadsheet for something else.
+
 ## v1.12.7 — 2026-11-10
 
 ### Fixed

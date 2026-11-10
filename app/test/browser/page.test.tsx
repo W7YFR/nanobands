@@ -131,6 +131,9 @@ vi.mock("tesseract.js", () => ({
 }));
 const SCREEN_TEXT = "YSTL SUR 500n/ 2.970\nSTART 3.000 000 MHz\nBW:1000Hz 401p\nSTOP 55.000 000 MHz";
 
+/** The open question's button that says `label`. */
+const modalButton = (label: string): HTMLButtonElement => [...document.querySelectorAll<HTMLButtonElement>(".modal button")].find((b) => b.textContent === label)!;
+
 /** What a status line in the sidebar says, without its ✓, ! or … mark. */
 const stat = (id: string): string => document.querySelector(`#${id} span:last-child`)?.textContent ?? "";
 
@@ -847,13 +850,44 @@ describe("reading the sweep off a photo", () => {
     expect($<HTMLInputElement>("#fStart").value).toBe("");
   });
 
-  it("says when there is no grid, and Detect grid finds none either", async () => {
-    ocr.now = { text: "" };
+  it("asks over the page when a photo is not of a NanoVNA, and takes no other input", async () => {
+    ocr.now = { text: "Quarterly totals\nRevenue 12,400" };
     const oc = new OffscreenCanvas(800, 480), ox = oc.getContext("2d")!;
     ox.fillStyle = "#000";
     ox.fillRect(0, 0, 800, 480);
     openFile(new File([await oc.convertToBlob({ type: "image/png" })], "blank.png", { type: "image/png" }));
-    await until(() => has("#gridNote") && $("#fileName").textContent === "blank.png" && note().startsWith("No sweep"));
+    await until(() => has(".modal") && $("#fileName").textContent === "blank.png");
+    expect($("#modalTitle").textContent).toBe("This doesn't look like a NanoVNA screen.");
+    expect(note()).toBe("This doesn't look like a NanoVNA screen. Try another photo, or enter the sweep below.");
+    expect($(".app").inert).toBe(true);
+    // The photo shows bare: no tools over it.
+    expect(has("#straightBtn")).toBe(false);
+    expect(has("#photoPen")).toBe(false);
+    // Only a button answers it: Escape and a click on the backdrop do nothing.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    $(".modal-back").click();
+    await frames(2);
+    expect(has(".modal")).toBe(true);
+  });
+
+  it("opens the file picker on Choose another photo", async () => {
+    const input = $<HTMLInputElement>("#file"), real = input.click;
+    let asked = false;
+    input.click = () => { asked = true; };
+    try {
+      modalButton("Choose another photo").click();
+      expect(asked).toBe(true);
+      expect(has(".modal")).toBe(true);
+    } finally {
+      input.click = real;
+    }
+  });
+
+  it("goes on with the photo on Use it anyway, and Detect grid finds no grid in it", async () => {
+    modalButton("Use it anyway").click();
+    await until(() => !has(".modal"));
+    expect($(".app").inert).toBe(false);
+    expect(note()).toBe("No sweep found on the photo. Enter it below.");
     expect(stat("gridNote")).toBe("No grid found. Drag the photo's corners onto it.");
     expect(stat("traceNote")).toContain("No trace yet");
     expect($("#straightBtn").textContent).toBe("Straighten");

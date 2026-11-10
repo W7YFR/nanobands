@@ -2,7 +2,7 @@
  * the NanoVNA's screen. */
 
 import { describe, expect, it } from "vitest";
-import { cleanFreq, parseSweepText } from "@/sweep-text";
+import { cleanFreq, looksLikeScreen, parseSweepText } from "@/sweep-text";
 import { isTouchstone, parseTouchstone, swrFromGamma } from "@/touchstone";
 
 describe("swrFromGamma", () => {
@@ -95,5 +95,23 @@ describe("parseSweepText", () => {
 
   it("says what it read, for the note that asks for a check", () => {
     expect(parseSweepText("START 3.000 000 MHz STOP 55.000 000 MHz")!.raw).toBe("START 3.000 000 / STOP 55.000 000");
+  });
+});
+
+describe("looksLikeScreen", () => {
+  it("knows a NanoVNA by two of its words, as OCR read them off real photos", () => {
+    expect(looksLikeScreen("START 144,000 060 MHz\nBY:1000H= 1001p\nSTOP 140.080 000 Miz", null)).toBe(true);
+    // Cropped above START and STOP: the header alone.
+    expect(looksLikeScreen("| FSTL SUR 500n7 2.970\n$11", null)).toBe(true);
+  });
+
+  it("knows a NanoVNA by its grid of 9 SWR lines when OCR read none of its words", () => {
+    expect(looksLikeScreen("", 9)).toBe(true);
+  });
+
+  it("knows a photo of something else: one word alone, or no words and another grid", () => {
+    expect(looksLikeScreen("STOP", null)).toBe(false);
+    expect(looksLikeScreen("Quarterly totals\nRevenue 12,400", 14)).toBe(false);
+    expect(looksLikeScreen("", null)).toBe(false);
   });
 });

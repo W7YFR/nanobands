@@ -23,7 +23,7 @@ import { detectGrid } from "@/grid";
 import { ocrCanvas, recognize } from "@/ocr";
 import { fixedWords } from "@/ocr-zeros";
 import { axisLabels, fitScale, parsePerDivision } from "@/scale-text";
-import { parseSweepText } from "@/sweep-text";
+import { looksLikeScreen, parseSweepText } from "@/sweep-text";
 import { loadImage, photoFrom } from "@/ui/model";
 
 const photos = import.meta.glob<string>("../data/*.jpg", { query: "?url", import: "default", eager: true });
@@ -39,8 +39,12 @@ interface Reading {
   bot: number | null;
 }
 
-async function read(name: string): Promise<Reading & { text: string }> {
-  const photo = photoFrom(await loadImage(await (await fetch(photos[`../data/${name}`]!)).blob()));
+async function read(name: string): Promise<Reading & { text: string; screen: boolean }> {
+  return readBlob(await (await fetch(photos[`../data/${name}`]!)).blob());
+}
+
+async function readBlob(blob: Blob): Promise<Reading & { text: string; screen: boolean }> {
+  const photo = photoFrom(await loadImage(blob));
   const g = detectGrid(photo.px);
   const { canvas, scale } = ocrCanvas(photo.src);
   const data = await recognize(canvas);
@@ -50,7 +54,8 @@ async function read(name: string): Promise<Reading & { text: string }> {
   const fit = g ? fitScale(axisLabels(words.flat(), mappingFor(g.corners).back), per) : null;
   // To six places, past the float noise of a unit conversion.
   const r = (x: number | null | undefined): number | null => (x == null ? null : +x.toFixed(6));
-  return { start: r(sweep?.start), stop: r(sweep?.stop), per: r(per), top: r(fit?.top), bot: r(fit?.bot), text };
+  const screen = looksLikeScreen(text, g?.horizontal ?? null);
+  return { start: r(sweep?.start), stop: r(sweep?.stop), per: r(per), top: r(fit?.top), bot: r(fit?.bot), text, screen };
 }
 
 interface Case {
@@ -77,8 +82,27 @@ describe("OCR on real photos", () => {
   for (const c of CASES) {
     it(`reads ${c.photo}`, async () => {
       const got = await read(c.photo);
-      const { text, ...reading } = got;
+      const { text, screen, ...reading } = got;
       expect(reading, text).toEqual({ ...c.screen, ...c.misses });
+      expect(screen, text).toBe(true);
     }, 60000);
   }
+});
+
+describe("a photo of something else", () => {
+  it("is not taken for a NanoVNA: a spreadsheet, grid lines and all", async () => {
+    const c = new OffscreenCanvas(1600, 1000), x = c.getContext("2d")!;
+    x.fillStyle = "#fff";
+    x.fillRect(0, 0, 1600, 1000);
+    x.strokeStyle = "#9ab";
+    x.lineWidth = 2;
+    for (let y = 100; y <= 900; y += 50) { x.beginPath(); x.moveTo(100, y); x.lineTo(1500, y); x.stroke(); }
+    for (let xx = 100; xx <= 1500; xx += 280) { x.beginPath(); x.moveTo(xx, 100); x.lineTo(xx, 900); x.stroke(); }
+    x.fillStyle = "#222";
+    x.font = "28px sans-serif";
+    const rows = ["Quarter", "Revenue", "Costs", "Margin", "Headcount", "Region", "Total"];
+    rows.forEach((t, i) => { x.fillText(t, 115, 138 + i * 50); x.fillText(String(1200 + i * 317), 400, 138 + i * 50); });
+    const got = await readBlob(await c.convertToBlob({ type: "image/png" }));
+    expect(got.screen, got.text).toBe(false);
+  }, 60000);
 });
