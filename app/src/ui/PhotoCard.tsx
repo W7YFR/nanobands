@@ -44,7 +44,7 @@ function follow(at: number, size: number, room: number, lo: number, hi: number):
 
 const touchScreen = (): boolean => window.matchMedia?.("(pointer: coarse)").matches ?? false;
 
-export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode, onPenMode, onUndo, canUndo, onClearMarks, canClear, onCorners, onPen, onRef, onHover }: {
+export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode, onPenMode, onUndo, canUndo, onClearMarks, canClear, onCorners, onPen, onRef, onHover, bare = false }: {
   /** Everything to draw, except the corner being dragged, which is the card's own. */
   scene: Omit<PhotoScene, "dragCorner">;
   /** CSS pixels per view pixel, for the PNG export. */
@@ -67,6 +67,9 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
   onPen(x: number, y: number, start: boolean, erase?: boolean): void;
   onRef(x: number, y: number): void;
   onHover(f: number | null): void;
+  /** The photo alone, with nothing drawn over it and no tools, while the
+   *  page asks whether it is a NanoVNA screen at all. */
+  bare?: boolean;
 }): React.ReactElement {
   const wrap = useRef<HTMLDivElement>(null), canvas = useRef<HTMLCanvasElement>(null);
   const hover = useRef<Point | null>(null), drag = useRef(-1), pen = useRef(false);
@@ -141,6 +144,11 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
       ctx.strokeStyle = tool === "draw" ? "#f85149" : tool === "erase" ? "#f2cc60" : "#fff";
       ctx.beginPath(); ctx.arc(ox + x * sx, oy + y * s, 9, 0, 7); ctx.stroke();
       drawMagnifier(ctx, dpr, s, sc, cursor.current, ox, oy, cw, sx);
+      return;
+    }
+    if (bare) {
+      ctx.setTransform(dpr * s, 0, 0, dpr * s, 0, 0);
+      ctx.drawImage(vw.src, 0, 0);
       return;
     }
     if (wide) {
@@ -365,9 +373,9 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
     </span>
   ) : (
     <span className="tools">
-      {!collapsed && <button id="photoPen" className={"small" + (mode === "pen" ? " on" : "")} onClick={onPenMode}>✎ Pen</button>}
+      {!collapsed && !bare && <button id="photoPen" className={"small" + (mode === "pen" ? " on" : "")} onClick={onPenMode}>✎ Pen</button>}
       {!collapsed && mode === "pen" && <button id="photoStretch" className={"small" + (stretch > 1 ? " on" : "")} title="Stretch the photo wider, so steep curves lean over." onClick={nextStretch}>↔ {stretch}×</button>}
-      {!collapsed && <button id="straightBtn" className="small" onClick={onStraight}>{vw.straight ? "Edit corners" : "Straighten"}</button>}
+      {!collapsed && !bare && <button id="straightBtn" className="small" onClick={onStraight}>{vw.straight ? "Edit corners" : "Straighten"}</button>}
       <button id="collapseBtn" className="small" onClick={onCollapse}>{collapsed ? "Expand" : "Collapse"}</button>
     </span>
   );

@@ -11,7 +11,7 @@ them.
 
 ### Added
 
-- A photo that does not look like a NanoVNA screen says so under **Calibrate**.
+- A photo that does not look like a NanoVNA screen opens a question over the page: **Choose another photo** or **Use it anyway**.
 
 ### Development
 
