@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.12.7 — 2026-11-10
+
 ### Fixed
 
 - A photo the phone saved on its side or upside down opens with the screen upright.
