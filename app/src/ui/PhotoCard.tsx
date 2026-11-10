@@ -393,7 +393,8 @@ export function PhotoCard({ scene, kRef, collapsed, onCollapse, onStraight, mode
               const hit = nearCorner(x, y);
               if (hit >= 0) { drag.current = hit; dragQuad.current = [...scene.corners] as Quad; hold(e); draw(); return; }
               if (mode === "pen") { pen.current = true; stroke.current = [e.clientX, e.clientY]; hold(e); onPen(x, y, true); draw(); return; }
-              if (mode === "ref") onRef(x, y);
+              // The press would move focus to where it landed, away from the question it opens.
+              if (mode === "ref") { e.preventDefault(); onRef(x, y); }
             }}
             onPointerMove={(e) => {
               if (focus) { focusMove(e); return; }

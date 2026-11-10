@@ -21,6 +21,7 @@ import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { autoTrace } from "@/trace";
 import { toTouchstone, type Scan } from "@/vna";
 import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type FineChoice, type Mode } from "./Cards";
+import { AskNumber } from "./AskNumber";
 import { ChartCard } from "./ChartCard";
 import { Confirm } from "./Confirm";
 import { drawChart } from "./draw-chart";
@@ -111,6 +112,8 @@ export function App(): React.ReactElement {
   const [doc, setDoc] = useState<Doc>(EMPTY_DOC);
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const [mode, setMode] = useState<Mode>("idle");
+  /** A point clicked for a frequency reference, waiting for its frequency. */
+  const [refAt, setRefAt] = useState<number | null>(null);
   const [hoverF, setHoverF] = useState<number | null>(null);
   /** The chart's view while the pointer is over a band's rows in Band segments. */
   /** The band a click in Band segments put on the chart, and the view before it. */
@@ -406,10 +409,8 @@ export function App(): React.ReactElement {
 
   const onRef = (x: number, y: number): void => {
     if (!view) return;
-    const [u] = view.vb(x, y);
-    const f = parseFloat(prompt("Frequency at this point (MHz):") ?? "");
+    setRefAt(view.vb(x, y)[0]);
     setMode("idle");
-    if (Number.isFinite(f)) setDoc((d) => withRefs(d, [...d.refs, { u, f }]));
   };
 
   const onPref = useCallback(<K extends keyof Prefs>(k: K, v: Prefs[K]): void => {
@@ -521,6 +522,11 @@ export function App(): React.ReactElement {
     <>
       <input type="file" id="file" ref={fileIn} accept="image/*,.s1p,.s2p,.txt" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+      {refAt !== null && (
+        <AskNumber title="Frequency at this point" label="Frequency" unit="MHz" action="Add"
+          onAnswer={(f) => { setDoc((d) => withRefs(d, [...d.refs, { u: refAt, f }])); setRefAt(null); }}
+          onCancel={() => setRefAt(null)} />
+      )}
       {foreign && (
         <Confirm title="This doesn't look like a NanoVNA screen." action="Choose another photo" cancel="Use it anyway" must
           onConfirm={() => fileIn.current?.click()}

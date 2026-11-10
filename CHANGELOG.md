@@ -7,6 +7,12 @@ them.
 
 ## Unreleased
 
+## v1.13.1 — 2026-11-10
+
+### Changed
+
+- **Frequency reference** asks for the frequency in the page's own dialog, not the browser's prompt.
+
 ## v1.13.0 — 2026-11-10
 
 ### Added
