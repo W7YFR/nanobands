@@ -37,10 +37,49 @@ export function parsePerDivision(text: string): number | null {
   const m = text.toUpperCase().match(/S[WU]R\W*([0-9OQDAB@Ø][0-9OQDAB@Ø.]*)\s*([MN]*)/);
   if (!m?.[1]) return null;
   const n = cleanFreq(m[1]);
-  // The unit letter can be lost. No scale is 10 or more per division, so a
-  // number that large is in thousandths.
-  const per = m[2] || n >= 10 ? n / 1000 : n;
-  return per >= 0.001 && per <= 10 ? per : null;
+  // The unit letter can be lost. A whole number of 10 or more is in
+  // thousandths, as 125 for 125m; a 1–100 scale shows 12.38, with a point.
+  const per = m[2] || (n >= 10 && !m[1].includes(".")) ? n / 1000 : n;
+  return per >= 0.001 && per <= 20 ? per : null;
+}
+
+/** What a label may say. OCR can drop its point: `2125` may be 2.125. */
+function labelValues(t: string): number[] {
+  const n = cleanFreq(t);
+  if (t.includes(".") || t.length < 2) return [n];
+  return t.length < 4 ? [n, n / 10, n / 100] : [n, n / 10, n / 100, n / 1000];
+}
+
+/** The labels OCR read in the label column, squared up (see screen-parts.ts):
+ *  `top` and `bottom` are the plot heights of the column's first and last
+ *  rows, and `height` its height in pixels. */
+export function columnLabels(
+  words: readonly { symbols: readonly { text: string; bbox: { y0: number; y1: number } }[] }[],
+  top: number, bottom: number, height: number,
+): AxisLabel[] {
+  const out: AxisLabel[] = [];
+  for (const w of words) {
+    const t = w.symbols.map((y) => y.text).join("");
+    if (!/^\d+(\.\d+)?$/.test(t)) continue;
+    const y = w.symbols.reduce((a, b) => a + (b.bbox.y0 + b.bbox.y1) / 2, 0) / w.symbols.length;
+    out.push({ v: top + ((bottom - top) * y) / height, values: labelValues(t) });
+  }
+  return out;
+}
+
+/** The scale from labels that sit a fixed way off their grid lines. The
+ *  NanoVNA draws each label a little under its line; the offset is learned
+ *  from the labels themselves, then each is put back on its line. */
+export function fitColumn(labels: readonly AxisLabel[], per: number | null): SwrScale | null {
+  if (!labels.length) return null;
+  let c = 0, s = 0;
+  for (const l of labels) {
+    const a = 2 * Math.PI * l.v * DIVISIONS;
+    c += Math.cos(a);
+    s += Math.sin(a);
+  }
+  const off = Math.atan2(s, c) / (2 * Math.PI) / DIVISIONS;
+  return fitScale(labels.map((l) => ({ ...l, v: l.v - off })), per);
 }
 
 /** The words that read as numbers by the plot's right edge, with their heights.
@@ -55,8 +94,7 @@ export function axisLabels(
     if (!/^[0-9OQD]+(\.[0-9OQD]+)?$/i.test(t)) continue;
     const [u, v] = back((w.box.x0 + w.box.x1) / 2, (w.box.y0 + w.box.y1) / 2);
     if (u < 0.8 || u > 1.1 || v < -0.06 || v > 1.06) continue;
-    const n = cleanFreq(t);
-    out.push({ values: t.includes(".") || t.length < 2 ? [n] : [n, n / 10, n / 100], v });
+    out.push({ v, values: labelValues(t) });
   }
   return out;
 }
@@ -90,6 +128,22 @@ export function fitScale(labels: readonly AxisLabel[], per: number | null): SwrS
   }
   if (!best) return null;
   if (best.lines < 3 && !(best.lines === 2 && best.agrees)) return null;
-  const r = (x: number): number => +x.toFixed(4);
-  return { top: r(best.a), bot: r(best.a + DIVISIONS * best.d) };
+  // The screen rounds its labels, 2.313 for 2.3125, so fit a line through
+  // every label that agrees, not just the two that found the scale.
+  const b = best, pts: [number, number][] = [];
+  for (const l of on) {
+    const x = l.values.find((x) => near(b.a + l.n * b.d, x));
+    if (x !== undefined) pts.push([l.n, x]);
+  }
+  let { a, d } = best;
+  if (pts.length >= 2) {
+    const mn = pts.reduce((s, p) => s + p[0], 0) / pts.length, mx = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    let sxy = 0, sxx = 0;
+    for (const [n, x] of pts) { sxy += (n - mn) * (x - mx); sxx += (n - mn) ** 2; }
+    if (sxx > 0) { d = sxy / sxx; a = mx - d * mn; }
+  }
+  // To what the labels can tell: two decimals on a span near 1, one near 100.
+  const top = a, bot = a + DIVISIONS * d, places = Math.max(0, 2 - Math.floor(Math.log10(top - bot)));
+  const r = (x: number): number => +x.toFixed(places);
+  return { top: r(top), bot: r(bot) };
 }

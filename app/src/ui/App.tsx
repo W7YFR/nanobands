@@ -11,13 +11,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { bandsInRange, type Band, type LicenseClass } from "@/bands";
 import { fineCheck, mergeScan, offScale } from "@/fine";
 import { mappingFor, solveRefs, type Quad } from "@/geometry";
-import { detectGrid } from "@/grid";
+import { detectGrid, type GridResult } from "@/grid";
 import { readScreen } from "@/read-screen";
-import { axisLabels, DIVISIONS, fitScale, type SwrScale } from "@/scale-text";
+import { DIVISIONS, type SwrScale } from "@/scale-text";
 import { openStore } from "@/store";
 import { looksLikeScreen } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
-import { autoTrace } from "@/trace";
+import { traceBest } from "@/trace";
 import { toTouchstone, type Scan } from "@/vna";
 import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type FineChoice, type Mode } from "./Cards";
 import { AskNumber } from "./AskNumber";
@@ -72,14 +72,17 @@ function download(name: string, url: string): void {
 
 const mhz = (hz: number): number => +(hz / 1e6).toFixed(6);
 
-/** A photo traced afresh from its corners. */
 /** Resolves once the browser has painted what React last rendered. */
 const nextPaint = (): Promise<void> => new Promise((done) => requestAnimationFrame(() => setTimeout(done, 0)));
 
+/** A photo traced afresh from its corners. At the default sensitivity, a
+ *  pale curve mostly missed is traced again at lower ones, and the slider
+ *  moves to the one that found the most. */
 function traced(d: Doc): Doc {
   if (!d.photo || !d.corners) return d;
-  const { N, v } = autoTrace(d.photo.px, mappingFor(d.corners).fwd, d.corners, +d.fields.sens);
-  return { ...d, trace: { kind: "photo", N, v, auto: true, edited: false }, retrace: false };
+  const { trace: t, sens } = traceBest(d.photo.px, mappingFor(d.corners).fwd, d.corners, +d.fields.sens, d.fields.sens === DEFAULT_FIELDS.sens);
+  const fields = String(sens) === d.fields.sens ? d.fields : { ...d.fields, sens: String(sens) };
+  return { ...d, fields, trace: { kind: "photo", N: t.N, v: t.v, auto: true, edited: false }, retrace: false };
 }
 
 /** A doc with the sweep read off the photo filled in, and the SWR scale when
@@ -176,15 +179,14 @@ export function App(): React.ReactElement {
     setMode("idle");
   }, []);
 
-  /** Read START and STOP off the photo. A newer photo makes the reading moot. */
-  const readSweep = useCallback(async (photo: Photo, job: number, grid: Quad | null): Promise<void> => {
+  /** Read the sweep and the SWR scale off the photo. A newer photo makes the reading moot. */
+  const readSweep = useCallback(async (photo: Photo, job: number, grid: GridResult | null): Promise<void> => {
     try {
-      const { text, words, sweep: r, per } = await readScreen(photo, grid);
+      const { text, sweep: r, per, scale } = await readScreen(photo, grid);
       if (job !== ocrJob.current) return;
       setDoc((was) => {
         if (was.photo !== photo) return was;
-        const labels = was.corners ? axisLabels(words.flat(), mappingFor(was.corners).back) : [];
-        const d = withScale(was, fitScale(labels, per), per), scaleRead = d !== was ? { top: +d.fields.top, bot: +d.fields.bot } : undefined;
+        const d = withScale(was, scale, per), scaleRead = d !== was ? { top: +d.fields.top, bot: +d.fields.bot } : undefined;
         if (!r) return { ...d, ocr: { kind: looksLikeScreen(text, was.grid?.kind === "found" ? was.grid.horizontal : null) ? "none" : "foreign" } };
         return d.sweepTyped ? { ...d, ocr: { kind: "offer", start: r.start, stop: r.stop, raw: r.raw } } : withSweep(d, { ...r, scale: scaleRead });
       });
@@ -206,7 +208,7 @@ export function App(): React.ReactElement {
       ? traced({ ...d, corners: g.corners, straight: true, grid: { kind: "found", horizontal: g.horizontal, vertical: g.vertical } })
       : { ...d, grid: { kind: "missing" } };
     setDoc({ ...d, ocr: { kind: "looking" } });
-    void readSweep(photo, job, g?.corners ?? null);
+    void readSweep(photo, job, g);
   }, [readSweep]);
 
   const handleFile = useCallback((file: File): void => {

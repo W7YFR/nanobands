@@ -11,7 +11,9 @@
  *    continuous as possible. It may skip columns where a grid line hides the
  *    curve, at a cost per column, so it never detours through text that
  *    happens to fill the gap.
- * 4. Fill short gaps and smooth with a 3-point median.
+ * 4. Grow each end of the path through candidates that touch it, text or
+ *    not: a jagged curve can look like text to step 2.
+ * 5. Fill short gaps and smooth with a 3-point median.
  */
 
 import type { Point, Quad } from "./geometry";
@@ -48,7 +50,8 @@ export function autoTrace(px: Pixels, fwd: (u: number, v: number) => Point, corn
     cand[i] = runs;
   }
 
-  // 2. Text.
+  // 2. Text. Every candidate is kept aside for step 4.
+  const every = cand.slice();
   const TW = Math.max(16, Math.round(N * 0.035));
   for (let i = 0; i < N; i++) {
     cand[i] = cand[i]!.filter(([a, b]) => {
@@ -97,13 +100,40 @@ export function autoTrace(px: Pixels, fwd: (u: number, v: number) => Point, corn
     from[i] = fi;
   }
   const v = new Float32Array(N).fill(NaN);
+  let startI = -1, startRun: [number, number] | null = null;
   for (let i = endI, k = endK; i >= 0;) {
     const r = cand[i]![k]!;
     v[i] = ((r[0] + r[1]) / 2 + 0.5) / M;
+    startI = i;
+    startRun = r;
     [i, k] = from[i]![k]!;
   }
 
-  // 4. Gaps and smoothing.
+  // 4. The ends. A jagged curve crosses its own row as often as text does,
+  // so the text filter can take a stretch of it. Grow the path from each end
+  // through any candidate, text or not, that touches where it left off.
+  const grow = (i: number, run: [number, number], dir: 1 | -1): void => {
+    for (;;) {
+      let next = -1, nextRun: [number, number] | null = null;
+      for (let s = 1; s <= K && next < 0; s++) {
+        const j = i + dir * s;
+        if (j < 0 || j >= N) return;
+        let gap = Infinity;
+        for (const r of every[j]!) {
+          const g = Math.max(0, r[0] - run[1], run[0] - r[1]);
+          if (g <= 3 && g < gap) { gap = g; next = j; nextRun = r; }
+        }
+      }
+      if (!nextRun) return;
+      v[next] = ((nextRun[0] + nextRun[1]) / 2 + 0.5) / M;
+      i = next;
+      run = nextRun;
+    }
+  };
+  if (startRun) grow(startI, startRun, -1);
+  if (endI >= 0) grow(endI, cand[endI]![endK]!, 1);
+
+  // 5. Gaps and smoothing.
   let lastI = -1;
   for (let i = 0; i < N; i++) {
     if (Number.isNaN(v[i])) continue;
@@ -117,4 +147,31 @@ export function autoTrace(px: Pixels, fwd: (u: number, v: number) => Point, corn
     if (!t.some(Number.isNaN)) out[i] = t.sort((a, b) => a - b)[1]!;
   }
   return { N, v: out };
+}
+
+/** The share of columns where the curve was found. */
+export function coverage(t: Trace): number {
+  let n = 0;
+  for (const v of t.v) if (!Number.isNaN(v)) n++;
+  return n / t.N;
+}
+
+/** Lower sensitivities to try in turn when a trace finds less than `ENOUGH`
+ *  of the curve. Some screens draw it pale: on the 2 m photos, most columns
+ *  hold no yellow at the default. */
+const PALE = [50, 35, 20] as const;
+const ENOUGH = 0.9;
+
+/** Trace at `sens`, and with `pale`, at lower sensitivities too when the
+ *  curve is mostly missed. The trace that finds the most, and its
+ *  sensitivity. */
+export function traceBest(px: Pixels, fwd: (u: number, v: number) => Point, corners: Quad, sens: number, pale: boolean): { trace: Trace; sens: number } {
+  let best = { trace: autoTrace(px, fwd, corners, sens), sens };
+  if (!pale) return best;
+  for (const s of PALE) {
+    if (coverage(best.trace) >= ENOUGH) break;
+    const t = autoTrace(px, fwd, corners, s);
+    if (coverage(t) > coverage(best.trace)) best = { trace: t, sens: s };
+  }
+  return best;
 }

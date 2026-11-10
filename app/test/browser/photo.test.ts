@@ -21,7 +21,7 @@ import { analyze } from "@/analysis";
 import { mappingFor } from "@/geometry";
 import { detectGrid } from "@/grid";
 import type { Pixels } from "@/pixels";
-import { autoTrace } from "@/trace";
+import { autoTrace, coverage, traceBest } from "@/trace";
 import labeled from "../data/random-wire-3-55mhz.jpg?url";
 import unlabeled from "../data/random-wire-3-55mhz-no-labels.jpg?url";
 import topThree from "../data/random-wire-3-55mhz-top-3.jpg?url";
@@ -108,4 +108,20 @@ describe("a photo whose screen fades toward the right", () => {
     // Each dip is usable at its bottom.
     for (const f of [5.74, 15.21, 19.93, 30.61, 41.79]) expect(usable.some(([a, b]) => f >= a && f <= b), `${f} MHz`).toBe(true);
   });
+});
+
+describe("the curve across the whole plot", () => {
+  /* The 2 m photos draw the curve pale. At the default sensitivity most of
+     their columns hold no yellow, and the trace falls back to lower ones.
+     The glare photo is left out: its grid is not found whole. */
+  const all = import.meta.glob<string>("../data/*.jpg", { query: "?url", import: "default", eager: true });
+  for (const [path, url] of Object.entries(all)) {
+    const name = path.replace("../data/", "");
+    if (name.includes("glare")) continue;
+    it(`traces nearly every column of ${name}`, async () => {
+      const px = await load(url), g = detectGrid(px)!;
+      const { trace } = traceBest(px, mappingFor(g.corners).fwd, g.corners, 70, true);
+      expect(coverage(trace)).toBeGreaterThan(0.9);
+    });
+  }
 });

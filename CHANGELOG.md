@@ -7,6 +7,18 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- More photos read their SWR scale, such as 2 m sweeps and a 1–100 scale.
+- The grid is found on photos taken at an angle, and no longer takes an edge outside the screen for its border.
+- The trace follows a pale or jagged curve across the whole plot. **Sensitivity** moves to the level that found it.
+- More photos read START and STOP right when their zeros run together.
+
+### Development
+
+- `screen-parts.ts` squares up a part of the screen for OCR. The START/STOP row, the SWR labels and the header each use it.
+- `photo.test.ts` checks that every photo with a whole grid traces nearly every column. `scale.test.ts` covers the label column. `ocr.test.ts` no longer lists the scale misses it fixed.
+
 ## v1.13.2 — 2026-11-10
 
 ### Fixed
