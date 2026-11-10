@@ -37,7 +37,7 @@ export function detectGrid(px: Pixels): GridResult | null {
   const pts: number[] = [];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (isGrid(x / sc, y / sc)) pts.push(x, y);
   const T: number[] = [];
-  for (let a = -4; a <= 4.001; a += 0.25) T.push(Math.tan((a * Math.PI) / 180));
+  for (let a = -8; a <= 8.001; a += 0.25) T.push(Math.tan((a * Math.PI) / 180));
 
   // Votes in low-resolution coordinates.
   const vote = (horiz: boolean): Line[] => {
@@ -119,6 +119,7 @@ export function detectGrid(px: Pixels): GridResult | null {
     return [x, hl.off + hl.t * x];
   };
 
+
   /* A border too dim to pass the color test. A screen seen at an angle fades
      toward one side, and the NanoVNA draws its frequency lines at round
      frequencies, so the last line found is not always the border. Look past
@@ -138,6 +139,36 @@ export function detectGrid(px: Pixels): GridResult | null {
     return d[i + 2]! >= d[i]! && d[i + 2]! + 10 >= d[i + 1]!;
   };
   const side = Math.max(4, Math.round(iw * 0.004));
+
+  /* The outermost line at the left or right is the border only if the SWR
+     lines run up to it. A bright edge outside the screen, as the glass's or
+     the case's, is straight and pale enough to pass for a frequency line,
+     but the SWR lines stop short of it. Drop it, and look at the next. */
+  const reached = (edge: Line, across: Line[], horiz: boolean, inward: 1 | -1): boolean => {
+    const reach = Math.max(6, (horiz ? ih : iw) * 0.01);
+    let ok = 0;
+    for (const a of across) {
+      const [x, y] = horiz ? meet(edge, a) : meet(a, edge);
+      let hits = 0, n = 0;
+      for (let k = 3; k <= reach; k += 2) {
+        n++;
+        // Along the line across, a little way in from the edge.
+        const p = horiz ? [x + a.t * inward * k, y + inward * k] : [x + inward * k, y + a.t * inward * k];
+        // A line, dim or not: bluish, and brighter than either side of it.
+        const [px0, py0] = [p[0]!, p[1]!], c = lum(px0, py0);
+        const beside = horiz ? Math.max(lum(px0 - side, py0), lum(px0 + side, py0)) : Math.max(lum(px0, py0 - side), lum(px0, py0 + side));
+        if (c > 30 && bluish(px0, py0) && c > 1.3 * beside) hits++;
+      }
+      if (hits >= n * 0.5) ok++;
+    }
+    // Labels by the right border hide some of the lines that reach it.
+    return ok >= across.length * 0.4;
+  };
+  for (let changed = true; changed;) {
+    changed = false;
+    if (Vs.length > 2 && !reached(Vs[0]!, Hs, false, 1)) { Vs.shift(); changed = true; }
+    if (Vs.length > 2 && !reached(Vs[Vs.length - 1]!, Hs, false, -1)) { Vs.pop(); changed = true; }
+  }
   const beyond = (lines: Refined[], horiz: boolean, dir: 1 | -1, ends: [number, number]): Line | null => {
     const mid = horiz ? iw / 2 : ih / 2, pos = lines.map((l) => at(l, mid));
     const outer = dir > 0 ? lines[lines.length - 1]! : lines[0]!, p0 = at(outer, mid);
@@ -169,8 +200,10 @@ export function detectGrid(px: Pixels): GridResult | null {
   let top: Line = Hs[0]!, bot: Line = Hs[Hs.length - 1]!, lft: Line = Vs[0]!, rgt: Line = Vs[Vs.length - 1]!;
   const qs = (a: [number, number], b: [number, number], horiz: boolean): [number, number] =>
     horiz ? [Math.min(a[0], b[0]), Math.max(a[0], b[0])] : [Math.min(a[1], b[1]), Math.max(a[1], b[1])];
-  const newL = beyond(Vs, false, -1, qs(meet(top, lft), meet(bot, lft), false));
-  const newR = beyond(Vs, false, 1, qs(meet(top, rgt), meet(bot, rgt), false));
+  // A dim left or right border found past the outermost line must be reached too.
+  const only = (l: Line | null, across: Line[], horiz: boolean, inward: 1 | -1): Line | null => (l && reached(l, across, horiz, inward) ? l : null);
+  const newL = only(beyond(Vs, false, -1, qs(meet(top, lft), meet(bot, lft), false)), Hs, false, 1);
+  const newR = only(beyond(Vs, false, 1, qs(meet(top, rgt), meet(bot, rgt), false)), Hs, false, -1);
   const newT = beyond(Hs, true, -1, qs(meet(top, lft), meet(top, rgt), true));
   const newB = beyond(Hs, true, 1, qs(meet(bot, lft), meet(bot, rgt), true));
   lft = newL ?? lft; rgt = newR ?? rgt; top = newT ?? top; bot = newB ?? bot;

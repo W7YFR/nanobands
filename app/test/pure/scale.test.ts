@@ -3,7 +3,7 @@
  * each word's text and its height on the plot. */
 
 import { describe, expect, it } from "vitest";
-import { axisLabels, fitScale, parsePerDivision } from "@/scale-text";
+import { axisLabels, columnLabels, fitColumn, fitScale, parsePerDivision } from "@/scale-text";
 
 /** Words at the plot's right edge, on a plot that fills a unit square. */
 const words = (...ws: [text: string, v: number][]) =>
@@ -60,5 +60,34 @@ describe("the axis labels", () => {
 
   it("find no scale without labels", () => {
     expect(fitScale([], 0.5)).toBeNull();
+  });
+});
+
+describe("the label column read on its own", () => {
+  /** A label word at height `v` on the plot, in a column 1000 px tall from v 0 to 1. */
+  const label = (text: string, v: number) => ({ symbols: [{ text, bbox: { y0: v * 1000 - 10, y1: v * 1000 + 10 } }] });
+
+  it("reads 12.38 per division as written, and a bare 125 as thousandths", () => {
+    expect(parsePerDivision("S11 SUR 12.38/ 49.618")).toBe(12.38);
+    expect(parsePerDivision("S11 SUR 125/ 1.848")).toBe(0.125);
+  });
+
+  it("puts each label back on its line when all sit the same way under it", () => {
+    // The NanoVNA draws each label 0.4 of a division under its line.
+    const under = (k: number): number => (k + 0.4) / 8;
+    const labels = columnLabels([label("2.5", under(0)), label("2.313", under(1)), label("2.125", under(2)), label("1.938", under(3)), label("1.75", under(4))], 0, 1, 1000);
+    expect(fitColumn(labels, null)).toEqual({ top: 2.5, bot: 1 });
+  });
+
+  it("fits every label that agrees, so labels the screen rounded still give round ends", () => {
+    const under = (k: number): number => (k + 0.4) / 8;
+    const labels = columnLabels(["100", "87.63", "75.25", "62.88", "50.5", "38.13", "25.75", "13.38"].map((t, k) => label(t, under(k))), 0, 1, 1000);
+    expect(fitColumn(labels, null)).toEqual({ top: 100, bot: 1 });
+  });
+
+  it("drops a label OCR misread, and reads one that lost its point", () => {
+    const under = (k: number): number => (k + 0.4) / 8;
+    const labels = columnLabels([label("3.625", under(1)), label("3.25", under(2)), label("90.5", under(3)), label("2125", under(5)), label("1.75", under(6))], 0, 1, 1000);
+    expect(fitColumn(labels, null)).toEqual({ top: 4, bot: 1 });
   });
 });

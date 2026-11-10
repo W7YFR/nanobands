@@ -12,26 +12,18 @@
  * where the slash and the 8's waist differ.
  */
 
-import { mappingFor, type Quad } from "./geometry";
+import type { Quad } from "./geometry";
 import type { OcrSymbol } from "./ocr-zeros";
 import type { Pixels } from "./pixels";
+import { squareUp, type Strip } from "./screen-parts";
 import type { SweepRange } from "./sweep-text";
 
-/** The row, squared up: brightness 0..255, row major. */
-export interface Strip {
-  gray: Float32Array;
-  width: number;
-  height: number;
-  /** The background and the brightest text, for the cuts below. */
-  lo: number;
-  hi: number;
-}
-
-/** Where the row lies, in plot units: u across, v down from the top line. */
-const U0 = -0.1, U1 = 1.25, V0 = 1.005, V1 = 1.1;
+/** Where the row lies, in plot units: under the grid, past both its edges. */
+const ROW = { u0: -0.1, u1: 1.25, v0: 1.005, v1: 1.1 };
 /** The brightness cut for OCR, and the higher one that splits glyphs that
  *  touch: a share of the way from background to the brightest text. */
-const CUT_TEXT = 0.8, CUT_SPLIT = 0.9;
+export const CUT_TEXT = 0.8;
+const CUT_SPLIT = 0.9;
 /** How far a glyph's middle may be from a known 0's and still be a 0. The
  *  photos give 0.17 or less for a slashed 0, and 0.21 or more for an 8. */
 const SAME_AS_ZERO = 0.185;
@@ -39,40 +31,7 @@ const SAME_AS_ZERO = 0.185;
 const DW = 16, DH = 10;
 
 /** The row under the grid, squared up at about the photo's own resolution. */
-export function rowStrip(px: Pixels, corners: Quad): Strip | null {
-  const [tl, tr, , bl] = corners;
-  const gw = Math.hypot(tr[0] - tl[0], tr[1] - tl[1]), gh = Math.hypot(bl[0] - tl[0], bl[1] - tl[1]);
-  const height = Math.round((V1 - V0) * gh), width = Math.round((U1 - U0) * gw);
-  if (height < 12 || width < 100) return null;
-  const fwd = mappingFor(corners).fwd, { width: iw, height: ih, data: d } = px;
-  const gray = new Float32Array(width * height);
-  for (let j = 0; j < height; j++) {
-    const v = V0 + ((V1 - V0) * (j + 0.5)) / height;
-    for (let i = 0; i < width; i++) {
-      const [sx, sy] = fwd(U0 + ((U1 - U0) * (i + 0.5)) / width, v);
-      const x = Math.floor(sx), y = Math.floor(sy);
-      if (x < 0 || y < 0 || x >= iw - 1 || y >= ih - 1) continue;
-      // Red and green: the text is white or yellow.
-      const fx = sx - x, fy = sy - y, a = (y * iw + x) * 4, b = a + iw * 4;
-      const at = (k: number): number => (d[k]! + d[k + 1]!) / 2;
-      gray[j * width + i] = (at(a) * (1 - fx) + at(a + 4) * fx) * (1 - fy) + (at(b) * (1 - fx) + at(b + 4) * fx) * fy;
-    }
-  }
-  const sorted = Float32Array.from(gray).sort();
-  const lo = sorted[Math.floor(sorted.length * 0.5)]!, hi = sorted[Math.floor(sorted.length * 0.985)]!;
-  return hi - lo < 30 ? null : { gray, width, height, lo, hi };
-}
-
-/** The strip as black text on white, RGBA, for OCR. */
-export function stripImage(s: Strip): Uint8ClampedArray<ArrayBuffer> {
-  const cut = s.lo + (s.hi - s.lo) * CUT_TEXT, out = new Uint8ClampedArray(s.gray.length * 4);
-  for (let k = 0; k < s.gray.length; k++) {
-    const v = s.gray[k]! > cut ? 0 : 255;
-    out[k * 4] = out[k * 4 + 1] = out[k * 4 + 2] = v;
-    out[k * 4 + 3] = 255;
-  }
-  return out;
-}
+export const rowStrip = (px: Pixels, corners: Quad): Strip | null => squareUp(px, corners, ROW);
 
 /** The first and last rows with text in them. */
 function textRows(s: Strip): [number, number] {
@@ -86,21 +45,38 @@ function textRows(s: Strip): [number, number] {
   return [top, bot];
 }
 
-/** Each glyph's columns. Glyphs that still touch at the higher cut come as
- *  one span about twice as wide, and are split evenly. */
+/** Each glyph's columns. A point glows into the digit beside it, so low
+ *  columns at either end of a run are cut off as a narrow span of their own.
+ *  Glyphs that still touch come as one span about twice as wide, and are
+ *  split evenly. */
 function glyphSpans(s: Strip, top: number, bot: number): [number, number][] {
   const cut = s.lo + (s.hi - s.lo) * CUT_SPLIT, runs: [number, number][] = [];
+  /** The first row with ink in column x, or -1. */
+  const inkTop = (x: number): number => {
+    for (let y = top; y <= bot; y++) if (s.gray[y * s.width + x]! > cut) return y;
+    return -1;
+  };
   let start = -1;
   for (let x = 0; x <= s.width; x++) {
-    let ink = false;
-    if (x < s.width) for (let y = top; y <= bot && !ink; y++) ink = s.gray[y * s.width + x]! > cut;
+    const ink = x < s.width && inkTop(x) >= 0;
     if (ink && start < 0) start = x;
     else if (!ink && start >= 0) { runs.push([start, x - 1]); start = -1; }
   }
-  const widths = runs.map(([a, b]) => b - a + 1).sort((a, b) => a - b);
-  const one = widths[Math.floor(widths.length / 2)] ?? 0;
-  return runs.flatMap(([a, b]) => {
-    const n = one ? Math.round((b - a + 1) / one) : 1;
+  // Columns with ink only in the lowest third: a point.
+  const low = (x: number): boolean => inkTop(x) > top + (bot - top) * 0.65;
+  const parts: [number, number][] = [];
+  for (const [a, b] of runs) {
+    let l = a, r = b;
+    while (l < r && low(l)) l++;
+    while (r > l && low(r)) r--;
+    if (l > a) parts.push([a, l - 1]);
+    parts.push([l, r]);
+    if (r < b) parts.push([r + 1, b]);
+  }
+  const widths = parts.map(([a, b]) => b - a + 1).filter((w) => w > 2).sort((a, b) => a - b);
+  const one = widths[Math.floor(widths.length * 0.75)] ?? 0;
+  return parts.flatMap(([a, b]) => {
+    const r = one ? (b - a + 1) / one : 1, n = r < 1.6 ? 1 : Math.round(r);
     if (n < 2) return [[a, b] as [number, number]];
     return Array.from({ length: n }, (_, k) => [Math.round(a + ((b - a + 1) * k) / n), Math.round(a + ((b - a + 1) * (k + 1)) / n) - 1] as [number, number]);
   });
@@ -172,23 +148,58 @@ export function settleRow(s: Strip, words: readonly RowWord[]): string {
   }
   if (!zeros.length) return plain;
 
+  /** One glyph settled: a 0 when it matches the row's 0s, else what OCR read
+   *  over it, with a 0 OCR read taken for the 8 it looks like. A glyph found
+   *  to be a 0 is kept, to learn from. */
+  const learned: Float32Array[] = [];
+  const settle = (sp: [number, number], ocr: string): string => {
+    const m = middle(s, sp, top, bot), d = Math.min(...zeros.map((z) => apart(z, m)));
+    if (d < SAME_AS_ZERO) { learned.push(m); return "0"; }
+    return "0OQD".includes(ocr.toUpperCase()) ? "8" : ocr;
+  };
+  const sorted = spans.map(([a, b]) => b - a + 1).sort((a, b) => a - b), one = sorted[Math.floor(sorted.length * 0.75)]!;
+  /** The digits after `from`, up to the word's end, rebuilt one per span, so a
+   *  glyph OCR split in two, or two it read as one, counts once each. */
+  const fraction = (w: RowWord, from: number): string => {
+    const x1 = Math.max(...w.symbols.map((y) => y.bbox.x1));
+    return spans
+      .filter(([a, b]) => (a + b) / 2 > from && (a + b) / 2 < x1 && b - a + 1 >= 0.5 * one)
+      .map((sp) => {
+        const overlap = (y: OcrSymbol): number => Math.min(sp[1], y.bbox.x1) - Math.max(sp[0], y.bbox.x0);
+        const ocr = w.symbols.filter((y) => /\w/.test(y.text)).reduce<OcrSymbol | undefined>((best, y) => (!best || overlap(y) > overlap(best) ? y : best), undefined)?.text ?? "";
+        return settle(sp, ocr);
+      }).join("");
+  };
+
+  /* Twice: the photo can be softer toward one edge, so the 0s found in the
+     first pass join the point count's, and each glyph is judged again
+     against 0s from its own part of the row. */
+  const once = (): string => {
+  let afterPoint = false;
   return words.map((w) => {
-    if (!/^[0-9OQDB.,]+$/i.test(text(w))) return text(w);
-    const widths = w.symbols.map((y) => y.bbox.x1 - y.bbox.x0).sort((a, b) => a - b);
-    const full = widths[Math.floor(widths.length / 2)]!;
-    let prev: [number, number] | undefined;
+    const t = text(w);
+    if (!/^[0-9OQDB.,]+$/i.test(t)) { afterPoint = false; return t; }
+    const point = w.symbols.findIndex((y) => /[.,]/.test(y.text));
+    if (point >= 0) {
+      // The whole part as OCR read it; the digits after the point by span.
+      afterPoint = true;
+      const p = w.symbols[point]!;
+      return t.slice(0, point + 1) + fraction(w, (p.bbox.x0 + p.bbox.x1) / 2);
+    }
+    if (afterPoint) {
+      // The second group of three, after the first.
+      afterPoint = false;
+      return fraction(w, Math.min(...w.symbols.map((y) => y.bbox.x0)) - 1);
+    }
     return w.symbols.map((y) => {
-      const sp = spanAt(y), again = sp !== undefined && sp === prev;
-      prev = sp;
-      // OCR can read one glyph as two narrow ones. The second adds nothing.
-      if (again && /\d/.test(y.text) && y.bbox.x1 - y.bbox.x0 < 0.7 * full) return "";
-      if (!"03689OQDB".includes(y.text.toUpperCase())) return y.text;
-      if (!sp) return y.text;
-      const d = Math.min(...zeros.map((z) => apart(z, middle(s, sp, top, bot))));
-      // Not a 0: OCR's reading stands, and a 0 it read is the 8 it looks like.
-      return d < SAME_AS_ZERO ? "0" : "0OQD".includes(y.text.toUpperCase()) ? "8" : y.text;
+      const sp = spanAt(y);
+      return sp && "03689OQDB".includes(y.text.toUpperCase()) ? settle(sp, y.text) : y.text;
     }).join("");
   }).join(" ");
+  };
+  once();
+  zeros.push(...learned);
+  return once();
 }
 
 /** START and STOP out of the row, in the NanoVNA's format: a whole part, a

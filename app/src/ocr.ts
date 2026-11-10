@@ -30,13 +30,18 @@ export function ocrCanvas(src: HTMLCanvasElement): { canvas: HTMLCanvasElement; 
   return { canvas: c, scale };
 }
 
-/** The characters the START/STOP row can hold. */
-const ROW_CHARS = "0123456789.STARTOPCENMHzkGBWp:/ ";
+/** A part of the screen to read on its own, squared up (see screen-parts.ts). */
+export interface Part {
+  canvas: HTMLCanvasElement;
+  /** One line of text, or text scattered over the part. */
+  line: boolean;
+  /** The characters it can hold. */
+  chars: string;
+}
 
-/** Run OCR over sparse text scattered around a screen, and over the
- *  START/STOP row cut out of it, when there is one, as a single line. One
- *  worker reads both. */
-export async function recognize(canvas: HTMLCanvasElement, row: HTMLCanvasElement | null = null): Promise<{ screen: OcrResult; row: OcrResult | null }> {
+/** Run OCR over sparse text scattered around a screen, and over each part
+ *  cut out of it. One worker reads them all. */
+export async function recognize(canvas: HTMLCanvasElement, parts: readonly Part[] = []): Promise<{ screen: OcrResult; parts: OcrResult[] }> {
   const { createWorker, PSM } = await import("tesseract.js");
   const worker = await createWorker("eng", undefined, {
     workerPath: `${FILES}worker.min.js`,
@@ -51,10 +56,12 @@ export async function recognize(canvas: HTMLCanvasElement, row: HTMLCanvasElemen
       return { text: data.text, lines: lines ?? null };
     };
     await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
-    const screen = await read(canvas);
-    if (!row) return { screen, row: null };
-    await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE, tessedit_char_whitelist: ROW_CHARS });
-    return { screen, row: await read(row) };
+    const screen = await read(canvas), out: OcrResult[] = [];
+    for (const p of parts) {
+      await worker.setParameters({ tessedit_pageseg_mode: p.line ? PSM.SINGLE_LINE : PSM.SPARSE_TEXT, tessedit_char_whitelist: p.chars });
+      out.push(await read(p.canvas));
+    }
+    return { screen, parts: out };
   } finally {
     await worker.terminate();
   }

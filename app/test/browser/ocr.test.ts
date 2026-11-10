@@ -19,16 +19,14 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { mappingFor } from "@/geometry";
 import { detectGrid } from "@/grid";
 import { readScreen } from "@/read-screen";
-import { axisLabels, fitScale } from "@/scale-text";
 import { looksLikeScreen } from "@/sweep-text";
 import { loadImage, photoFrom } from "@/ui/model";
 
 const photos = import.meta.glob<string>("../data/*.jpg", { query: "?url", import: "default", eager: true });
 
-/** What the page takes from a photo's text: `readScreen`, then the scale as `App`'s readSweep fits it. */
+/** What the page takes from a photo's text, as `readScreen` reads it. */
 interface Reading {
   start: number | null;
   stop: number | null;
@@ -46,8 +44,7 @@ async function read(name: string): Promise<Reading & { text: string; screen: boo
 async function readBlob(blob: Blob): Promise<Reading & { text: string; screen: boolean }> {
   const photo = photoFrom(await loadImage(blob));
   const g = detectGrid(photo.px);
-  const { text, words, sweep, per } = await readScreen(photo, g?.corners ?? null);
-  const fit = g ? fitScale(axisLabels(words.flat(), mappingFor(g.corners).back), per) : null;
+  const { text, sweep, per, scale: fit } = await readScreen(photo, g);
   // To six places, past the float noise of a unit conversion.
   const r = (x: number | null | undefined): number | null => (x == null ? null : +x.toFixed(6));
   const screen = looksLikeScreen(text, g?.horizontal ?? null);
@@ -66,12 +63,12 @@ const CASES: Case[] = [
   { photo: "random-wire-3-55mhz.jpg", screen: { start: 3, stop: 55, per: 0.5, top: 5, bot: 1 } },
   { photo: "random-wire-3-55mhz-no-labels.jpg", screen: { start: null, stop: null, per: 0.5, top: 5, bot: 1 } },
   { photo: "random-wire-3-55mhz-top-3.jpg", screen: { start: 3, stop: 55, per: 0.25, top: 3, bot: 1 } },
-  { photo: "2m-144-148mhz-top-2.5.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 }, misses: { top: null, bot: null } },
-  { photo: "2m-144-148mhz-top-2.5-tilted.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 }, misses: { top: null, bot: null } },
+  { photo: "2m-144-148mhz-top-2.5.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 } },
+  { photo: "2m-144-148mhz-top-2.5-tilted.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 } },
   { photo: "2m-144-148mhz-top-2.5-glare.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 }, misses: { start: null, stop: null, per: null, top: null, bot: null } },
-  { photo: "2m-144-148mhz-top-2.jpg", screen: { start: 144, stop: 148, per: 0.125, top: 2, bot: 1 }, misses: { per: null, top: null, bot: null } },
+  { photo: "2m-144-148mhz-top-2.jpg", screen: { start: 144, stop: 148, per: 0.125, top: 2, bot: 1 } },
   { photo: "2m-144-148mhz-top-4.jpg", screen: { start: 144, stop: 148, per: 0.375, top: 4, bot: 1 } },
-  { photo: "hf-6-50mhz-top-100.jpg", screen: { start: 6, stop: 50, per: 12.38, top: 100, bot: 1 }, misses: { per: 0.012367, top: null, bot: null } },
+  { photo: "hf-6-50mhz-top-100.jpg", screen: { start: 6, stop: 50, per: 12.38, top: 100, bot: 1 }, misses: { per: 12.367 } },
 ];
 
 describe("OCR on real photos", () => {

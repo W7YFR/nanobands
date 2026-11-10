@@ -2,7 +2,8 @@
  * settled against real photos in the browser tier; see ocr.test.ts. */
 
 import { describe, expect, it } from "vitest";
-import { parseSweepRow, settleRow, type Strip } from "@/sweep-row";
+import type { Strip } from "@/screen-parts";
+import { parseSweepRow, settleRow } from "@/sweep-row";
 
 describe("parseSweepRow", () => {
   it("reads START and STOP as the row settled them on real photos", () => {
