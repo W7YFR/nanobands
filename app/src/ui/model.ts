@@ -6,6 +6,7 @@
 import { analyze, atTop, swrAt, usableSwr, type Analysis } from "@/analysis";
 import { MODE_NAMES, bandAt, segmentAt, type Band, type LicenseClass, type OperatingMode, type Segment } from "@/bands";
 import { mappingFor, type Mapping, type Point, type Quad } from "@/geometry";
+import { uprightTurns, type Turns } from "@/orient";
 import type { Pixels } from "@/pixels";
 import { rectify, type Rectified } from "@/rectify";
 import type { Readings } from "./draw-chart";
@@ -290,15 +291,32 @@ export function viewOf(photo: Photo, map: Mapping | null, rect: Rect | null): Vi
 export const defaultCorners = (w: number, h: number): Quad =>
   [[w * 0.1, h * 0.1], [w * 0.9, h * 0.1], [w * 0.9, h * 0.9], [w * 0.1, h * 0.9]];
 
-/** Draw an image into a working copy and read its pixels. */
+/** Draw an image into a working copy and read its pixels, turned so the
+ *  screen stands upright. */
 export function photoFrom(im: HTMLImageElement): Photo {
-  const sc = Math.min(1, 4000 / Math.max(im.naturalWidth, im.naturalHeight));
-  const w = Math.round(im.naturalWidth * sc), h = Math.round(im.naturalHeight * sc);
+  return drawn(im, 4000, uprightTurns(drawn(im, ORIENT_SIZE, 0).px));
+}
+
+/** The long side of the copy that decides which way up a photo is. */
+const ORIENT_SIZE = 1200;
+
+/** `im` at most `max` px on its long side, turned clockwise by `turns`. */
+function drawn(im: HTMLImageElement, max: number, turns: Turns): Photo {
+  const sc = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+  const w0 = Math.round(im.naturalWidth * sc), h0 = Math.round(im.naturalHeight * sc);
+  const [w, h] = turns % 2 ? [h0, w0] : [w0, h0];
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
   const x = c.getContext("2d", { willReadFrequently: true })!;
-  x.drawImage(im, 0, 0, w, h);
+  if (turns) {
+    x.translate(w / 2, h / 2);
+    x.rotate((turns * Math.PI) / 2);
+    x.drawImage(im, -w0 / 2, -h0 / 2, w0, h0);
+    x.setTransform(1, 0, 0, 1, 0, 0);
+  } else {
+    x.drawImage(im, 0, 0, w, h);
+  }
   return { src: c, px: x.getImageData(0, 0, w, h), w, h };
 }
 

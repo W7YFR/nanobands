@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- A photo the phone saved on its side or upside down opens with the screen upright.
+
+### Development
+
+- The browser tier's `orient.test.ts` turns each real photo a quarter, a half and three quarters, and checks the page stands it back up. The pure tier's checks the turns themselves.
+
 ## v1.12.6 — 2026-11-10
 
 ### Changed
