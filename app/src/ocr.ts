@@ -30,18 +30,32 @@ export function ocrCanvas(src: HTMLCanvasElement): { canvas: HTMLCanvasElement; 
   return { canvas: c, scale };
 }
 
-/** Run OCR over sparse text scattered around a screen. */
-export async function recognize(canvas: HTMLCanvasElement): Promise<OcrResult> {
+/** The characters the START/STOP row can hold. */
+const ROW_CHARS = "0123456789.STARTOPCENMHzkGBWp:/ ";
+
+/** Run OCR over sparse text scattered around a screen, and over the
+ *  START/STOP row cut out of it, when there is one, as a single line. One
+ *  worker reads both. */
+export async function recognize(canvas: HTMLCanvasElement, row: HTMLCanvasElement | null = null): Promise<{ screen: OcrResult; row: OcrResult | null }> {
   const { createWorker, PSM } = await import("tesseract.js");
   const worker = await createWorker("eng", undefined, {
     workerPath: `${FILES}worker.min.js`,
     corePath: FILES,
     langPath: FILES,
   });
-  await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
-  const { data } = await worker.recognize(canvas, {}, { text: true, blocks: true });
-  await worker.terminate();
-  // Lines with their words and glyph boxes. The blocks hold them in paragraphs.
-  const lines = data.blocks?.flatMap((b) => b.paragraphs.flatMap((p) => p.lines));
-  return { text: data.text, lines: lines ?? null };
+  try {
+    const read = async (c: HTMLCanvasElement): Promise<OcrResult> => {
+      const { data } = await worker.recognize(c, {}, { text: true, blocks: true });
+      // Lines with their words and glyph boxes. The blocks hold them in paragraphs.
+      const lines = data.blocks?.flatMap((b) => b.paragraphs.flatMap((p) => p.lines));
+      return { text: data.text, lines: lines ?? null };
+    };
+    await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
+    const screen = await read(canvas);
+    if (!row) return { screen, row: null };
+    await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE, tessedit_char_whitelist: ROW_CHARS });
+    return { screen, row: await read(row) };
+  } finally {
+    await worker.terminate();
+  }
 }

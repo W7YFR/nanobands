@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- More photos read START and STOP right, such as 2 m sweeps whose zeros read as 6 or 8. They read the same in every browser.
+
+### Development
+
+- `sweep-row.ts` reads the START/STOP row under the grid on its own. `ocr.test.ts` no longer lists the START and STOP misses it fixed.
+
 ## v1.13.1 — 2026-11-10
 
 ### Changed

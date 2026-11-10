@@ -12,11 +12,10 @@ import { bandsInRange, type Band, type LicenseClass } from "@/bands";
 import { fineCheck, mergeScan, offScale } from "@/fine";
 import { mappingFor, solveRefs, type Quad } from "@/geometry";
 import { detectGrid } from "@/grid";
-import { fixedWords } from "@/ocr-zeros";
-import { ocrCanvas, recognize } from "@/ocr";
-import { axisLabels, DIVISIONS, fitScale, parsePerDivision, type SwrScale } from "@/scale-text";
+import { readScreen } from "@/read-screen";
+import { axisLabels, DIVISIONS, fitScale, type SwrScale } from "@/scale-text";
 import { openStore } from "@/store";
-import { looksLikeScreen, parseSweepText } from "@/sweep-text";
+import { looksLikeScreen } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { autoTrace } from "@/trace";
 import { toTouchstone, type Scan } from "@/vna";
@@ -178,14 +177,10 @@ export function App(): React.ReactElement {
   }, []);
 
   /** Read START and STOP off the photo. A newer photo makes the reading moot. */
-  const readSweep = useCallback(async (photo: Photo, job: number): Promise<void> => {
+  const readSweep = useCallback(async (photo: Photo, job: number, grid: Quad | null): Promise<void> => {
     try {
-      const { canvas, scale } = ocrCanvas(photo.src);
-      const data = await recognize(canvas);
+      const { text, words, sweep: r, per } = await readScreen(photo, grid);
       if (job !== ocrJob.current) return;
-      const words = fixedWords(data, photo.px, scale);
-      const text = data.lines?.length ? words.map((l) => l.map((w) => w.text).join(" ")).join("\n") : data.text;
-      const r = parseSweepText(text), per = parsePerDivision(text);
       setDoc((was) => {
         if (was.photo !== photo) return was;
         const labels = was.corners ? axisLabels(words.flat(), mappingFor(was.corners).back) : [];
@@ -211,7 +206,7 @@ export function App(): React.ReactElement {
       ? traced({ ...d, corners: g.corners, straight: true, grid: { kind: "found", horizontal: g.horizontal, vertical: g.vertical } })
       : { ...d, grid: { kind: "missing" } };
     setDoc({ ...d, ocr: { kind: "looking" } });
-    void readSweep(photo, job);
+    void readSweep(photo, job, g?.corners ?? null);
   }, [readSweep]);
 
   const handleFile = useCallback((file: File): void => {
