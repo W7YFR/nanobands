@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.12.5 — 2026-11-10
+
 ### Changed
 
 - Reading a photo's text no longer loads anything from a third-party site. The text-recognition library comes from NanoBands itself. **Terms** says so.
