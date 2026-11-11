@@ -19,7 +19,7 @@ them.
 
 ### Development
 
-- `chart.test.ts` checks that no Max SWR line is drawn above the scale. `photo.test.ts` checks that the trace keeps to the curve on every photo. `ocr.test.ts` reads every real photo right and lists no misses, and reads the glare and HF photos turned on their side and stood back upright. The glare photo is no longer left out of the orientation and trace tests.
+- The browser tests check that the trace keeps to the curve on every photo, that no Max SWR line is drawn above the scale, and that the glare and HF photos read right turned on their side. `ocr.test.ts` lists no misses.
 
 ## v1.13.3 — 2026-11-10
 
