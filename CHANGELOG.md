@@ -20,6 +20,7 @@ them.
 - `make release` runs from a worktree while another checkout has `main`. It updates, tags and pushes from that checkout, and keeps the branch the worktree holds.
 - `make restart` stops this repo's dev server, wherever it runs, and serves the current checkout at localhost:5174.
 - `make restart` no longer refuses to stop a dev server whose worktree was removed while it ran.
+- The `finalize` skill commits the branch, checks the changelog, opens the pull request, fixes CI failures, merges when green and runs `make release`.
 
 ## v1.13.4 — 2026-11-11
 
