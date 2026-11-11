@@ -8,8 +8,11 @@
  * corners.
  */
 
-import type { Quad } from "./geometry";
+import { mappingFor, type Quad } from "./geometry";
 import { isGridAt, type Pixels } from "./pixels";
+
+/** The NanoVNA's plot is eight divisions tall: nine SWR lines. */
+const SWR_LINES = 9;
 
 export interface GridResult {
   corners: Quad;
@@ -207,8 +210,80 @@ export function detectGrid(px: Pixels): GridResult | null {
   const newT = beyond(Hs, true, -1, qs(meet(top, lft), meet(top, rgt), true));
   const newB = beyond(Hs, true, 1, qs(meet(bot, lft), meet(bot, rgt), true));
   lft = newL ?? lft; rgt = newR ?? rgt; top = newT ?? top; bot = newB ?? bot;
-  const corners: Quad = [meet(top, lft), meet(top, rgt), meet(bot, rgt), meet(bot, lft)];
+  let corners: Quad = [meet(top, lft), meet(top, rgt), meet(bot, rgt), meet(bot, lft)];
+  let horizontal = Hs.length + (newT ? 1 : 0) + (newB ? 1 : 0);
+  const vertical = Vs.length + (newL ? 1 : 0) + (newR ? 1 : 0);
+  if (!corners.flat().every(Number.isFinite)) return null;
+
+  /* Glare, or a photo darkened against it, can leave only some of the nine
+     SWR lines bright enough to find. Those found are consecutive, and they
+     fix the screen's perspective: extended through it, the rest fall where
+     the plot puts them. Which of the nine were found is settled by the
+     photo: extended the right way, the lines that were missed land on lines
+     still there, dim. */
+  if (horizontal >= 3 && horizontal < SWR_LINES) {
+    const fwd = mappingFor(corners).fwd, span = horizontal - 1;
+    /** How much of line `k` lies on a line, dim or not, if line `first` is the first one found. */
+    const onLine = (first: number, k: number): number => {
+      const v = (k - first) / span;
+      let hits = 0, n = 0;
+      for (let u = 0.03; u <= 0.97; u += 0.01) {
+        const [x, y] = fwd(u, v);
+        if (x < side || y < side || x >= iw - side || y >= ih - side) return 0;
+        n++;
+        const c = lum(x, y);
+        if (c > 30 && bluish(x, y) && c > 1.15 * Math.max(lum(x, y - side), lum(x, y + side))) hits++;
+      }
+      return n ? hits / n : 0;
+    };
+    let best = -1, bestScore = 0;
+    for (let first = 0; first + horizontal <= SWR_LINES; first++) {
+      const missed: number[] = [];
+      for (let k = 0; k < SWR_LINES; k++) if (k < first || k >= first + horizontal) missed.push(onLine(first, k));
+      const score = missed.reduce((a, b) => a + b, 0) / missed.length;
+      if (score > bestScore) { bestScore = score; best = first; }
+    }
+    if (best >= 0 && bestScore >= 0.1) {
+      // The top and bottom from the extension; the sides stay the borders
+      // found, each fitted along the part of it that shows.
+      const across = (v: number): Line => {
+        const [x0, y0] = fwd(0, v), [x1, y1] = fwd(1, v), t = (y1 - y0) / (x1 - x0);
+        return { off: y0 - x0 * t, t };
+      };
+      top = across(-best / span);
+      bot = across((SWR_LINES - 1 - best) / span);
+      // Each side was fitted along the part of it that showed. Fit it again
+      // along the whole height: at each height, the nearest dim line.
+      const refit = (l: Line): Line => {
+        const y0 = Math.min(meet(top, l)[1], meet(bot, l)[1]), y1 = Math.max(meet(top, l)[1], meet(bot, l)[1]);
+        const pts: [number, number][] = [];
+        for (let y = y0 + (y1 - y0) * 0.02; y <= y1 - (y1 - y0) * 0.02; y += 6) {
+          let bx = -1, bc = 0;
+          for (let dx = -40; dx <= 40; dx++) {
+            const x = l.off + y * l.t + dx, c = lum(x, y);
+            if (c > 30 && bluish(x, y) && c > 1.15 * Math.max(lum(x - side, y), lum(x + side, y)) && c > bc) { bc = c; bx = x; }
+          }
+          if (bx >= 0) pts.push([y, bx]);
+        }
+        let { off, t } = l;
+        for (let pass = 0; pass < 3; pass++) {
+          const use = pass ? pts.filter(([y, x]) => Math.abs(x - (off + t * y)) < 6) : pts;
+          if (use.length < 20) return l;
+          const my = use.reduce((a, p) => a + p[0], 0) / use.length, mx = use.reduce((a, p) => a + p[1], 0) / use.length;
+          let sxy = 0, syy = 0;
+          for (const [y, x] of use) { sxy += (y - my) * (x - mx); syy += (y - my) ** 2; }
+          t = sxy / syy;
+          off = mx - t * my;
+        }
+        return { off, t };
+      };
+      lft = refit(lft);
+      rgt = refit(rgt);
+      corners = [meet(top, lft), meet(top, rgt), meet(bot, rgt), meet(bot, lft)];
+      horizontal = SWR_LINES;
+    }
+  }
   const area = Math.abs((corners[1][0] - corners[0][0]) * (corners[3][1] - corners[0][1]));
   if (!corners.flat().every(Number.isFinite) || area < 0.12 * iw * ih) return null;
-  return { corners, horizontal: Hs.length + (newT ? 1 : 0) + (newB ? 1 : 0), vertical: Vs.length + (newL ? 1 : 0) + (newR ? 1 : 0) };
+  return { corners, horizontal, vertical };
 }

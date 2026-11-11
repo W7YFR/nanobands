@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 import { analyze } from "@/analysis";
 import { mappingFor } from "@/geometry";
 import { detectGrid } from "@/grid";
-import type { Pixels } from "@/pixels";
+import { isYellowAt, type Pixels } from "@/pixels";
 import { autoTrace, coverage, traceBest } from "@/trace";
 import labeled from "../data/random-wire-3-55mhz.jpg?url";
 import unlabeled from "../data/random-wire-3-55mhz-no-labels.jpg?url";
@@ -112,16 +112,38 @@ describe("a photo whose screen fades toward the right", () => {
 
 describe("the curve across the whole plot", () => {
   /* The 2 m photos draw the curve pale. At the default sensitivity most of
-     their columns hold no yellow, and the trace falls back to lower ones.
-     The glare photo is left out: its grid is not found whole. */
+     their columns hold no yellow, and the trace falls back to lower ones. */
   const all = import.meta.glob<string>("../data/*.jpg", { query: "?url", import: "default", eager: true });
   for (const [path, url] of Object.entries(all)) {
     const name = path.replace("../data/", "");
-    if (name.includes("glare")) continue;
     it(`traces nearly every column of ${name}`, async () => {
       const px = await load(url), g = detectGrid(px)!;
       const { trace } = traceBest(px, mappingFor(g.corners).fwd, g.corners, 70, true);
       expect(coverage(trace)).toBeGreaterThan(0.9);
+    });
+
+    /* A straight bridge across a dip or spike leaves the curve. The trace
+       should sit on it: yellow, or the near white a pale curve or a blend
+       with a grid line gives, within a few pixels. */
+    it(`keeps to the curve, dips and spikes too, on ${name}`, async () => {
+      const px = await load(url), g = detectGrid(px)!, fwd = mappingFor(g.corners).fwd;
+      const { trace: t, sens } = traceBest(px, fwd, g.corners, 70, true);
+      const d = px.data, w = px.width;
+      const curve = (x: number, y: number): boolean => {
+        x |= 0; y |= 0;
+        if (x < 0 || y < 0 || x >= w || y >= px.height) return false;
+        const i = (y * w + x) * 4, r = d[i]!, gr = d[i + 1]!, b = d[i + 2]!;
+        return isYellowAt(px, x, y, sens) || (Math.min(r, gr) > 200 && r > b - 15 && Math.abs(r - gr) < 40);
+      };
+      let on = 0, n = 0;
+      for (let i = 0; i < t.N; i++) {
+        const v = t.v[i]!;
+        if (Number.isNaN(v)) continue;
+        n++;
+        const [x, y] = fwd((i + 0.5) / t.N, v);
+        for (let k = -6; k <= 6; k++) if (curve(x, y + k)) { on++; break; }
+      }
+      expect(on / n).toBeGreaterThan(0.96);
     });
   }
 });

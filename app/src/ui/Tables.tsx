@@ -3,7 +3,7 @@
  */
 
 import { memo, useState } from "react";
-import { atTop, segUsable, type Analysis, type SegmentUse } from "@/analysis";
+import { atTop, coverNote, segUsable, type Analysis, type SegmentUse } from "@/analysis";
 import { MODES, MODE_NAMES, bandAt, bandsInRange, segsFor, type Band, type Segment } from "@/bands";
 import { fmtF } from "@/format";
 import { bandView, barPieces, sameView, type Settings } from "./model";
@@ -46,7 +46,7 @@ function BandRows({ b, an, s, onTip }: { b: Band; an: Analysis; s: Settings; onT
   }
   const tot = segs.map((g) => segUsable(g, an));
   const avg = bandUse(b, an, s)!;
-  const meas = Math.min(...tot.map((u) => u.measured));
+  const meas = Math.min(...tot.map((u) => u.measured)), swept = Math.min(...tot.map((u) => u.swept));
   const is60 = b.name === "60m";
   const f60 = (g: Segment): string => (g[1] - g[0] < 0.005 ? ((g[0] + g[1]) / 2).toFixed(4) : `${g[0].toFixed(4)}–${g[1].toFixed(4)}`);
   const ok60 = segs.filter((_, j) => tot[j]!.frac > 0.995);
@@ -54,7 +54,8 @@ function BandRows({ b, an, s, onTip }: { b: Band; an: Analysis; s: Settings; onT
   return (
     <>
       {shown.map((g, j) => {
-        const u: SegmentUse = is60 ? { parts: segs.flatMap((c) => segUsable(c, an).parts), frac: avg, measured: meas } : tot[j]!;
+        const u: SegmentUse = is60 ? { parts: segs.flatMap((c) => segUsable(c, an).parts), frac: avg, measured: meas, swept } : tot[j]!;
+        const note = coverNote(g, u, an);
         const parts = is60
           ? ok60.length ? ok60.map(f60).join(", ") : "—"
           : u.parts.length ? u.parts.map(([a, c]) => `${fmtF(a)}–${fmtF(c)}`).join(", ") : "—";
@@ -77,8 +78,8 @@ function BandRows({ b, an, s, onTip }: { b: Band; an: Analysis; s: Settings; onT
           onTip({ piece: pieces[at]!, cx: e.clientX, cy: e.clientY });
         };
         const tipped = { onPointerMove: tipAt, onPointerLeave: () => onTip(null) };
-        const bar = u.measured < 0.999
-          ? <div className="bar na" title="Partly outside the sweep" />
+        const bar = note
+          ? <div className="bar na" title={note[0]!.toUpperCase() + note.slice(1)} />
           : is60
             ? <div className="bar na" {...tipped}>{segs.map((c, i) => <span key={i} style={{ left: `${((c[0] - g[0]) / span) * 100}%`, width: `${Math.max(MIN_CHANNEL * 100, ((c[1] - c[0]) / span) * 100)}%`, background: tot[i]!.frac > 0.995 ? OK : BAD }} />)}</div>
             : <div className="bar" {...tipped}>{u.parts.map(([a, c], i) => <span key={i} style={{ left: `${((a - g[0]) / span) * 100}%`, width: `${Math.max(1, ((c - a) / span) * 100)}%` }} />)}</div>;
@@ -87,7 +88,7 @@ function BandRows({ b, an, s, onTip }: { b: Band; an: Analysis; s: Settings; onT
             {j === 0 && <td className="band" rowSpan={shown.length}><b>{b.name}</b> <Pill avg={avg} /></td>}
             <td className="mode"><span style={{ color: MODES[g[2]].color }}>■</span> {is60 ? `4 channels + 1 segment (${ok60.length}/${segs.length} usable)` : MODES[g[2]].label}</td>
             <td className="num range">{is60 ? `${g[0].toFixed(4)}–${g[1].toFixed(4)}` : `${fmtF(g[0])}–${fmtF(g[1])}`}</td>
-            <td className={"num usable" + (parts === "—" ? " nil" : "")}>{parts}{u.measured < 0.999 && <> <span className="warn">(partly outside sweep)</span></>}</td>
+            <td className={"num usable" + (parts === "—" ? " nil" : "")}>{parts}{note && <> <span className="warn">({note})</span></>}</td>
             <td className="barcell">{bar}</td>
           </tr>
         );

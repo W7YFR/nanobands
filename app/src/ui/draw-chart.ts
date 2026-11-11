@@ -15,7 +15,7 @@
  * out.
  */
 
-import { alongTop, atTop, segUsable, usableLimit, type Analysis } from "@/analysis";
+import { alongTop, atTop, coverNote, segUsable, usableLimit, type Analysis } from "@/analysis";
 import { MODES, bandAt, bandEdges, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import { swrOn, type Curve, type FineSpan, type Settings } from "./model";
@@ -139,7 +139,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
       ctx.fillStyle = MODES[seg[2]].color + "24"; ctx.fillRect(m - w / 2, y0, w, y1 - y0);
       ctx.fillStyle = MODES[seg[2]].color; ctx.fillRect(m - w / 2, y0, w, 3);
       const u = segUsable(seg, an);
-      ctx.fillStyle = u.measured < 0.999 ? "#3a404a" : "rgba(248,81,73,.7)"; ctx.fillRect(m - w / 2, stripY, w, stripH);
+      ctx.fillStyle = coverNote(seg, u, an) ? "#3a404a" : "rgba(248,81,73,.7)"; ctx.fillRect(m - w / 2, stripY, w, stripH);
       ctx.fillStyle = OK;
       for (const [p, q] of u.parts) {
         const pw = Math.max(1.5, X(q) - X(p));
@@ -169,10 +169,12 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
 
   // curve: yellow above the threshold; under it, green inside your segments
   // and gray outside them, where a good match still does not let you transmit.
-  // With Max SWR at or over the top of the scale, Max SWR's line lies along
-  // the top, so the curve is left out where it runs flat along it: the line
-  // shows those stretches alone.
-  const thrAtTop = alongTop(s.thr, s);
+  // With Max SWR at the top of the scale, Max SWR's line lies along the top,
+  // so the curve is left out where it runs flat along it: the line shows
+  // those stretches alone. Max SWR over the top has no line, and the curve
+  // shows them.
+  const thrOver = s.thr > s.top;
+  const thrAtTop = !thrOver && alongTop(s.thr, s);
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
   const path = new Path2D();
   let pen = false, prevTop = false, pf = NaN, ps = NaN;
@@ -255,9 +257,11 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   }
   ctx.lineCap = "butt";
 
-  // Max SWR's line, over the curve. Max SWR over the top of the scale draws at the top.
-  ctx.strokeStyle = BAD; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.moveTo(x0, Y(s.thr)); ctx.lineTo(x1, Y(s.thr)); ctx.stroke(); ctx.setLineDash([]);
+  // Max SWR's line, over the curve. Over the top of the scale it has nowhere to go.
+  if (!thrOver) {
+    ctx.strokeStyle = BAD; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(x0, Y(s.thr)); ctx.lineTo(x1, Y(s.thr)); ctx.stroke(); ctx.setLineDash([]);
+  }
 
   const inView = (f: number): boolean => f >= lo && f <= hi;
   // Each label drawn, as a box. On a narrow chart a dip's or peak's label
@@ -282,7 +286,9 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     ctx.fillStyle = color; ctx.textAlign = "center"; ctx.fillText(txt, x, y);
   };
   // Max SWR's line is named at its right end, before the other labels, so they keep clear of it.
-  tag(`Max SWR ${s.thr}`, x1, Y(s.thr) - 11, BAD);
+  // Over the top of the scale, a note there says why there is no line.
+  if (thrOver) tag(`Max SWR ${s.thr} is above the scale`, x1, y0 - 11, "#f2cc60");
+  else tag(`Max SWR ${s.thr}`, x1, Y(s.thr) - 11, BAD);
   // extrema
   for (const e of an.extrema) {
     if (!inView(e.f)) continue;
@@ -418,9 +424,9 @@ export function bandTip(b: Band, s: Settings, an: Analysis, t: Curve): { name: s
   const total = segs.reduce((a, g) => a + g[1] - g[0], 0);
   const uses = segs.map((g) => segUsable(g, an));
   const frac = total ? uses.reduce((a, u, j) => a + u.frac * (segs[j]![1] - segs[j]![0]), 0) / total : 0;
-  const measured = total ? uses.reduce((a, u, j) => a + u.measured * (segs[j]![1] - segs[j]![0]), 0) / total : 0;
+  const note = segs.map((g, j) => coverNote(g, uses[j]!, an)).find((n) => n !== null);
   const ok = frac > 0.995 ? "all" : frac > 0.005 ? "part" : "none";
   const usable = (ok === "all" ? "All usable" : ok === "part" ? `Partial: ${Math.round(frac * 100)}% usable` : "None usable") +
-    (measured < 0.999 ? " (partly outside sweep)" : "");
+    (note ? ` (${note})` : "");
   return { name: b.name, swr: min <= max ? (min === max ? `SWR ${fmt(min)}` : `SWR ${fmt(min)}–${fmt(max)}`) : "SWR —", usable, ok };
 }

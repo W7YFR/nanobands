@@ -13,7 +13,8 @@
  *    happens to fill the gap.
  * 4. Grow each end of the path through candidates that touch it, text or
  *    not: a jagged curve can look like text to step 2.
- * 5. Fill short gaps and smooth with a 3-point median.
+ * 5. Fill gaps: a short one straight, a long one, where the curve runs
+ *    along a grid line, by the blend of the two. Smooth with a 3-point median.
  */
 
 import type { Point, Quad } from "./geometry";
@@ -133,12 +134,64 @@ export function autoTrace(px: Pixels, fwd: (u: number, v: number) => Point, corn
   if (startRun) grow(startI, startRun, -1);
   if (endI >= 0) grow(endI, cand[endI]![endK]!, 1);
 
-  // 5. Gaps and smoothing.
+  // 5. Gaps and smoothing. A short gap, where the curve crosses a grid line,
+  // is bridged straight. A long one, a straight bridge would flatten: there
+  // the curve is drawn near white, blown out or blended with a grid line, or
+  // zigzags enough for step 2 to drop it as text. Follow it, nearest the
+  // straight bridge.
+  const LONG = Math.max(10, Math.round(N * 0.004)), near = Math.round(M * 0.03);
+  /** How near an SWR line counts as on it, in divisions. */
+  const LINE = 0.06;
+  /** The tallest run the curve makes, in rows. Taller is a frequency line. */
+  const TALL = Math.round(M * 0.025);
+  /** The curve drawn near white, as a pale one is where the photo blows it
+   *  out, or where it blends with a grid line: bright, and not bluish. The
+   *  grid's white has far more blue than red. */
+  const blended = (x: number, y: number): boolean => {
+    if (x < 0 || y < 0 || x >= px.width || y >= px.height) return false;
+    const i = ((y | 0) * px.width + (x | 0)) * 4, d = px.data, r = d[i]!, g = d[i + 1]!, b = d[i + 2]!;
+    return Math.min(r, g) > 200 && r > b - 15 && Math.abs(r - g) < 40;
+  };
+  /** In column `j`, the middle of the curve nearest row `r`, as a position
+   *  down the plot, or NaN: yellow the text filter dropped, or near white. */
+  const follow = (j: number, r: number): number => {
+    const u = (j + 0.5) / N;
+    // A column down a frequency line is near white most of the way: no curve to follow in it.
+    let white = 0, seen = 0;
+    for (let q = Math.max(0, r - TALL); q < Math.min(M, r + TALL); q += 2) {
+      seen++;
+      if (blended(...fwd(u, (q + 0.5) / M))) white++;
+    }
+    if (white > seen * 0.6) return NaN;
+    let best = NaN, gap = Infinity, a = -1;
+    for (const [ra, rb] of every[j]!) {
+      const c = (ra + rb) / 2, g = Math.abs(c - r);
+      if (g <= near && g < gap) { gap = g; best = (c + 0.5) / M; }
+    }
+    for (let q = Math.max(0, r - near); q <= Math.min(M, r + near); q++) {
+      const vq = (q + 0.5) / M, [x, y] = q < M ? fwd(u, vq) : [0, 0];
+      // Never an SWR line itself: on a warm photo its white is not bluish.
+      const onLine = Math.abs(vq * 8 - Math.round(vq * 8)) < LINE;
+      const on = q < M && q <= r + near && !onLine && blended(x, y);
+      if (on && a < 0) a = q;
+      if (!on && a >= 0) {
+        const c = (a + q - 1) / 2, g = Math.abs(c - r);
+        if (q - a <= TALL && g < gap) { gap = g; best = (c + 0.5) / M; }
+        a = -1;
+      }
+    }
+    return best;
+  };
   let lastI = -1;
   for (let i = 0; i < N; i++) {
     if (Number.isNaN(v[i])) continue;
-    if (lastI >= 0 && i - lastI > 1 && i - lastI <= K + 1)
-      for (let j = lastI + 1; j < i; j++) v[j] = v[lastI]! + ((v[i]! - v[lastI]!) * (j - lastI)) / (i - lastI);
+    if (lastI >= 0 && i - lastI > 1 && i - lastI <= K + 1) {
+      for (let j = lastI + 1; j < i; j++) {
+        const straight = v[lastI]! + ((v[i]! - v[lastI]!) * (j - lastI)) / (i - lastI);
+        const b = i - lastI > LONG ? follow(j, Math.round(straight * M - 0.5)) : NaN;
+        v[j] = Number.isNaN(b) ? straight : b;
+      }
+    }
     lastI = i;
   }
   const out = Float32Array.from(v);

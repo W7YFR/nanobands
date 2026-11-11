@@ -69,7 +69,9 @@ export async function readScreen(photo: { src: HTMLCanvasElement; px: Pixels }, 
     (corners && whole ? fitScale(axisLabels(words.flat(), mappingFor(corners).back), per) : null);
   let scale: SwrScale | null = null;
   for (const p of [...pers, null]) if ((scale = fit(p))) break;
+  // With a scale, its step, as the screen rounds it: 188m for 0.1875, 12.38
+  // for 12.375. The header misreads its slash as a 7.
   const step = scale ? (scale.top - scale.bot) / DIVISIONS : null;
-  const per = (step && pers.find((p) => Math.abs(p - step) <= 0.02 * step)) ?? pers[0] ?? null;
+  const per = step ? +step.toPrecision(step < 1 ? 3 : 4) : pers[0] ?? null;
   return { text, sweep: fromRow ?? parseSweepText(text), per, scale };
 }

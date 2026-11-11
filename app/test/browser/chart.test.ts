@@ -52,6 +52,29 @@ describe("drawChart", () => {
     expect(colorsAt(ctx, g, xOf(g, 14.4))).toEqual(new Set([HIGH])); // 3.6
   });
 
+  it("draws no Max SWR line when Max SWR is above the scale", () => {
+    /** Rows in the plot with Max SWR's red dashes across most of the width. */
+    const redRows = (t: number): number[] => {
+      const c = document.createElement("canvas");
+      c.width = W; c.height = H;
+      const ctx = c.getContext("2d", { willReadFrequently: true })!, curve = vee(14);
+      const set = { ...settings, thr: t };
+      const an = analyze(curve.f, curve.s, { thr: t, prom: set.prom, top: set.top });
+      const g = drawChart(ctx, W, H, 1, { settings: set, an, curve, range: [13.5, 14.5], manual: [], probe: null, hoverF: null, drag: null })!;
+      const rows: number[] = [];
+      for (let y = g.y0 - 2; y <= g.y1; y++) {
+        const d = ctx.getImageData(g.x0, y, g.x1 - g.x0, 1).data;
+        let red = 0;
+        // Reddish: the curve's yellow has green nearly as high as red.
+        for (let i = 0; i < d.length; i += 4) if (d[i]! - d[i + 1]! > 40 && d[i]! - d[i + 2]! > 30) red++;
+        if (red > (g.x1 - g.x0) * 0.25) rows.push(y);
+      }
+      return rows;
+    };
+    expect(redRows(3).length).toBeGreaterThan(0);
+    expect(redRows(6)).toEqual([]);
+  });
+
   it("draws the curve to both edges when its samples are far apart", () => {
     // Samples every 0.2 MHz, and a view whose edges fall between them.
     const N = 6, f = new Float64Array(N), sw = new Float64Array(N);

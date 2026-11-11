@@ -7,6 +7,22 @@ them.
 
 ## Unreleased
 
+## v1.13.4 — 2026-11-11
+
+### Changed
+
+- When **Max SWR** is above the top of the SWR scale, the chart draws no Max SWR line and says that Max SWR is above the scale.
+
+### Fixed
+
+- A photo with glare across the screen finds its whole grid, and reads its sweep and SWR scale.
+- The trace keeps a jagged curve's dips and spikes where it runs along a grid line, or where the photo shows it nearly white.
+- A segment at the edge of a photo's sweep no longer shows as partly outside the sweep. Where the trace misses the start or the end of the sweep, **Band segments** says "no trace below" or "no trace above" that point.
+
+### Development
+
+- The browser tests check that the trace keeps to the curve on every photo, that no Max SWR line is drawn above the scale, and that the glare and HF photos read right turned on their side. `ocr.test.ts` lists no misses.
+
 ## v1.13.3 — 2026-11-10
 
 ### Fixed
