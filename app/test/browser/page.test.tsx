@@ -807,6 +807,39 @@ describe("an opened .s1p file", () => {
     expect(await (await fetch(files[0]!.url)).text()).toBe(S1P);
   });
 
+  /* Chromium cannot open HEIC. The start of the file is enough to tell one. */
+  it("says in a dialog why a file did not open, and keeps the last file after a refresh", async () => {
+    const dialog = (): HTMLElement | null => document.querySelector<HTMLElement>("[role=alertdialog]");
+    const button = (label: string): HTMLButtonElement => [...dialog()!.querySelectorAll("button")].find((b) => b.textContent === label)!;
+    const heic = new Uint8Array([0, 0, 0, 24, ...new TextEncoder().encode("ftypheic"), 0, 0, 0, 0, ...new TextEncoder().encode("mif1heic")]);
+    openFile(new File([heic], "IMG_0001.HEIC", { type: "image/heic" }));
+    await until(() => dialog() !== null);
+    expect($("#modalTitle").textContent).toBe("This browser can't open HEIC photos.");
+    expect($(".app").inert).toBe(true);
+    button("Close").click();
+    await until(() => dialog() === null);
+    expect($(".app").inert).toBe(false);
+
+    openFile(new File(["not an image"], "broken.jpg", { type: "image/jpeg" }));
+    await until(() => dialog() !== null);
+    expect($("#modalTitle").textContent).toBe("Couldn't read that image.");
+    const browse = vi.spyOn($<HTMLInputElement>("#file"), "click").mockImplementation(() => undefined);
+    button("Choose another file").click();
+    expect(browse).toHaveBeenCalled();
+    browse.mockRestore();
+    await until(() => dialog() === null);
+
+    openFile(new File(["no sweep here"], "empty.s1p", { type: "text/plain" }));
+    await until(() => dialog() !== null);
+    expect($("#modalTitle").textContent).toBe("Couldn't find S11 data in that file.");
+    button("Close").click();
+    await until(() => dialog() === null);
+
+    await mount();
+    await until(() => has("#fileName"));
+    expect($("#fileName").textContent).toBe("dipole.s1p");
+  });
+
   it("starts over on Clear", async () => {
     $("#clearAll").click();
     await until(() => has("#landing"));
