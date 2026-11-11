@@ -10,11 +10,12 @@ them.
 ### Fixed
 
 - A photo with glare across the screen finds its whole grid, and reads its sweep and SWR scale.
+- The trace keeps a jagged curve's dips and spikes where it runs along a grid line, or where the photo shows it nearly white.
 - A segment at the edge of a photo's sweep no longer shows as partly outside the sweep. Where the trace misses the start or the end of the sweep, **Band segments** says "no trace below" or "no trace above" that point.
 
 ### Development
 
-- `ocr.test.ts` reads every real photo right and lists no misses, and reads the glare and HF photos turned on their side and stood back upright. The glare photo is no longer left out of the orientation and trace tests.
+- `photo.test.ts` checks that the trace keeps to the curve on every photo. `ocr.test.ts` reads every real photo right and lists no misses, and reads the glare and HF photos turned on their side and stood back upright. The glare photo is no longer left out of the orientation and trace tests.
 
 ## v1.13.3 — 2026-11-10
 
