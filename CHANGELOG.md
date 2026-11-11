@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.13.5 — 2026-11-11
+
 ### Changed
 
 - A file that does not open says why in a dialog, with **Choose another file**.
