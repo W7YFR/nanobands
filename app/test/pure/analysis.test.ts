@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alongTop, analyze, atTop, segUsable, swrAt, usableLimit, usableSwr } from "@/analysis";
+import { alongTop, analyze, atTop, coverNote, segUsable, swrAt, usableLimit, usableSwr } from "@/analysis";
 
 /** A curve sampled at `n` points from `lo` to `hi` MHz. */
 function sample(fn: (f: number) => number, lo = 3, hi = 55, n = 521): { f: number[]; s: number[] } {
@@ -112,7 +112,7 @@ describe("swrAt", () => {
 });
 
 describe("segUsable", () => {
-  const an = { crossings: [], extrema: [], usable: [[14.1, 14.3]] as [number, number][], fmin: 3, fmax: 55 };
+  const an = { crossings: [], extrema: [], usable: [[14.1, 14.3]] as [number, number][], fmin: 3, fmax: 55, sweep: [3, 55] as [number, number] };
 
   it("gives the usable part of a segment and its share", () => {
     const u = segUsable([14.0, 14.35, "data"], an);
@@ -122,6 +122,37 @@ describe("segUsable", () => {
   });
 
   it("says how much of a segment the sweep covered", () => {
-    expect(segUsable([1.8, 4, "all"], an).measured).toBeCloseTo(1 / 2.2, 6);
+    expect(segUsable([1.8, 4, "all"], an).swept).toBeCloseTo(1 / 2.2, 6);
+    expect(coverNote([1.8, 4, "all"], segUsable([1.8, 4, "all"], an), an)).toBe("partly outside sweep");
+  });
+
+  it("tells a stretch inside the sweep with no trace from one outside it", () => {
+    const traced = { ...an, fmin: 144.03, fmax: 148, sweep: [144, 148] as [number, number] };
+    const u = segUsable([144, 144.1, "cw"], traced);
+    expect(u.swept).toBe(1);
+    expect(coverNote([144, 144.1, "cw"], u, traced)).toBe("no trace below 144.03");
+    expect(coverNote([144.1, 148, "all"], segUsable([144.1, 148, "all"], traced), traced)).toBeNull();
   });
 });
+
+describe("a photo's trace at the ends of the sweep", () => {
+  /** Readings at the middle of each of `n` columns from 144 to 148 MHz. */
+  const cols = (n: number): number[] => Array.from({ length: n }, (_, i) => 144 + ((i + 0.5) / n) * 4);
+
+  it("runs out to START and STOP when it reaches the first and last column", () => {
+    const an = analyze(cols(400), new Array(400).fill(1.5), { thr: 3, prom: 0.2, top: 2.5, edges: [144, 148] })!;
+    expect(an.fmin).toBe(144);
+    expect(an.fmax).toBe(148);
+    expect(an.usable).toEqual([[144, 148]]);
+    expect(segUsable([144, 144.1, "cw"], an)).toMatchObject({ measured: 1, frac: 1 });
+  });
+
+  it("stops where its readings stop when it misses the first columns", () => {
+    const w = new Array(400).fill(1.5);
+    for (let i = 0; i < 3; i++) w[i] = NaN;
+    const an = analyze(cols(400), w, { thr: 3, prom: 0.2, top: 2.5, edges: [144, 148] })!;
+    expect(an.fmin).toBeCloseTo(144.035, 6);
+    expect(an.sweep).toEqual([144, 148]);
+  });
+});
+

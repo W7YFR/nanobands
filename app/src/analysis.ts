@@ -3,6 +3,7 @@
  */
 
 import type { Segment } from "./bands";
+import { fmtF } from "./format";
 
 export interface Crossing {
   f: number;
@@ -24,8 +25,11 @@ export interface Analysis {
    *  the scale, [lo, hi] in MHz. */
   usable: [number, number][];
   extrema: Extremum[];
+  /** Where the trace has readings: from the first to the last. */
   fmin: number;
   fmax: number;
+  /** Where the sweep runs: START to STOP. */
+  sweep: [number, number];
 }
 
 export interface AnalysisOptions {
@@ -41,6 +45,10 @@ export interface AnalysisOptions {
    *  SWR over the top of the scale is then a number, not a line along the
    *  top. True, or left out, for a photo. */
   clip?: boolean;
+  /** START and STOP, when the first and last readings stand for a stretch
+   *  that runs out to them, as a photo's columns do. Left out, the sweep
+   *  runs from the first reading to the last. */
+  edges?: readonly [number, number];
 }
 
 /** The SWR scale, and whether a reading along its top is clipped. */
@@ -89,7 +97,7 @@ export function analyze(f: ArrayLike<number>, w: ArrayLike<number>, o: AnalysisO
       continue;
     }
     const ok = wi <= T;
-    if (pf === null) { if (ok) open = fi; }
+    if (pf === null) { if (ok) open = i === 0 && o.edges ? o.edges[0] : fi; }
     else if (ok !== (ps <= T)) {
       const fx = pf + ((T - ps) * (fi - pf)) / (wi - ps);
       crossings.push({ f: fx, dir: ok ? "down" : "up" });
@@ -98,7 +106,7 @@ export function analyze(f: ArrayLike<number>, w: ArrayLike<number>, o: AnalysisO
     }
     pf = fi; ps = wi;
   }
-  if (open !== null && pf !== null) usable.push([open, pf]);
+  if (open !== null && pf !== null) usable.push([open, o.edges && !Number.isNaN(w[n - 1]!) ? o.edges[1] : pf]);
 
   // Dips and peaks: a zig-zag with hysteresis equal to the minimum prominence.
   const ext: { i: number; type: "dip" | "peak" }[] = [], h = o.prom;
@@ -133,7 +141,13 @@ export function analyze(f: ArrayLike<number>, w: ArrayLike<number>, o: AnalysisO
       const i = Math.round((a + b) / 2);
       return { f: f[i]!, s: we, type: e.type, clipped: e.type === "peak" && atTop(we, o) };
     });
-  return { crossings, usable, extrema, fmin: f[first]!, fmax: f[last]! };
+  const e = o.edges;
+  return {
+    crossings, usable, extrema,
+    fmin: e && first === 0 ? e[0] : f[first]!,
+    fmax: e && last === n - 1 ? e[1] : f[last]!,
+    sweep: e ? [e[0], e[1]] : [f[idx[0]!]!, f[idx[idx.length - 1]!]!],
+  };
 }
 
 /** SWR at `fq`, interpolated between the two nearest points. NaN outside. */
@@ -154,8 +168,10 @@ export interface SegmentUse {
   parts: [number, number][];
   /** How much of the segment is usable, 0..1. */
   frac: number;
-  /** How much of the segment the sweep covers, 0..1. */
+  /** How much of the segment the trace covers, 0..1. */
   measured: number;
+  /** How much of the segment the sweep covers, 0..1. */
+  swept: number;
 }
 
 export function segUsable(seg: Segment, an: Analysis): SegmentUse {
@@ -164,7 +180,18 @@ export function segUsable(seg: Segment, an: Analysis): SegmentUse {
     const x = Math.max(lo, a), y = Math.min(hi, b);
     if (y > x) parts.push([x, y]);
   }
-  const measured = Math.max(0, Math.min(hi, an.fmax) - Math.max(lo, an.fmin));
+  const over = (a: number, b: number): number => Math.max(0, Math.min(hi, b) - Math.max(lo, a)) / (hi - lo);
   const len = parts.reduce((t, [a, b]) => t + b - a, 0);
-  return { parts, frac: len / (hi - lo), measured: measured / (hi - lo) };
+  return { parts, frac: len / (hi - lo), measured: over(an.fmin, an.fmax), swept: over(an.sweep[0], an.sweep[1]) };
+}
+
+/** What a segment's readings lack, for the note beside them: part of it
+ *  outside the sweep, or inside it but with no trace there. Null when the
+ *  trace covers it all. */
+export function coverNote(seg: readonly [number, number, ...unknown[]], u: SegmentUse, an: Analysis): string | null {
+  if (u.swept < 0.999) return "partly outside sweep";
+  if (u.measured >= 0.999) return null;
+  if (seg[0] < an.fmin) return `no trace below ${fmtF(an.fmin)}`;
+  if (seg[1] > an.fmax) return `no trace above ${fmtF(an.fmax)}`;
+  return null;
 }

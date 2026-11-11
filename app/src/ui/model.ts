@@ -141,6 +141,8 @@ export interface Curve {
   N: number;
   f: Float64Array;
   s: Float64Array;
+  /** Traced off a photo: each reading stands for its column's stretch. */
+  photo?: boolean;
 }
 
 export function curveOf(t: Trace | null, s: Settings): Curve | null {
@@ -151,12 +153,13 @@ export function curveOf(t: Trace | null, s: Settings): Curve | null {
     f[i] = calOK(s) ? s.start + ((i + 0.5) / t.N) * (s.stop - s.start) : NaN;
     w[i] = Number.isNaN(t.v[i]) ? NaN : s.top + t.v[i]! * (s.bot - s.top);
   }
-  return { N: t.N, f, s: w };
+  return { N: t.N, f, s: w, photo: true };
 }
 
 export function analysisOf(c: Curve | null, s: Settings): Analysis | null {
   if (!c || !calOK(s)) return null;
-  return analyze(c.f, c.s, { thr: s.thr, prom: s.prom, top: s.top, bot: s.bot });
+  // A photo's first and last columns reach out to START and STOP.
+  return analyze(c.f, c.s, { thr: s.thr, prom: s.prom, top: s.top, bot: s.bot, ...(c.photo ? { edges: [s.start, s.stop] as const } : {}) });
 }
 
 export const swrOn = (c: Curve | null, fq: number): number => (c ? swrAt(c.f, c.s, fq) : NaN);

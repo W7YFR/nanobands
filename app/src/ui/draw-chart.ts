@@ -15,7 +15,7 @@
  * out.
  */
 
-import { alongTop, atTop, segUsable, usableLimit, type Analysis } from "@/analysis";
+import { alongTop, atTop, coverNote, segUsable, usableLimit, type Analysis } from "@/analysis";
 import { MODES, bandAt, bandEdges, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
 import { swrOn, type Curve, type FineSpan, type Settings } from "./model";
@@ -139,7 +139,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
       ctx.fillStyle = MODES[seg[2]].color + "24"; ctx.fillRect(m - w / 2, y0, w, y1 - y0);
       ctx.fillStyle = MODES[seg[2]].color; ctx.fillRect(m - w / 2, y0, w, 3);
       const u = segUsable(seg, an);
-      ctx.fillStyle = u.measured < 0.999 ? "#3a404a" : "rgba(248,81,73,.7)"; ctx.fillRect(m - w / 2, stripY, w, stripH);
+      ctx.fillStyle = coverNote(seg, u, an) ? "#3a404a" : "rgba(248,81,73,.7)"; ctx.fillRect(m - w / 2, stripY, w, stripH);
       ctx.fillStyle = OK;
       for (const [p, q] of u.parts) {
         const pw = Math.max(1.5, X(q) - X(p));
@@ -418,9 +418,9 @@ export function bandTip(b: Band, s: Settings, an: Analysis, t: Curve): { name: s
   const total = segs.reduce((a, g) => a + g[1] - g[0], 0);
   const uses = segs.map((g) => segUsable(g, an));
   const frac = total ? uses.reduce((a, u, j) => a + u.frac * (segs[j]![1] - segs[j]![0]), 0) / total : 0;
-  const measured = total ? uses.reduce((a, u, j) => a + u.measured * (segs[j]![1] - segs[j]![0]), 0) / total : 0;
+  const note = segs.map((g, j) => coverNote(g, uses[j]!, an)).find((n) => n !== null);
   const ok = frac > 0.995 ? "all" : frac > 0.005 ? "part" : "none";
   const usable = (ok === "all" ? "All usable" : ok === "part" ? `Partial: ${Math.round(frac * 100)}% usable` : "None usable") +
-    (measured < 0.999 ? " (partly outside sweep)" : "");
+    (note ? ` (${note})` : "");
   return { name: b.name, swr: min <= max ? (min === max ? `SWR ${fmt(min)}` : `SWR ${fmt(min)}–${fmt(max)}`) : "SWR —", usable, ok };
 }

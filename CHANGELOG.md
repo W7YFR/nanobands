@@ -10,6 +10,7 @@ them.
 ### Fixed
 
 - A photo with glare across the screen finds its whole grid, and reads its sweep and SWR scale.
+- A segment at the edge of a photo's sweep no longer shows as partly outside the sweep. Where the trace misses the start or the end of the sweep, **Band segments** says "no trace below" or "no trace above" that point.
 
 ### Development
 
