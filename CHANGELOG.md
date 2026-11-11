@@ -7,6 +7,10 @@ them.
 
 ## Unreleased
 
+### Development
+
+- `make release` runs from a worktree while another checkout has `main`. It updates, tags and pushes from that checkout, and keeps the branch the worktree holds.
+
 ## v1.13.4 — 2026-11-11
 
 ### Changed

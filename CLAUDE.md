@@ -31,7 +31,9 @@ not cover a push: Claude asks again before `make pr` publishes the file.
 
 `make release` asks to delete the local branch, and it cannot read an answer
 when Claude runs it. After it fails at that prompt, Claude deletes the merged
-branch with `git branch -d`.
+branch with `git branch -d`. From a worktree, `make release` releases from the
+checkout that has `main` and keeps the branch, with no prompt. Claude does not
+delete that branch or the worktree: the contributor removes both in Orca.
 
 When asked, Claude stages work for review. Work on several changes at once
 can then be committed in parts: Claude stages the hunks for one part, and the
@@ -59,6 +61,21 @@ such as `fix: keep a dip's label clear of its dot`. It has no body and no traile
 A branch that touches no build input releases no version and needs no bump.
 The contributor names its pull request with `make pr TITLE="..."`. The build
 inputs are `BUILD_INPUTS` in `scripts/version.mjs`.
+
+### Worktrees
+
+Orca runs each session in a worktree, on a branch it names after the
+worktree. That name has no type prefix. Before the first edit, Claude renames
+the branch with `git branch -m <name> <type>/<description>`, and says so.
+
+If `node_modules` is missing, Claude runs
+`npm ci --prefer-offline --no-audit --no-fund`. It does not link the main
+checkout's `node_modules`.
+
+Plans and ideas live in `docs/`, which git does not track. The folder is in
+the main checkout, and Orca's setup script links it into each worktree.
+Several sessions can write the same doc, so Claude reads a doc again just
+before it edits it.
 
 ### Dependency updates
 
