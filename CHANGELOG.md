@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.13.4 — 2026-11-11
+
 ### Changed
 
 - When **Max SWR** is above the top of the SWR scale, the chart draws no Max SWR line and says that Max SWR is above the scale.
