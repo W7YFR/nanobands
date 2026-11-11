@@ -169,10 +169,12 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
 
   // curve: yellow above the threshold; under it, green inside your segments
   // and gray outside them, where a good match still does not let you transmit.
-  // With Max SWR at or over the top of the scale, Max SWR's line lies along
-  // the top, so the curve is left out where it runs flat along it: the line
-  // shows those stretches alone.
-  const thrAtTop = alongTop(s.thr, s);
+  // With Max SWR at the top of the scale, Max SWR's line lies along the top,
+  // so the curve is left out where it runs flat along it: the line shows
+  // those stretches alone. Max SWR over the top has no line, and the curve
+  // shows them.
+  const thrOver = s.thr > s.top;
+  const thrAtTop = !thrOver && alongTop(s.thr, s);
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
   const path = new Path2D();
   let pen = false, prevTop = false, pf = NaN, ps = NaN;
@@ -255,9 +257,11 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   }
   ctx.lineCap = "butt";
 
-  // Max SWR's line, over the curve. Max SWR over the top of the scale draws at the top.
-  ctx.strokeStyle = BAD; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.moveTo(x0, Y(s.thr)); ctx.lineTo(x1, Y(s.thr)); ctx.stroke(); ctx.setLineDash([]);
+  // Max SWR's line, over the curve. Over the top of the scale it has nowhere to go.
+  if (!thrOver) {
+    ctx.strokeStyle = BAD; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(x0, Y(s.thr)); ctx.lineTo(x1, Y(s.thr)); ctx.stroke(); ctx.setLineDash([]);
+  }
 
   const inView = (f: number): boolean => f >= lo && f <= hi;
   // Each label drawn, as a box. On a narrow chart a dip's or peak's label
@@ -282,7 +286,9 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     ctx.fillStyle = color; ctx.textAlign = "center"; ctx.fillText(txt, x, y);
   };
   // Max SWR's line is named at its right end, before the other labels, so they keep clear of it.
-  tag(`Max SWR ${s.thr}`, x1, Y(s.thr) - 11, BAD);
+  // Over the top of the scale, a note there says why there is no line.
+  if (thrOver) tag(`Max SWR ${s.thr} is above the scale`, x1, y0 - 11, "#f2cc60");
+  else tag(`Max SWR ${s.thr}`, x1, Y(s.thr) - 11, BAD);
   // extrema
   for (const e of an.extrema) {
     if (!inView(e.f)) continue;

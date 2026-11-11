@@ -7,6 +7,10 @@ them.
 
 ## Unreleased
 
+### Changed
+
+- When **Max SWR** is above the top of the SWR scale, the chart draws no Max SWR line and says that Max SWR is above the scale.
+
 ### Fixed
 
 - A photo with glare across the screen finds its whole grid, and reads its sweep and SWR scale.
@@ -15,7 +19,7 @@ them.
 
 ### Development
 
-- `photo.test.ts` checks that the trace keeps to the curve on every photo. `ocr.test.ts` reads every real photo right and lists no misses, and reads the glare and HF photos turned on their side and stood back upright. The glare photo is no longer left out of the orientation and trace tests.
+- `chart.test.ts` checks that no Max SWR line is drawn above the scale. `photo.test.ts` checks that the trace keeps to the curve on every photo. `ocr.test.ts` reads every real photo right and lists no misses, and reads the glare and HF photos turned on their side and stood back upright. The glare photo is no longer left out of the orientation and trace tests.
 
 ## v1.13.3 — 2026-11-10
 
