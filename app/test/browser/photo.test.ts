@@ -112,12 +112,10 @@ describe("a photo whose screen fades toward the right", () => {
 
 describe("the curve across the whole plot", () => {
   /* The 2 m photos draw the curve pale. At the default sensitivity most of
-     their columns hold no yellow, and the trace falls back to lower ones.
-     The glare photo is left out: its grid is not found whole. */
+     their columns hold no yellow, and the trace falls back to lower ones. */
   const all = import.meta.glob<string>("../data/*.jpg", { query: "?url", import: "default", eager: true });
   for (const [path, url] of Object.entries(all)) {
     const name = path.replace("../data/", "");
-    if (name.includes("glare")) continue;
     it(`traces nearly every column of ${name}`, async () => {
       const px = await load(url), g = detectGrid(px)!;
       const { trace } = traceBest(px, mappingFor(g.corners).fwd, g.corners, 70, true);

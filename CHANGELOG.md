@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Fixed
+
+- A photo with glare across the screen finds its whole grid, and reads its sweep and SWR scale.
+
+### Development
+
+- `ocr.test.ts` reads every real photo right and lists no misses, and reads the glare and HF photos turned on their side and stood back upright. The glare photo is no longer left out of the orientation and trace tests.
+
 ## v1.13.3 — 2026-11-10
 
 ### Fixed

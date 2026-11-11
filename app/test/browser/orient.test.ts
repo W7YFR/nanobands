@@ -8,9 +8,6 @@ import { uprightTurns } from "@/orient";
 import { loadImage, photoFrom } from "@/ui/model";
 
 const photos = import.meta.glob<string>("../data/*.jpg", { query: "?url", import: "default", eager: true });
-/* Glare washes out half of this photo's grid, so the grid is not found even
-   upright, and which way up it is cannot be told from it. */
-const GRID_NOT_FOUND = ["2m-144-148mhz-top-2.5-glare.jpg"];
 /* Cropped under the grid: with no START/STOP row, the page lays the grid wide
    but cannot tell upright from upside down. */
 const NO_ROW = ["random-wire-3-55mhz-no-labels.jpg"];
@@ -38,7 +35,6 @@ async function turned(url: string, turns: number): Promise<Blob> {
 describe("a photo on its side or upside down", () => {
   for (const [path, url] of Object.entries(photos)) {
     const name = path.replace("../data/", "");
-    if (GRID_NOT_FOUND.includes(name)) continue;
     for (const turns of [0, 1, 2, 3]) {
       it(`stands ${name} upright from ${turns * 90}°`, async () => {
         const upright = detectGrid(await pixels(url));

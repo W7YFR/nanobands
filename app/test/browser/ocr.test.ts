@@ -65,10 +65,10 @@ const CASES: Case[] = [
   { photo: "random-wire-3-55mhz-top-3.jpg", screen: { start: 3, stop: 55, per: 0.25, top: 3, bot: 1 } },
   { photo: "2m-144-148mhz-top-2.5.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 } },
   { photo: "2m-144-148mhz-top-2.5-tilted.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 } },
-  { photo: "2m-144-148mhz-top-2.5-glare.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 }, misses: { start: null, stop: null, per: null, top: null, bot: null } },
+  { photo: "2m-144-148mhz-top-2.5-glare.jpg", screen: { start: 144, stop: 148, per: 0.188, top: 2.5, bot: 1 } },
   { photo: "2m-144-148mhz-top-2.jpg", screen: { start: 144, stop: 148, per: 0.125, top: 2, bot: 1 } },
   { photo: "2m-144-148mhz-top-4.jpg", screen: { start: 144, stop: 148, per: 0.375, top: 4, bot: 1 } },
-  { photo: "hf-6-50mhz-top-100.jpg", screen: { start: 6, stop: 50, per: 12.38, top: 100, bot: 1 }, misses: { per: 12.367 } },
+  { photo: "hf-6-50mhz-top-100.jpg", screen: { start: 6, stop: 50, per: 12.38, top: 100, bot: 1 } },
 ];
 
 describe("OCR on real photos", () => {
@@ -98,4 +98,23 @@ describe("a photo of something else", () => {
     const got = await readBlob(await c.convertToBlob({ type: "image/png" }));
     expect(got.screen, got.text).toBe(false);
   }, 60000);
+});
+
+describe("a photo the phone saved on its side", () => {
+  /** The photo at `url`, turned a quarter clockwise, as a JPEG, as a phone held flat can save it. */
+  async function sideways(url: string): Promise<Blob> {
+    const bmp = await createImageBitmap(await (await fetch(url)).blob());
+    const c = new OffscreenCanvas(bmp.height, bmp.width), x = c.getContext("2d")!;
+    x.translate(bmp.height / 2, bmp.width / 2);
+    x.rotate(Math.PI / 2);
+    x.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
+    return c.convertToBlob({ type: "image/jpeg", quality: 0.92 });
+  }
+  // Stood upright by the page, its pixels are resampled: the row must still read.
+  for (const c of CASES.filter((c) => /glare|hf-/.test(c.photo))) {
+    it(`reads ${c.photo} stood back upright`, async () => {
+      const { start, stop, top, bot } = await readBlob(await sideways(photos[`../data/${c.photo}`]!));
+      expect({ start, stop, top, bot }).toEqual({ start: c.screen.start, stop: c.screen.stop, top: c.screen.top, bot: c.screen.bot });
+    }, 60000);
+  }
 });

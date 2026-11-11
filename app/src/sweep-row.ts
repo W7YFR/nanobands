@@ -75,6 +75,20 @@ function glyphSpans(s: Strip, top: number, bot: number): [number, number][] {
   }
   const widths = parts.map(([a, b]) => b - a + 1).filter((w) => w > 2).sort((a, b) => a - b);
   const one = widths[Math.floor(widths.length * 0.75)] ?? 0;
+  // A thin stroke can break at the higher cut and leave a glyph in two. A
+  // narrow run with ink above the baseline is a piece of a glyph, not a
+  // point: join it to the neighbour it fits with.
+  const lowOnly = ([a, b]: [number, number]): boolean => { for (let x = a; x <= b; x++) if (!low(x)) return false; return true; };
+  for (let k = 0; k < parts.length; k++) {
+    const p = parts[k]!;
+    if (p[1] - p[0] + 1 >= 0.6 * one || lowOnly(p)) continue;
+    const fits = (q: [number, number] | undefined): number => (q && !lowOnly(q) && Math.max(p[1], q[1]) - Math.min(p[0], q[0]) + 1 <= 1.25 * one ? Math.max(0, Math.max(p[0], q[0]) - Math.min(p[1], q[1])) : Infinity);
+    const gl = fits(parts[k - 1]), gr = fits(parts[k + 1]);
+    if (gl === Infinity && gr === Infinity) continue;
+    const j = gl <= gr ? k - 1 : k + 1, q = parts[j]!;
+    parts.splice(Math.min(k, j), 2, [Math.min(p[0], q[0]), Math.max(p[1], q[1])]);
+    k = Math.min(k, j) - 1;
+  }
   return parts.flatMap(([a, b]) => {
     const r = one ? (b - a + 1) / one : 1, n = r < 1.6 ? 1 : Math.round(r);
     if (n < 2) return [[a, b] as [number, number]];
@@ -146,6 +160,58 @@ export function settleRow(s: Strip, words: readonly RowWord[]): string {
     if (!first || !last) continue;
     for (const sp of spans) if (sp[0] > first[1] && sp[1] < last[0]) zeros.push(middle(s, sp, top, bot));
   }
+  const sorted = spans.map(([a, b]) => b - a + 1).sort((a, b) => a - b), one = sorted[Math.floor(sorted.length * 0.75)]!;
+  /** The glyphs after `from`, up to the word's end, one per span, with what
+   *  OCR read over each, so a glyph OCR split in two, or two it read as one,
+   *  counts once each. */
+  const glyphsAfter = (w: RowWord, from: number): { sp: [number, number]; ocr: string }[] => {
+    const x1 = Math.max(...w.symbols.map((y) => y.bbox.x1));
+    return spans
+      .filter(([a, b]) => (a + b) / 2 > from && (a + b) / 2 < x1 && b - a + 1 >= 0.5 * one)
+      .map((sp) => {
+        const overlap = (y: OcrSymbol): number => Math.min(sp[1], y.bbox.x1) - Math.max(sp[0], y.bbox.x0);
+        return { sp, ocr: w.symbols.filter((y) => /\w/.test(y.text)).reduce<OcrSymbol | undefined>((best, y) => (!best || overlap(y) > overlap(best) ? y : best), undefined)?.text ?? "" };
+      });
+  };
+  /** The digits after the point in each number, and the group of three after it. */
+  const afterPoints = (): { sp: [number, number]; ocr: string }[] => {
+    const out: { sp: [number, number]; ocr: string }[] = [];
+    let after = false;
+    for (const w of words) {
+      if (!/^[0-9OQDB.,]+$/i.test(text(w))) { after = false; continue; }
+      const p = w.symbols.find((y) => /[.,]/.test(y.text));
+      if (p) { after = true; out.push(...glyphsAfter(w, (p.bbox.x0 + p.bbox.x1) / 2)); }
+      else if (after) { after = false; out.push(...glyphsAfter(w, Math.min(...w.symbols.map((y) => y.bbox.x0)) - 1)); }
+    }
+    return out;
+  };
+
+  /** The 6s, 8s and 9s in the whole parts, as OCR read them. */
+  const known = new Map<string, Float32Array[]>();
+  for (const w of words) {
+    const p = w.symbols.findIndex((y) => /[.,]/.test(y.text));
+    if (p < 0 || !/^[0-9OQDB.,]+$/i.test(text(w))) continue;
+    for (const y of w.symbols.slice(0, p)) {
+      const sp = spanAt(y);
+      if (sp && "689".includes(y.text)) known.set(y.text, [...(known.get(y.text) ?? []), middle(s, sp, top, bot)]);
+    }
+  }
+
+  /* No point count to learn the 0 from, as when glare washes out the middle
+     of the row: the largest group of digits after the points that are all
+     alike. In one photo every 0 is drawn the same. The group is 0s when OCR
+     read a fair share of it as 0, or when it is unlike the row's own 8. */
+  if (!zeros.length) {
+    const g = afterPoints().map((x) => ({ m: middle(s, x.sp, top, bot), ocr: x.ocr }));
+    let group: typeof g = [];
+    for (const a of g) {
+      const like = g.filter((b) => apart(a.m, b.m) < SAME_AS_ZERO);
+      if (like.length > group.length) group = like;
+    }
+    const eights = known.get("8") ?? [];
+    const notEights = eights.length > 0 && group.every((x) => Math.min(...eights.map((e) => apart(e, x.m))) >= SAME_AS_ZERO);
+    if (group.length >= 4 && (notEights || group.filter((x) => x.ocr === "0").length >= 0.3 * group.length)) zeros.push(...group.map((x) => x.m));
+  }
   if (!zeros.length) return plain;
 
   /** One glyph settled: a 0 when it matches the row's 0s, else what OCR read
@@ -153,23 +219,24 @@ export function settleRow(s: Strip, words: readonly RowWord[]): string {
    *  to be a 0 is kept, to learn from. */
   const learned: Float32Array[] = [];
   const settle = (sp: [number, number], ocr: string): string => {
-    const m = middle(s, sp, top, bot), d = Math.min(...zeros.map((z) => apart(z, m)));
+    // A glyph cut short by a broken stroke is also compared a full glyph
+    // wide, from either end.
+    const tries: [number, number][] = [sp];
+    if (sp[1] - sp[0] + 1 < 0.95 * one) tries.push([sp[0], sp[0] + one - 1], [sp[1] - one + 1, sp[1]]);
+    let m = middle(s, sp, top, bot), d = Infinity;
+    for (const t of tries) {
+      const mt = middle(s, t, top, bot), dt = Math.min(...zeros.map((z) => apart(z, mt)));
+      if (dt < d) { d = dt; m = mt; }
+    }
     if (d < SAME_AS_ZERO) { learned.push(m); return "0"; }
+    // Further off: a 0 still, if it is nearer the row's 0s than the row's
+    // own 6, 8 or 9, from the whole parts OCR reads well.
+    const others = [...known.values()].flat();
+    if (others.length && d < Math.min(...others.map((o) => apart(o, m)))) return "0";
     return "0OQD".includes(ocr.toUpperCase()) ? "8" : ocr;
   };
-  const sorted = spans.map(([a, b]) => b - a + 1).sort((a, b) => a - b), one = sorted[Math.floor(sorted.length * 0.75)]!;
-  /** The digits after `from`, up to the word's end, rebuilt one per span, so a
-   *  glyph OCR split in two, or two it read as one, counts once each. */
-  const fraction = (w: RowWord, from: number): string => {
-    const x1 = Math.max(...w.symbols.map((y) => y.bbox.x1));
-    return spans
-      .filter(([a, b]) => (a + b) / 2 > from && (a + b) / 2 < x1 && b - a + 1 >= 0.5 * one)
-      .map((sp) => {
-        const overlap = (y: OcrSymbol): number => Math.min(sp[1], y.bbox.x1) - Math.max(sp[0], y.bbox.x0);
-        const ocr = w.symbols.filter((y) => /\w/.test(y.text)).reduce<OcrSymbol | undefined>((best, y) => (!best || overlap(y) > overlap(best) ? y : best), undefined)?.text ?? "";
-        return settle(sp, ocr);
-      }).join("");
-  };
+  /** The digits after `from`, up to the word's end, settled one per span. */
+  const fraction = (w: RowWord, from: number): string => glyphsAfter(w, from).map(({ sp, ocr }) => settle(sp, ocr)).join("");
 
   /* Twice: the photo can be softer toward one edge, so the 0s found in the
      first pass join the point count's, and each glyph is judged again
