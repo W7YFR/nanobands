@@ -7,11 +7,22 @@ them.
 
 ## Unreleased
 
+## v1.13.5 — 2026-11-11
+
+### Changed
+
+- A file that does not open says why in a dialog, with **Choose another file**.
+
+### Fixed
+
+- A HEIC photo from an iPhone that the browser can't open says to open it in Safari or as a JPEG. A file that does not open no longer replaces the last photo or file after a refresh.
+
 ### Development
 
 - `make release` runs from a worktree while another checkout has `main`. It updates, tags and pushes from that checkout, and keeps the branch the worktree holds.
 - `make restart` stops this repo's dev server, wherever it runs, and serves the current checkout at localhost:5174.
 - `make restart` no longer refuses to stop a dev server whose worktree was removed while it ran.
+- The `finalize` skill commits the branch, checks the changelog, opens the pull request, fixes CI failures, merges when green and runs `make release`.
 
 ## v1.13.4 — 2026-11-11
 

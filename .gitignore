@@ -26,6 +26,7 @@ app/test/**/__screenshots__/
 !.claude/skills/
 .claude/skills/*
 !.claude/skills/changelog-check/
+!.claude/skills/finalize/
 CLAUDE.local.md
 
 # Local scratch: test photos, sweeps and exports made while working on it.

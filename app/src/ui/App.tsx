@@ -31,7 +31,7 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
-  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, loadImage, photoFrom, pickBand, rectOf, sameView, settingsOf, swrOn, viewAround, viewOf,
+  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, isHeif, loadImage, photoFrom, pickBand, rectOf, sameView, settingsOf, swrOn, viewAround, viewOf,
   type Doc, type Fields, type FineSpan, type Photo, type Picked, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
@@ -47,6 +47,13 @@ const PREFS_KEY = "swrfit";
  *  Technician, the class with the fewest privileges. */
 const CLS_KEY = "nanobands-license";
 const CLASSES: readonly string[] = ["E", "A", "G", "T"];
+
+/** A file that did not open, as the dialog says it. */
+interface Problem { title: string; text: string }
+const NO_S11: Problem = { title: "Couldn't find S11 data in that file.", text: "NanoBands reads the S11 sweep from a Touchstone .s1p or .s2p file." };
+const NO_IMAGE: Problem = { title: "Couldn't read that image.", text: "The file is damaged, or in a format this browser can't open." };
+/** Only Safari opens a HEIC photo. */
+const NO_HEIC: Problem = { title: "This browser can't open HEIC photos.", text: "Open the page in Safari or on the iPhone, or save the photo as a JPEG." };
 
 /** Names joined for a sentence: "40m", "40m and 20m", "40m, 20m and 15m". */
 const listOf = (names: string[]): string => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
@@ -122,6 +129,8 @@ export function App(): React.ReactElement {
   const picked = useRef<Picked | null>(null);
   /** The name of a photo being opened, while its grid and trace are worked out. */
   const [opening, setOpening] = useState<string | null>(null);
+  /** A file that did not open, until the dialog closes. */
+  const [problem, setProblem] = useState<Problem | null>(null);
   // Until the saved session is read back, show neither the landing nor the page.
   const [booting, setBooting] = useState(true);
   const store = useMemo(() => openStore(), []);
@@ -166,10 +175,11 @@ export function App(): React.ReactElement {
   }, [store]);
 
   /** Show Touchstone data. A repeat sweep of the same range keeps the pins and
-   *  the zoom. `fine` lists the bands fine sweeps filled in. */
-  const showTouchstone = useCallback((text: string, name: string, source: "s1p" | "vna", repeat: boolean, fine: FineSpan[] = []): void => {
+   *  the zoom. `fine` lists the bands fine sweeps filled in. Says whether the
+   *  file had a sweep to show. */
+  const showTouchstone = useCallback((text: string, name: string, source: "s1p" | "vna", repeat: boolean, fine: FineSpan[] = []): boolean => {
     const { f, s } = parseTouchstone(text);
-    if (f.length < 2) { alert("Couldn't find S11 data in that file."); return; }
+    if (f.length < 2) { setProblem(NO_S11); return false; }
     setDoc((d) => ({
       ...(repeat ? d : EMPTY_DOC),
       source, fileName: name, s1p: { text, name }, fine, photo: null, corners: null, straight: false, refs: [], grid: null, ocr: null,
@@ -177,6 +187,7 @@ export function App(): React.ReactElement {
       fields: { ...(repeat ? d.fields : DEFAULT_FIELDS), start: String(+f[0]!.toFixed(4)), stop: String(+f[f.length - 1]!.toFixed(4)) },
     }));
     setMode("idle");
+    return true;
   }, []);
 
   /** Read the sweep and the SWR scale off the photo. A newer photo makes the reading moot. */
@@ -213,15 +224,17 @@ export function App(): React.ReactElement {
 
   const handleFile = useCallback((file: File): void => {
     const name = file.name || "pasted image";
-    // A new file starts a new session: keep the file, forget what was done to the last one.
-    saveFile(file, name);
-    if (isTouchstone(name)) { void file.text().then((t) => showTouchstone(t, name, "s1p", false)); return; }
+    // A new file starts a new session: keep the file, forget what was done to
+    // the last one. A file that does not open is not kept, so a refresh
+    // brings back the last one.
+    if (isTouchstone(name)) { void file.text().then((t) => { if (showTouchstone(t, name, "s1p", false)) saveFile(file, name); }); return; }
     // Opening a photo holds the page for a moment. Show the page and a
     // placeholder for the photo first, then do the work.
     setOpening(name);
     void nextPaint()
       .then(() => openPhoto(file, name))
-      .catch(() => alert("Couldn't read that image."))
+      .then(() => saveFile(file, name))
+      .catch(async () => setProblem(await isHeif(file) ? NO_HEIC : NO_IMAGE))
       .finally(() => setOpening(null));
   }, [saveFile, showTouchstone, openPhoto]);
 
@@ -517,7 +530,7 @@ export function App(): React.ReactElement {
   // input while the question is open.
   return (
     <>
-      <input type="file" id="file" ref={fileIn} accept="image/*,.s1p,.s2p,.txt" className="hidden"
+      <input type="file" id="file" ref={fileIn} accept="image/*,.heic,.heif,.s1p,.s2p,.txt" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
       {refAt !== null && (
         <AskNumber title="Frequency at this point" label="Frequency" unit="MHz" action="Add"
@@ -531,7 +544,14 @@ export function App(): React.ReactElement {
           <p>NanoBands reads photos of a NanoVNA's SWR sweep. No grid or screen text was found in this image.</p>
         </Confirm>
       )}
-      <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")} inert={foreign}>
+      {problem && (
+        <Confirm title={problem.title} action="Choose another file" cancel="Close"
+          onConfirm={() => { setProblem(null); fileIn.current?.click(); }}
+          onCancel={() => setProblem(null)}>
+          <p>{problem.text}</p>
+        </Confirm>
+      )}
+      <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")} inert={foreign || !!problem}>
         <Flight landing={landing} hero={heroRef} name={nameRef} sub={subRef}>
           <Header nameRef={nameRef} subRef={subRef} onClear={doc.source ? clear : null} />
           {!landing && doc.source && <div className="page-top"><Disclaimer source={doc.source} id="disclaimer" /></div>}

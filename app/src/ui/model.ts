@@ -333,3 +333,10 @@ export function loadImage(blob: Blob): Promise<HTMLImageElement> {
     im.src = URL.createObjectURL(blob);
   });
 }
+
+/** Whether `blob` is HEIC or another HEIF image, as an iPhone saves a photo:
+ *  an `ftyp` box with a HEIF brand. Only Safari opens one. */
+export async function isHeif(blob: Blob): Promise<boolean> {
+  const b = new TextDecoder("latin1").decode(await blob.slice(4, 12).arrayBuffer());
+  return b.startsWith("ftyp") && ["heic", "heix", "heim", "heis", "hevc", "hevx", "mif1", "msf1"].includes(b.slice(4));
+}
