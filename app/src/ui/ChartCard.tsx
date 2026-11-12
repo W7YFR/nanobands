@@ -35,7 +35,8 @@ function Chips({ an, view, onView, fine }: {
   return (
     <div className="chips" id="chips">
       {chips.map(([name, v]) => (
-        <button key={name} className={(sameView(v, view) ? "on" : "") + (fine.some((f) => f.band === name) ? " fined" : "")} onClick={() => onView(v)}>{name}</button>
+        <button key={name} className={(sameView(v, view) ? "on" : "") + (fine.some((f) => f.band === name) ? " fined" : "")}
+          title={fine.some((f) => f.band === name) ? "Fine sweep, with calibration filled in" : undefined} onClick={() => onView(v)}>{name}</button>
       ))}
     </div>
   );
@@ -76,8 +77,6 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   /** On a touch screen: the next drag zooms instead of reading the curve. */
   const [zoomDrag, setZoomDrag] = useState(false);
   const touch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
-  /** Readings are shown but too close together to draw. */
-  const [crowded, setCrowded] = useState(false);
   const [full, setFull] = useState(false);
 
   // Full screen: the page behind does not scroll, and Back or Escape leave.
@@ -110,8 +109,6 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
       settings, an, curve, range, manual, probe, hoverF, drag: drag.current?.zoom ? drag.current : null, fine, readings,
       snap, hoverNote: snap === "pin" ? (touch ? "tap to unpin" : "click to unpin") : snap === "probe" ? (touch ? "tap to pin" : "click to pin") : undefined,
     });
-    const busy = !!geom.current?.crowded;
-    if (busy !== crowded) setCrowded(busy);
   };
 
   const fit = (lo: number, hi: number): [number, number] | null => (an ? fitView(an, lo, hi) : null);
@@ -197,7 +194,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         : "Click to pin a marker, click a pin to remove it. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} />
         {/* What Live sweeps, first: the rest of the chart holds still while it sweeps one band. */}
         {live !== null && <span id="liveNote"><i />{live ? `Live: ${live} only` : "Live"}</span>}
-        {resNote && <span id="resNote">{resNote}{crowded ? " · zoom in to see readings" : ""}</span>}
+        {/* The ✦ before the count marks the fine-swept chips below too, so the note is their key. */}
+        {resNote && <span id="resNote">{resNote}{fine.length > 0 && <> · <span className="star">✦</span> {fine.length} fine sweep{fine.length > 1 ? "s" : ""}</>}</span>}
         <span className="tools">
           {scaleTop && onScaleTop && (
             <span className="labeled" title="The top of the SWR scale">

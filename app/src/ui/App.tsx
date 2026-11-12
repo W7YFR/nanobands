@@ -21,6 +21,7 @@ import { traceBest } from "@/trace";
 import { toTouchstone, type Scan } from "@/vna";
 import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type FineChoice, type Mode } from "./Cards";
 import { AskNumber } from "./AskNumber";
+import { Busy } from "./Busy";
 import { ChartCard } from "./ChartCard";
 import { Confirm } from "./Confirm";
 import { drawChart } from "./draw-chart";
@@ -55,8 +56,6 @@ const NO_IMAGE: Problem = { title: "Couldn't read that image.", text: "The file 
 /** Only Safari opens a HEIC photo. */
 const NO_HEIC: Problem = { title: "This browser can't open HEIC photos.", text: "Open the page in Safari or on the iPhone, or save the photo as a JPEG." };
 
-/** Names joined for a sentence: "40m", "40m and 20m", "40m, 20m and 15m". */
-const listOf = (names: string[]): string => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
 function loadPrefs(): Prefs {
   try {
@@ -208,8 +207,8 @@ export function App(): React.ReactElement {
 
   /** Open a photo: find its grid, straighten it, trace it, read its sweep.
    *  A saved session is laid over it instead. */
-  const openPhoto = useCallback(async (blob: Blob, name: string, saved?: Partial<Snapshot> | null): Promise<void> => {
-    const photo = photoFrom(await loadImage(blob));
+  const openPhoto = useCallback(async (im: HTMLImageElement, name: string, saved?: Partial<Snapshot> | null): Promise<void> => {
+    const photo = photoFrom(im);
     const job = ++ocrJob.current;
     let d: Doc = { ...EMPTY_DOC, source: "image", fileName: name, photo, corners: defaultCorners(photo.w, photo.h) };
     setMode("idle");
@@ -228,14 +227,16 @@ export function App(): React.ReactElement {
     // the last one. A file that does not open is not kept, so a refresh
     // brings back the last one.
     if (isTouchstone(name)) { void file.text().then((t) => { if (showTouchstone(t, name, "s1p", false)) saveFile(file, name); }); return; }
-    // Opening a photo holds the page for a moment. Show the page and a
-    // placeholder for the photo first, then do the work.
-    setOpening(name);
-    void nextPaint()
-      .then(() => openPhoto(file, name))
-      .then(() => saveFile(file, name))
-      .catch(async () => setProblem(await isHeif(file) ? NO_HEIC : NO_IMAGE))
-      .finally(() => setOpening(null));
+    // Decode it first, so a photo the browser cannot open goes straight to
+    // the dialog. Then the work holds the page for a moment: show the page
+    // and a placeholder for the photo first, then do the work.
+    void loadImage(file)
+      .then(async (im) => {
+        setOpening(name);
+        await nextPaint();
+        try { await openPhoto(im, name); saveFile(file, name); } finally { setOpening(null); }
+      })
+      .catch(async () => setProblem(await isHeif(file) ? NO_HEIC : NO_IMAGE));
   }, [saveFile, showTouchstone, openPhoto]);
 
   const over = useFileDrop(handleFile);
@@ -298,7 +299,7 @@ export function App(): React.ReactElement {
           const fromVna = f.fromVna ?? /^nanovna-[\d.]+-[\d.]+mhz\.s1p$/.test(f.name);
           showTouchstone(await f.blob.text(), f.name, fromVna ? "vna" : "s1p", false);
           if (sv) setDoc((d) => applySnapshot(d, sv, traced));
-        } else await openPhoto(f.blob, f.name, sv ?? null);
+        } else await openPhoto(await loadImage(f.blob), f.name, sv ?? null);
       } catch {
         setDoc(EMPTY_DOC);
       } finally {
@@ -500,8 +501,7 @@ export function App(): React.ReactElement {
     const res = ((an.fmax - an.fmin) / curve.N) * 1000;
     resNote = doc.source === "image"
       ? `Traced resolution ≈ ${res < 10 ? res.toFixed(1) : Math.round(res)} kHz per point`
-      : `${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`
-        + (doc.fine.length ? `, ${listOf(doc.fine.map((f) => f.band))} fine sweep${doc.fine.length > 1 ? "s" : ""} with calibration filled in` : "");
+      : `${curve.N} points from ${doc.source === "vna" ? "the NanoVNA" : "file"}`;
   }
   // The bands in the NanoVNA's range for + Band: each one's fine sweep, or why it has none.
   const r = vna.range;
@@ -530,6 +530,8 @@ export function App(): React.ReactElement {
 
   /** The photo does not look like a NanoVNA screen, and the user has not said to use it anyway. */
   const foreign = doc.source === "image" && doc.ocr?.kind === "foreign";
+  /** What the page waits on, for the veil over it. Live sweeps leave the page free. */
+  const waiting = vna.waiting ?? (opening ? `Opening ${opening}` : null);
 
   // The file input and the question sit outside the page, which takes no
   // input while the question is open.
@@ -556,12 +558,13 @@ export function App(): React.ReactElement {
           <p>{problem.text}</p>
         </Confirm>
       )}
-      <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")} inert={foreign || !!problem}>
+      {waiting && <Busy text={waiting} detail={vna.progress && !vna.live ? `${vna.progress.band ?? "Full"} · ${vna.progress.at} of ${vna.progress.of}` : null} />}
+      <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")} inert={foreign || !!problem || !!waiting}>
         <Flight landing={landing} hero={heroRef} name={nameRef} sub={subRef}>
           <Header nameRef={nameRef} subRef={subRef} onClear={doc.source ? clear : null} />
           {!landing && doc.source && <div className="page-top"><Disclaimer source={doc.source} id="disclaimer" /></div>}
           {landing ? (
-            <Landing heroRef={heroRef} onConnect={() => void vna.connect()} unsupported={vna.unsupported} note={vna.note} onOpen={() => fileIn.current?.click()} />
+            <Landing heroRef={heroRef} onConnect={() => void vna.connect()} connecting={vna.connecting} unsupported={vna.unsupported} note={vna.note} onOpen={() => fileIn.current?.click()} />
           ) : (
             <div className="wrap">
               <aside>

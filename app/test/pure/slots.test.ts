@@ -34,6 +34,13 @@ describe("readSlots", () => {
     expect([dev.start, dev.stop]).toEqual([14e6, 14.35e6]);
   });
 
+  it("says which slot it reads, in turn", async () => {
+    const vna = await open(new FakeNanoVNA());
+    const seen: number[] = [];
+    await readSlots(vna, 7, (i) => seen.push(i));
+    expect(seen).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
   it("tells the starting slot from an empty one when it reads the same as the device before", async () => {
     const dev = new FakeNanoVNA();
     const vna = await open(dev);

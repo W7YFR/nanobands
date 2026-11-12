@@ -3,6 +3,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { analyze } from "@/analysis";
+import { Busy } from "@/ui/Busy";
 import { AnalyzeCard, CalibrateCard, LoadCard } from "@/ui/Cards";
 import { Landing } from "@/ui/Landing";
 import { BANDS } from "@/bands";
@@ -28,7 +29,7 @@ const vnaStub = (over: Partial<Vna> = {}): Vna => ({
   connect: vi.fn(async () => undefined), disconnect: vi.fn(async () => undefined), sweep: vi.fn(async () => undefined),
   setLive: vi.fn(), recall: vi.fn(async () => undefined),
   slots: null, slot: null, reading: false, readSlots: vi.fn(async () => undefined), command: vi.fn(async () => []), reread: vi.fn(async () => undefined),
-  bands: [], focus: null, setFine: vi.fn(async () => undefined), fineAll: vi.fn(async () => undefined), setAll: vi.fn(async () => undefined), progress: null, cal: null, ...over,
+  bands: [], focus: null, setFine: vi.fn(async () => undefined), fineAll: vi.fn(async () => undefined), setAll: vi.fn(async () => undefined), progress: null, connecting: false, waiting: null, cal: null, ...over,
 });
 
 describe("AnalyzeCard", () => {
@@ -208,6 +209,14 @@ describe("LoadCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Read slots" }));
     expect(vna.readSlots).toHaveBeenCalledOnce();
     expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("says Connecting… until the first sweep is in", () => {
+    const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7, method: "mask" } } as NanoVNA;
+    const { rerender } = render(<LoadCard source={null} fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ connecting: true })} />);
+    expect(screen.getByRole("button", { name: "Connecting…" })).toBeDisabled();
+    rerender(<LoadCard source={null} fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ connecting: true, device })} />);
+    expect(document.querySelector("#vnaPanel .status")!.textContent).toBe("Connecting…");
   });
 
   it("shows Reading… and holds the menu while it reads", () => {
@@ -511,5 +520,12 @@ describe("the tables", () => {
     unmount();
     render(<PointsTable an={an} settings={settings} manual={[13.9]} swr={() => 1.5} onRemove={() => undefined} />);
     expect(screen.getByText("Pinned")).toHaveStyle({ color: MATCH });
+  });
+});
+
+describe("Busy", () => {
+  it("says what the page waits on, and where the work is", () => {
+    render(<Busy text="Sweeping" detail="40m · 2 of 5" />);
+    expect(screen.getByRole("status").textContent).toBe("Sweeping…40m · 2 of 5");
   });
 });

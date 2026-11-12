@@ -111,10 +111,10 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
   const cancelAsk = useCallback((): void => setAsking(false), []);
   const shell = useShell(vna);
   const p = vna.progress, focus = vna.focus;
-  const on = (band: string | null): string => band ?? "full range";
+  const on = (band: string | null): string => band ?? "Full";
   // A pass of more than one scan says where it is: the one loading indicator.
   const status = p ? (vna.live ? `Sweeping all live · ${on(p.band)}` : `Sweeping ${on(p.band)} · ${p.at} of ${p.of}`)
-    : vna.live ? (focus === "all" ? "Sweeping all live" : focus ? `Sweeping ${focus.band} live` : "Sweeping live") : "Connected";
+    : vna.live ? (focus === "all" ? "Sweeping all live" : focus ? `Sweeping ${focus.band} live` : "Sweeping live") : vna.connecting ? "Connecting…" : "Connected";
 
   const device = d ? (
     <div className={"panel" + (vna.live || p ? " live" : "")} id="vnaPanel">
@@ -181,7 +181,9 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
               <button id="fineSuggest" type="button" className="add" title={`Fine-sweeps ${suggest.band}, the band the chart shows`}
                 onClick={() => onFine(suggest)}>+ {suggest.band}</button>
             )}
-            <FineMenu choices={choices} onPick={onFine} onAll={onFineAll} />
+            {/* Once every band it offers is swept, a band's chip sweeps it again, so + Band goes.
+                With none swept it stays, to say why no band can be. */}
+            {(fine.length === 0 || choices.some((c) => c.fine && !c.swept)) && <FineMenu choices={choices} onPick={onFine} onAll={onFineAll} />}
           </span>
           {fine.length > 0 && (
             <button id="fineClear" className="quiet" title="Drops the fine sweeps and sweeps the whole range again" aria-label="Sweep the whole range"
@@ -197,7 +199,7 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
     </div>
   ) : (
     <div className="row">
-      <button id="vnaBtn" className="wide" disabled={!!vna.unsupported} onClick={() => void vna.connect()}>Connect NanoVNA</button>
+      <button id="vnaBtn" className="wide" disabled={!!vna.unsupported || vna.connecting} onClick={() => void vna.connect()}>{vna.connecting ? "Connecting…" : "Connect NanoVNA"}</button>
     </div>
   );
   const note = why && <p className="hint" id="vnaNote">{why}</p>;
@@ -491,9 +493,9 @@ export function ExportCard({ onPhoto, onChart, onCsv, onS1p }: {
     <div className="card" id="exportCard">
       <h2>Export</h2>
       <div className="stack">
-        {onPhoto && <button id="expPhoto" onClick={onPhoto}>Photo with overlay (PNG)</button>}
-        <button id="expChart" disabled={!onChart} onClick={onChart ?? undefined}>Chart (PNG)</button>
-        <button id="expCsv" disabled={!onCsv} onClick={onCsv ?? undefined}>Data (CSV)</button>
+        {onPhoto && <button id="expPhoto" onClick={onPhoto}>Photo with overlay (.png)</button>}
+        <button id="expChart" disabled={!onChart} onClick={onChart ?? undefined}>Chart (.png)</button>
+        <button id="expCsv" disabled={!onCsv} onClick={onCsv ?? undefined}>SWR (.csv)</button>
         {onS1p && <button id="expS1p" onClick={onS1p}>Touchstone (.s1p)</button>}
       </div>
     </div>

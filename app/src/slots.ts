@@ -54,13 +54,14 @@ export interface SlotRead {
   restored: boolean;
 }
 
-export async function readSlots(d: SlotDevice, count: number): Promise<SlotRead> {
+export async function readSlots(d: SlotDevice, count: number, onSlot?: (i: number) => void): Promise<SlotRead> {
   const state = async (r: Range): Promise<SlotState> => ({ range: r, cal: await d.cal() });
   const start = await state(await d.range());
   const read: (SlotState | null)[] = [], twin: boolean[] = [];
   // The last slot the device loaded: it is on that slot after Read.
   let prev = start, last = -1;
   for (let i = 0; i < count; i++) {
+    onSlot?.(i);
     const r = await d.recall(i);
     if (!r) { read[i] = null; continue; }
     const s = await state(r);
