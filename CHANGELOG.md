@@ -7,6 +7,13 @@ them.
 
 ## Unreleased
 
+## v1.16.0 — 2026-11-12
+
+### Added
+
+- **Keep** on the chart keeps the NanoVNA's sweep as a dashed line, to compare the next sweeps with, up to three. A click on its chip hides it, and **×** or **Clear** drops it.
+- **Dip path** joins the kept sweeps' dips to the sweep's dip while the chart is zoomed in.
+
 ## v1.15.0 — 2026-11-12
 
 ### Added

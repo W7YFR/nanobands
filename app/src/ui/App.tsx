@@ -22,7 +22,7 @@ import { toTouchstone, type Scan } from "@/vna";
 import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type FineChoice, type Mode } from "./Cards";
 import { AskNumber } from "./AskNumber";
 import { Busy } from "./Busy";
-import { ChartCard } from "./ChartCard";
+import { ChartCard, type Keeping } from "./ChartCard";
 import { Confirm } from "./Confirm";
 import { drawChart } from "./draw-chart";
 import { Disclaimer } from "./Disclaimer";
@@ -32,7 +32,7 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
-  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, isHeif, loadImage, photoFrom, pickBand, rectOf, sameView, settingsOf, swrOn, viewAround, viewOf,
+  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, isHeif, isKept, keep, loadImage, photoFrom, pickBand, rectOf, sameView, settingsOf, swrOn, viewAround, viewOf,
   type Doc, type Fields, type FineSpan, type Photo, type Picked, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
@@ -181,6 +181,8 @@ export function App(): React.ReactElement {
     if (f.length < 2) { setProblem(NO_S11); return false; }
     setDoc((d) => ({
       ...(repeat ? d : EMPTY_DOC),
+      // Kept sweeps stay from one NanoVNA sweep to the next.
+      kept: source === "vna" ? d.kept : [],
       source, fileName: name, s1p: { text, name }, fine, photo: null, corners: null, straight: false, refs: [], grid: null, ocr: null,
       trace: { kind: "data", N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) },
       fields: { ...(repeat ? d.fields : DEFAULT_FIELDS), start: String(+f[0]!.toFixed(4)), stop: String(+f[f.length - 1]!.toFixed(4)) },
@@ -273,6 +275,15 @@ export function App(): React.ReactElement {
     if (vna.device && vna.range) showSweep(vna.device.info.board, vna.range);
     void vna.setFine(null);
   };
+  /** The kept sweeps, with the NanoVNA's data on the chart. */
+  const keeping: Keeping | null = doc.source === "vna" ? {
+    kept: doc.kept, dipPath: prefs.dipPath, canKeep: !!curve && !isKept(doc.kept, curve),
+    onKeep: () => { if (curve && !isKept(docRef.current.kept, curve)) setDoc((d) => ({ ...d, kept: keep(d.kept, curve) })); },
+    onToggle: (n) => setDoc((d) => ({ ...d, kept: d.kept.map((k) => (k.n === n ? { ...k, on: !k.on } : k)) })),
+    onDrop: (n) => setDoc((d) => ({ ...d, kept: d.kept.filter((k) => k.n !== n) })),
+    onClear: () => setDoc((d) => ({ ...d, kept: [] })),
+    onDipPath: (on) => setPrefs((p) => ({ ...p, dipPath: on })),
+  } : null;
 
   /* ---------------- The saved session ---------------- */
 
@@ -481,7 +492,7 @@ export function App(): React.ReactElement {
     const W = cv.clientWidth, H = cv.clientHeight, c = document.createElement("canvas");
     c.width = W * 2;
     c.height = H * 2;
-    drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null, fine: doc.fine, readings: doc.source === "image" ? null : prefs.readings });
+    drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null, fine: doc.fine, readings: doc.source === "image" ? null : prefs.readings, kept: doc.kept, dipPath: prefs.dipPath });
     download("swr-chart.png", c.toDataURL("image/png"));
   };
   const exportCsv = (): void => {
@@ -599,7 +610,7 @@ export function App(): React.ReactElement {
                   live={vna.live ? (vna.focus && vna.focus !== "all" ? vna.focus.band : "") : null}
                   readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
                   scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
-                  fine={doc.fine} />
+                  fine={doc.fine} keeping={keeping} />
                 <div className="card" id="bandCard">
                   <h2>Band segments
                     <span style={{ flex: 1 }}></span>
