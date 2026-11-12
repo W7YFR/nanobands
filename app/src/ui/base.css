@@ -194,9 +194,6 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 #vnaFine button.add{border-style:dashed;border-color:color-mix(in srgb, var(--accent) 50%, var(--line));color:var(--accent);background:none}
 /* Under the pointer or the keyboard: a band chip brightens; + Band and + 40m fill with the accent. */
 #vnaFine button:not(.add):not([aria-pressed="true"]):hover,#vnaFine button:not(.add):not([aria-pressed="true"]):focus-visible{color:var(--text);border-color:#4a5260;outline:none}
-/* A band All bands has still to sweep: dimmed; the one it sweeps now pulses. */
-#vnaFine button.waiting{opacity:1;color:var(--faint);border-style:dashed}
-#vnaFine button.waiting.now{color:var(--accent);border-color:var(--accent);animation:pulse 1.2s ease-in-out infinite}
 #vnaFine button.add:hover,#vnaFine button.add:focus-visible,#vnaFine button.add[aria-expanded="true"]{border-style:solid;border-color:var(--accent);background:color-mix(in srgb, var(--accent) 14%, transparent);outline:none}
 .fine-menu{display:inline-flex}
 /* The menu hangs from the whole Fine row, as wide as it, so it stays inside the card. */

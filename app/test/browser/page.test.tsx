@@ -1041,7 +1041,7 @@ describe("a connected NanoVNA", () => {
   });
 
   it("fine-sweeps a band, merges it into the full sweep, repeats it live, and goes back with ×", async () => {
-    const fineRow = (): string[] => [...document.querySelectorAll("#vnaFine button[aria-pressed]")].map((b) => b.textContent!);
+    const fineRow = (): string[] => [...document.querySelectorAll("#vnaFine button[aria-pressed]:not(#fineEvery)")].map((b) => b.textContent!);
     const repeats = (): string | undefined => $("#vnaFine [aria-pressed=true]")?.textContent ?? undefined;
     const chipBtn = (name: string): HTMLButtonElement =>
       [...document.querySelectorAll<HTMLButtonElement>("#chips button")].find((b) => b.textContent === name)!;
@@ -1136,8 +1136,9 @@ describe("a connected NanoVNA", () => {
     device.scanMs = 0;
   });
 
-  it("fine-sweeps all bands in turn, says which, and keeps the last for Sweep", async () => {
-    const fineRow = (): string[] => [...document.querySelectorAll("#vnaFine button[aria-pressed]")].map((b) => b.textContent!);
+  it("fine-sweeps all bands in one pass, paints it at once, and keeps All for Sweep and Live", async () => {
+    const fineRow = (): string[] => [...document.querySelectorAll("#vnaFine button[aria-pressed]:not(#fineEvery)")].map((b) => b.textContent!);
+    const status = (): string => $("#vnaPanel .status").textContent!;
     fireEvent.change($<HTMLSelectElement>("#vnaSlot"), { target: { value: "6" } });
     await until(() => $("#vnaRange").textContent === "3–55 MHz · 401 points" && $("#resNote").textContent!.includes("401 points"));
     $("#fineAdd").click();
@@ -1150,25 +1151,48 @@ describe("a connected NanoVNA", () => {
     device.scanMs = 50;
     const from = device.log.length;
     $("#fineAll").click();
-    await until(() => /^Sweeping \S+ · \d+ of \d+$/.test($("#vnaPanel .status").textContent!));
+    // The status line says where the pass is; the chart keeps its last sweep until the pass is in.
+    await until(() => status() === `Sweeping ${open[1]} · 3 of ${open.length + 1}`);
+    expect($("#resNote").textContent).toMatch(/^401 points from the NanoVNA(?! ,)/);
+    expect($("#resNote").textContent).not.toContain("fine");
+    expect(fineRow()).toEqual([]);
     expect($<HTMLButtonElement>("#sweepBtn").disabled).toBe(true);
     expect($<HTMLButtonElement>("#liveBtn").disabled).toBe(true);
-    // The row holds every band from the start: the ones still to sweep wait, dimmed.
-    expect([...document.querySelectorAll("#vnaFine button:not(.add)")].map((b) => b.textContent)).toEqual(open);
-    expect(document.querySelectorAll("#vnaFine button.waiting").length).toBeGreaterThan(0);
-    await until(() => $("#vnaPanel .status").textContent === "Connected" && fineRow().length === open.length);
-    device.scanMs = 0;
-    // One scan per band, the device paused between them, and resumed once at the end.
+    await until(() => status() === "Connected");
+    // The whole range, then one scan per band, the device paused between them and resumed once.
     const sent = device.log.slice(from);
-    expect(sent.filter((c) => c.startsWith("scan ")).length).toBe(open.length);
+    expect(sent.filter((c) => c.startsWith("scan ")).length).toBe(open.length + 1);
+    expect(sent[0]).toBe("scan 3000000 55000000 401 3");
     expect(sent.filter((c) => c === "resume")).toEqual(["resume"]);
     expect(sent.at(-1)).toBe("resume");
+    // All of it painted at once, with All pressed.
     expect(fineRow()).toEqual(open);
-    expect($("#vnaFine [aria-pressed=true]")!.textContent).toBe(open.at(-1));
+    expect($("#fineEvery").getAttribute("aria-pressed")).toBe("true");
     expect($("#chips button.on")?.textContent).toBe("Full sweep");
-    expect($<HTMLButtonElement>("#sweepBtn").disabled).toBe(false);
+
+    // Live with All: each pass is the whole range and every band.
+    const passes = (): number => device.log.filter((c) => c === "scan 3000000 55000000 401 3").length;
+    const before = passes();
+    $("#liveBtn").click();
+    await until(() => status().startsWith("Sweeping all live · "));
+    expect($("#liveNote").textContent).toBe("Live");
+    await until(() => passes() >= before + 2);
+    $("#liveBtn").click();
+    await until(() => $("#liveBtn").textContent === "Live" && !device.paused && status() === "Connected");
+    expect(fineRow()).toEqual(open);
+
+    // A band in the row makes Sweep repeat just it; All brings back the whole pass.
+    [...document.querySelectorAll<HTMLButtonElement>("#vnaFine button")].find((b) => b.textContent === open[0])!.click();
+    await until(() => $("#fineEvery").getAttribute("aria-pressed") === "false" && status() === "Connected");
+    const one = device.log.length;
+    $("#sweepBtn").click();
+    await until(() => device.log.length > one + 1);
+    expect(device.log.slice(one).filter((c) => c.startsWith("scan ")).length).toBe(1);
+    $("#fineEvery").click();
+    await until(() => $("#fineEvery").getAttribute("aria-pressed") === "true" && status() === "Connected");
+    device.scanMs = 0;
     $("#fineClear").click();
-    await until(() => fineRow().length === 0);
+    await until(() => fineRow().length === 0 && !has("#fineEvery"));
   });
 
   it("offers no fine sweep where it would add nothing or the calibration is too coarse, whatever the SWR", async () => {

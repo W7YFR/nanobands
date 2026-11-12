@@ -242,8 +242,8 @@ export function App(): React.ReactElement {
 
   /* ---------------- The NanoVNA ---------------- */
 
-  /** The last sweep of the whole range, and each band's latest fine sweep
-   *  to fill it in with. A sweep of the whole range drops the fine sweeps. */
+  /** The last sweep of the whole range, and each fine band's latest fine
+   *  sweep to fill it in with. A band the NanoVNA no longer keeps goes. */
   const fullScan = useRef<Scan | null>(null);
   const fineScans = useRef(new Map<string, { span: FineSpan; scan: Scan }>());
   /** Show the full sweep with the fine sweeps kept, and keep it for a refresh. */
@@ -260,9 +260,10 @@ export function App(): React.ReactElement {
     else saveFile(blob, name, true);
     showTouchstone(text, name, "vna", repeat, spans);
   };
-  const vna = useVna((scan, board, r, fine) => {
-    if (fine) fineScans.current.set(fine.band, { span: { band: fine.band, lo: fine.start / 1e6, hi: fine.stop / 1e6 }, scan });
-    else { fullScan.current = scan; fineScans.current.clear(); }
+  const vna = useVna((pass, board, r) => {
+    if (pass.full) fullScan.current = pass.full;
+    for (const { fine, scan } of pass.fines) fineScans.current.set(fine.band, { span: { band: fine.band, lo: fine.start / 1e6, hi: fine.stop / 1e6 }, scan });
+    for (const band of fineScans.current.keys()) if (!pass.bands.some((b) => b.band === band)) fineScans.current.delete(band);
     showSweep(board, r);
   });
   /** ×: drop the fine sweeps from the page at once, then sweep the whole range. */
@@ -592,7 +593,7 @@ export function App(): React.ReactElement {
                 )}
                 <ChartCard canvasRef={chartRef} an={an} curve={curve} settings={settings} view={doc.view} onView={(v) => setDoc((d) => ({ ...d, view: v }))}
                   manual={doc.manual} probe={probe} onTogglePin={onTogglePin} hoverF={hoverF} onHover={setHoverF} resNote={resNote}
-                  live={vna.live ? vna.fine?.band ?? "" : null}
+                  live={vna.live ? (vna.focus && vna.focus !== "all" ? vna.focus.band : "") : null}
                   readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
                   scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
                   fine={doc.fine} />

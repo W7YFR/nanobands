@@ -110,16 +110,16 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
   const read = (): void => { setAsking(false); void vna.readSlots(); };
   const cancelAsk = useCallback((): void => setAsking(false), []);
   const shell = useShell(vna);
-  // The Fine row's chips: each fine-swept band, and while All bands runs, the bands it has still to sweep.
-  const waiting = (vna.allAt?.list ?? []).filter((f) => !fine.some((s) => s.band === f.band))
-    .map((f) => ({ band: f.band, lo: f.start / 1e6, hi: f.stop / 1e6, waiting: true }));
-  const chips = [...fine.map((f) => ({ ...f, waiting: false })), ...waiting].sort((a, b) => a.lo - b.lo);
+  const p = vna.progress, focus = vna.focus;
+  const on = (band: string | null): string => band ?? "full range";
+  // A pass of more than one scan says where it is: the one loading indicator.
+  const status = p ? (vna.live ? `Sweeping all live · ${on(p.band)}` : `Sweeping ${on(p.band)} · ${p.at} of ${p.of}`)
+    : vna.live ? (focus === "all" ? "Sweeping all live" : focus ? `Sweeping ${focus.band} live` : "Sweeping live") : "Connected";
 
   const device = d ? (
-    <div className={"panel" + (vna.live ? " live" : "")} id="vnaPanel">
+    <div className={"panel" + (vna.live || p ? " live" : "")} id="vnaPanel">
       <div className="panel-head">
-        <span className="status"><i />{vna.allAt ? `Sweeping ${vna.allAt.band} · ${vna.allAt.at} of ${vna.allAt.of}`
-          : vna.live ? (vna.fine ? `Sweeping ${vna.fine.band} live` : "Sweeping live") : "Connected"}</span>
+        <span className="status"><i />{status}</span>
         {/* Quiet on purpose: the shell is for those who know the NanoVNA's commands. */}
         {/* Under Change it hides but keeps its room, so the row keeps its height. */}
         <span className="panel-tools" style={changing ? { visibility: "hidden" } : undefined}>
@@ -162,27 +162,28 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
       {vna.range && onFine && (
         <div className="row fine">
           <label>Fine</label>
-          {/* Every band with a fine sweep. Sweep and Live repeat the one
-              pressed; a click on another makes it the one, and sweeps it.
-              Then the band the chart shows, and + Band for any other.
-              While All bands runs, its bands not yet swept wait, dimmed,
-              so the row has its final size from the start. */}
+          {/* All, then every band with a fine sweep. Sweep and Live repeat
+              the one pressed: All sweeps the whole range and each band, a
+              band only itself. A click on another makes it the one, and
+              sweeps it. Then the band the chart shows, and + Band for any other. */}
           <span id="vnaFine" role="group" aria-label="Fine sweeps">
-            {chips.map((f) => f.waiting ? (
-              <button key={f.band} type="button" className={"waiting" + (vna.allAt?.band === f.band ? " now" : "")} disabled
-                title={`${mhz(f.lo * 1e6)}–${mhz(f.hi * 1e6)} MHz. All bands sweeps it in turn.`}>{f.band}</button>
-            ) : (
-              <button key={f.band} type="button" aria-pressed={!vna.allAt && vna.fine?.band === f.band}
+            {fine.length > 0 && (
+              <button id="fineEvery" type="button" aria-pressed={focus === "all"}
+                title="Sweep and Live sweep the whole range and each fine band, and show them together."
+                onClick={() => void vna.setAll()}>All</button>
+            )}
+            {fine.map((f) => (
+              <button key={f.band} type="button" aria-pressed={!!focus && focus !== "all" && focus.band === f.band}
                 title={`${mhz(f.lo * 1e6)}–${mhz(f.hi * 1e6)} MHz. Sweep and Live repeat the band that is pressed.`}
                 onClick={() => void vna.setFine({ band: f.band, start: Math.round(f.lo * 1e6), stop: Math.round(f.hi * 1e6) })}>{f.band}</button>
             ))}
-            {suggest && !vna.allAt && (
+            {suggest && (
               <button id="fineSuggest" type="button" className="add" title={`Fine-sweeps ${suggest.band}, the band the chart shows`}
                 onClick={() => onFine(suggest)}>+ {suggest.band}</button>
             )}
             <FineMenu choices={choices} onPick={onFine} onAll={onFineAll} />
           </span>
-          {(fine.length > 0 || vna.allAt) && (
+          {fine.length > 0 && (
             <button id="fineClear" className="quiet" title="Drops the fine sweeps and sweeps the whole range again" aria-label="Sweep the whole range"
               onClick={() => (onClearFine ? onClearFine() : void vna.setFine(null))}>×</button>
           )}
@@ -190,8 +191,8 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
         </div>
       )}
       <div className="panel-actions">
-        <button id="sweepBtn" className="primary" disabled={vna.live || !!vna.allAt} onClick={() => void vna.sweep()}>Sweep</button>
-        <button id="liveBtn" className={vna.live ? "on" : ""} disabled={!!vna.allAt} onClick={() => vna.setLive(!vna.live)}>{vna.live ? "Hold" : "Live"}</button>
+        <button id="sweepBtn" className="primary" disabled={vna.live || !!p} onClick={() => void vna.sweep()}>Sweep</button>
+        <button id="liveBtn" className={vna.live ? "on" : ""} disabled={!!p && !vna.live} onClick={() => vna.setLive(!vna.live)}>{vna.live ? "Hold" : "Live"}</button>
       </div>      </>}
     </div>
   ) : (
