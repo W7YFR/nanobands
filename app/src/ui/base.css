@@ -238,6 +238,18 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 .chips button{position:relative;padding:3px 9px;font-size:12px;border-radius:12px}
 /* A chip whose band has a fine sweep carries a ✦ on its corner, so the chip keeps its width. */
 .chips button.fined::after{content:"✦";position:absolute;top:-5px;right:-3px;color:var(--accent);font-size:10px;line-height:1}
+/* The kept row, under the chips: a chip per kept sweep, with its number as
+   the chart marks its dip. A click on the chip hides or shows it, and × drops
+   it. Dip path, Clear and Keep sit at the right. */
+.kept{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px;font-size:12px;color:var(--muted)}
+.keptChips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.kept .right{margin-left:auto;display:flex;gap:6px;align-items:center}
+.keptChip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.keptChip button{display:inline-flex;align-items:center;gap:6px;border:none;background:none;font-size:12px;padding:3px 3px 3px 8px;border-radius:12px}
+.keptChip button.x{padding:3px 8px 3px 3px;color:var(--faint)}
+.keptChip button.x:hover{color:var(--bad)}
+.keptChip .n{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;border:1px solid currentColor;font-size:10px;line-height:1}
+.keptChip.off button:first-child{color:var(--faint);text-decoration:line-through}
 #resNote{text-transform:none;letter-spacing:0;font-weight:400}
 #resNote .star{color:var(--accent)}
 /* While Live sweeps: a pulsing green mark, as the NanoVNA panel's status has. */
@@ -258,11 +270,22 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
     mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
   .chips::-webkit-scrollbar{display:none}
   .chips button{flex:none}
+  /* The kept chips scroll in one row as the band chips do. Under them, Dip
+     path, Clear and Keep share the card's width evenly. */
+  .kept{flex-direction:column;align-items:stretch;gap:8px}
+  .keptChips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain;margin:0 -14px;padding:0 14px;
+    mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
+  .keptChips::-webkit-scrollbar{display:none}
+  .keptChips > *{flex:none}
+  .kept .right{margin-left:0;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 }
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
 .legend i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 /* A reading's dot, and the ▲ of a reading over the scale, as the chart draws them. */
 .legend i.dot{width:8px;height:8px;border-radius:50%;background:var(--text);vertical-align:0}
+/* A kept sweep's dashed line, and the dip path's dotted one. */
+.legend i.dash{height:0;border-top:2px dashed #c9d1dc;border-radius:0;background:none;vertical-align:3px}
+.legend i.path{height:0;border-top:2px dotted var(--accent);border-radius:0;background:none;vertical-align:3px}
 .legend i.tri{width:0;height:0;border-radius:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid #e3c84a;vertical-align:0}
 /* On a wide screen a band's name and pill sit in its own column. */
 .bands td.band .pill{margin-top:4px}

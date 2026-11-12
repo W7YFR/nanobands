@@ -64,15 +64,49 @@ export interface Prefs {
   readings: Readings;
   /** The top of the SWR scale for NanoVNA and file data. A photo's comes from the photo. */
   scaleTop: ScaleTop;
+  /** Whether the chart joins the kept sweeps' dips to the sweep's dip. */
+  dipPath: boolean;
 }
 
 /** The tops the SWR scale offers for NanoVNA and file data. */
 export type ScaleTop = "3" | "5" | "10";
 
-export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "T", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both", scaleTop: "5" };
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "T", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both", scaleTop: "5", dipPath: true };
 
 /** A fine sweep's band in the data: its name, and its span in MHz. */
 export interface FineSpan { band: string; lo: number; hi: number }
+
+/** A NanoVNA sweep kept to compare the next sweeps with. `n` numbers it on
+ *  the chart, and `on` says whether the chart shows it. */
+export interface Kept { n: number; f: Float64Array; s: Float64Array; on: boolean }
+
+/** The most sweeps the chart keeps. A Keep past it drops the oldest. */
+export const MAX_KEPT = 3;
+
+/** The kept sweeps with `c` added, under the next number. */
+export function keep(kept: readonly Kept[], c: Curve): Kept[] {
+  const n = kept.reduce((m, k) => Math.max(m, k.n), 0) + 1;
+  return [...kept, { n, f: c.f.slice(), s: c.s.slice(), on: true }].slice(-MAX_KEPT);
+}
+
+/** Whether `c` is one of the kept sweeps: the same readings, as when no sweep came since Keep. */
+export function isKept(kept: readonly Kept[], c: Curve): boolean {
+  return kept.some((k) => k.f.length === c.N && k.f.every((f, i) => f === c.f[i] && Object.is(k.s[i], c.s[i])));
+}
+
+/** The dip from lo to hi: the lowest reading there, the one a kept sweep is
+ *  named by. A lowest reading at either end is no dip, as when the dip has
+ *  moved out of view, so it gives null. */
+export function dipIn(f: Float64Array, s: Float64Array, lo: number, hi: number): { f: number; s: number } | null {
+  let at = -1, first = -1, last = -1;
+  for (let i = 0; i < f.length; i++) {
+    if (f[i]! < lo || f[i]! > hi || Number.isNaN(s[i]!)) continue;
+    if (first < 0) first = i;
+    last = i;
+    if (at < 0 || s[i]! < s[at]!) at = i;
+  }
+  return at < 0 || at === first || at === last ? null : { f: f[at]!, s: s[at]! };
+}
 
 /** Everything about the loaded file. Clear resets it to EMPTY_DOC. */
 export interface Doc {
@@ -92,6 +126,8 @@ export interface Doc {
   view: [number, number] | null;
   /** The bands fine sweeps filled in, low to high. */
   fine: FineSpan[];
+  /** NanoVNA sweeps kept to compare with, oldest first. */
+  kept: Kept[];
   collapsed: boolean;
   /** The user typed the sweep, so text recognition offers its reading instead of using it. */
   sweepTyped: boolean;
@@ -104,7 +140,7 @@ export interface Doc {
 
 export const EMPTY_DOC: Doc = {
   source: null, fileName: null, photo: null, corners: null, straight: false, trace: null, s1p: null,
-  refs: [], manual: [], view: null, fine: [], collapsed: false, sweepTyped: false, retrace: false,
+  refs: [], manual: [], view: null, fine: [], kept: [], collapsed: false, sweepTyped: false, retrace: false,
   fields: DEFAULT_FIELDS, grid: null, ocr: null,
 };
 

@@ -13,13 +13,18 @@
  * names. A band's ticks show once the band is EDGE_BAND px wide, so a wide
  * view stays clean, and a tick within EDGE_GAP px of the one before is left
  * out.
+ *
+ * Kept sweeps draw as dashed gray lines under the curve, fainter the older
+ * they are, each with its number over its dip. While the chart is zoomed in,
+ * the dip path joins their dips to the curve's, oldest first. A dip here is
+ * the lowest reading in view, away from the view's ends.
  */
 
 import { alongTop, atTop, coverNote, segUsable, usableLimit, type Analysis } from "@/analysis";
 import { MODES, bandAt, bandEdges, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
-import { swrOn, type Curve, type FineSpan, type Settings } from "./model";
-import { BAD, FINE, HIGH, MATCH, OK, PROBE, curveColor } from "./colors";
+import { dipIn, swrOn, type Curve, type FineSpan, type Kept, type Settings } from "./model";
+import { BAD, DIP_PATH, FINE, HIGH, KEPT, MATCH, OK, PROBE, curveColor } from "./colors";
 
 /** Where the plot sits, for turning a pointer position into a frequency. */
 export interface ChartGeom {
@@ -51,6 +56,9 @@ export const EDGE_GAP = 8;
 /** The least width of a band on the chart, in px, for its edges to show. */
 export const EDGE_BAND = 80;
 
+/** How strong a kept sweep draws: the newest first. */
+const KEPT_ALPHA = [0.85, 0.6, 0.4];
+
 /** `probe` is the frequency typed in the Analyze card, not pinned yet. */
 export type KeyKind = "dip" | "peak" | "crossing" | "pin" | "probe" | "reading" | "edge";
 export interface KeyPoint { kind: KeyKind; f: number; x: number; y: number }
@@ -76,6 +84,10 @@ export interface ChartScene {
   fine?: readonly FineSpan[];
   /** How to show readings. Null for a photo's trace, which has none. */
   readings?: Readings | null;
+  /** NanoVNA sweeps kept to compare with, oldest first. */
+  kept?: readonly Kept[];
+  /** Whether to join the kept sweeps' dips to the curve's. */
+  dipPath?: boolean;
 }
 
 /** Draw the chart at W × H CSS pixels. Returns the plot's geometry, or null
@@ -166,6 +178,23 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   ctx.restore();
   ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "right";
   ctx.fillText("bands", x0 - 6, stripY + stripH / 2);
+
+  // Kept sweeps, under the curve. A hidden one still counts for its age.
+  const kept = (sc.kept ?? []).map((k, i, all) => ({ k, alpha: KEPT_ALPHA[Math.min(all.length - 1 - i, KEPT_ALPHA.length - 1)]! })).filter((x) => x.k.on);
+  ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
+  ctx.lineWidth = 1.5; ctx.lineJoin = "round"; ctx.setLineDash([5, 4]); ctx.strokeStyle = KEPT;
+  for (const { k, alpha } of kept) {
+    ctx.globalAlpha = alpha; ctx.beginPath();
+    let on = false;
+    for (let i = 0; i < k.f.length; i++) {
+      const fi = k.f[i]!, si = k.s[i]!;
+      if (Number.isNaN(si)) { on = false; continue; }
+      if (on) ctx.lineTo(X(fi), Y(si)); else ctx.moveTo(X(fi), Y(si));
+      on = true;
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 
   // curve: yellow above the threshold; under it, green inside your segments
   // and gray outside them, where a good match still does not let you transmit.
@@ -298,6 +327,45 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     const val = e.clipped ? "≥" + s.top : e.s.toFixed(2);
     if (e.type === "dip") tag(`${fmtF(e.f)} · ${val}`, x, Math.min(y + 14, y1 - 8), col, true);
     else tag(`${fmtF(e.f)} · ${val}`, x, Math.max(y - 13, y0 + 12), col, true);
+  }
+  // Kept sweeps' dips: the dip path, then each dip's dot, number and label.
+  // The labels give way to the curve's own.
+  // The full sweep can hold a dip in each band, and its lowest reading can
+  // move from band to band, so the path waits for a zoom.
+  const dips = kept.map(({ k, alpha }) => ({ n: k.n, alpha, d: dipIn(k.f, k.s, lo, hi) }));
+  const trail = [...dips.map((x) => x.d), dipIn(t.f, t.s, lo, hi)].filter((d) => d !== null);
+  const zoomed = lo > an.fmin || hi < an.fmax;
+  if (sc.dipPath && zoomed && dips.length && trail.length > 1) {
+    ctx.strokeStyle = DIP_PATH; ctx.fillStyle = DIP_PATH; ctx.lineWidth = 1.5; ctx.setLineDash([2, 4]);
+    ctx.beginPath();
+    trail.forEach((d, i) => (i ? ctx.lineTo(X(d.f), Y(d.s)) : ctx.moveTo(X(d.f), Y(d.s))));
+    ctx.stroke(); ctx.setLineDash([]);
+    // An arrowhead short of the curve's dip, so the dip's dot stays clear.
+    const a = trail[trail.length - 2]!, b = trail[trail.length - 1]!;
+    const ang = Math.atan2(Y(b.s) - Y(a.s), X(b.f) - X(a.f)), ex = X(b.f) - 7 * Math.cos(ang), ey = Y(b.s) - 7 * Math.sin(ang);
+    if (Math.hypot(X(b.f) - X(a.f), Y(b.s) - Y(a.s)) > 16) {
+      ctx.beginPath(); ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - 8 * Math.cos(ang - 0.45), ey - 8 * Math.sin(ang - 0.45));
+      ctx.lineTo(ex - 8 * Math.cos(ang + 0.45), ey - 8 * Math.sin(ang + 0.45));
+      ctx.fill();
+    }
+  }
+  // Every number first, so a label gives way to a number rather than cover it.
+  for (const { n, alpha, d } of dips) {
+    if (!d) continue;
+    const x = X(d.f), y = Y(d.s), by = Math.max(y - 17, y0 + 9);
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.fillStyle = KEPT; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
+    ctx.strokeStyle = KEPT; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, by, 8, 0, 7); ctx.stroke();
+    ctx.font = "600 10px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "center"; ctx.fillText(String(n), x, by + 0.5);
+    ctx.restore();
+    placed.push({ l: x - 9, r: x + 9, t: by - 9, b: by + 9 });
+  }
+  for (const { alpha, d } of dips) {
+    if (!d || atTop(d.s, s)) continue;
+    ctx.save(); ctx.globalAlpha = alpha;
+    tag(`${fmtF(d.f)} · ${d.s.toFixed(2)}`, X(d.f), Math.min(Y(d.s) + 14, y1 - 8), KEPT, true);
+    ctx.restore();
   }
   // crossings: dots on the threshold line
   ctx.fillStyle = BAD;

@@ -55,6 +55,15 @@ describe("the session", () => {
     expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, { ...sv, fine: fine[0] as never }, noTrace).fine).toEqual([]);
   });
 
+  it("keeps a NanoVNA sweep's kept sweeps, and only a NanoVNA sweep's", () => {
+    const kept = [{ n: 2, f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: false }];
+    const sv = snapshotOf({ ...EMPTY_DOC, source: "vna", kept });
+    expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, sv, noTrace).kept).toEqual(kept);
+    expect(applySnapshot({ ...EMPTY_DOC, source: "s1p" }, sv, noTrace).kept).toEqual([]);
+    // A kept sweep without its readings is left out.
+    expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, { ...sv, kept: [{ n: 1, f: [14], s: [1] }] as never }, noTrace).kept).toEqual([]);
+  });
+
   it("traces a photo afresh when its snapshot has corners and no trace", () => {
     let traced = false;
     applySnapshot({ ...EMPTY_DOC, source: "image" }, { corners: [[0, 0], [1, 0], [1, 1], [0, 1]] }, (d) => { traced = true; return d; });

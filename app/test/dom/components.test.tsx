@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { analyze } from "@/analysis";
 import { Busy } from "@/ui/Busy";
+import { KeptRow, type Keeping } from "@/ui/ChartCard";
 import { AnalyzeCard, CalibrateCard, LoadCard } from "@/ui/Cards";
 import { Landing } from "@/ui/Landing";
 import { BANDS } from "@/bands";
@@ -107,6 +108,58 @@ describe("AnalyzeCard", () => {
     expect(r).toHaveTextContent("6m · All modes");
     expect(r).not.toHaveTextContent("transmit");
     expect(screen.queryByRole("button", { name: "View" })).toBeNull();
+  });
+});
+
+describe("KeptRow", () => {
+  const kept = [2, 3].map((n) => ({ n, f: Float64Array.from([14, 14.1, 14.2]), s: Float64Array.from([2, 1.3 + n / 10, 6]), on: n === 2 }));
+  const keeping = (over: Partial<Keeping> = {}): Keeping => ({
+    kept, dipPath: true, canKeep: true, onKeep: vi.fn(), onToggle: vi.fn(), onDrop: vi.fn(), onClear: vi.fn(), onDipPath: vi.fn(), ...over,
+  });
+
+  it("offers only Keep with nothing kept", () => {
+    render(<KeptRow keeping={keeping({ kept: [] })} range={[14, 14.2]} top={5} zoomed />);
+    expect(screen.getByRole("button", { name: "Keep" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Dip path" })).toBeNull();
+  });
+
+  it("names each kept sweep by its number and its dip in view, and wires its buttons", () => {
+    const k = keeping();
+    render(<KeptRow keeping={k} range={[14, 14.2]} top={5} zoomed />);
+    const chip = screen.getByRole("button", { name: "2 14.100 · 1.50" });
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "3 14.100 · 1.60" }).getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(chip);
+    expect(k.onToggle).toHaveBeenCalledWith(2);
+    fireEvent.click(screen.getByRole("button", { name: "Drop kept sweep 3" }));
+    expect(k.onDrop).toHaveBeenCalledWith(3);
+    fireEvent.click(screen.getByRole("button", { name: "Dip path" }));
+    expect(k.onDipPath).toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(k.onClear).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+    expect(k.onKeep).toHaveBeenCalled();
+  });
+
+  it("holds Keep while the sweep is kept already", () => {
+    render(<KeptRow keeping={keeping({ canKeep: false })} range={[14, 14.2]} top={5} zoomed />);
+    expect((screen.getByRole("button", { name: "Keep" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("says a dip over the top of the scale is at least the top", () => {
+    render(<KeptRow keeping={keeping({ kept: [{ ...kept[0]!, s: Float64Array.from([7, 6, 8]) }] })} range={[14, 14.2]} top={5} zoomed />);
+    expect(screen.getByRole("button", { name: "2 14.100 · ≥5" })).toBeTruthy();
+  });
+
+  it("names no dip for a kept sweep whose dip is out of view", () => {
+    render(<KeptRow keeping={keeping({ kept: [{ ...kept[0]!, s: Float64Array.from([1.2, 2, 3]) }] })} range={[14, 14.2]} top={5} zoomed />);
+    expect(screen.getByRole("button", { name: "2 —" })).toBeTruthy();
+  });
+
+  it("says to pick a band for the dip path in the full sweep", () => {
+    render(<KeptRow keeping={keeping()} range={[14, 14.2]} top={5} zoomed={false} />);
+    expect(screen.getByRole("button", { name: "Dip path" }).title).toBe("Pick a band to see the dip path");
   });
 });
 

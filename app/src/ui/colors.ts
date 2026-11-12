@@ -16,6 +16,11 @@ export const HIGH = "#e3c84a";
  *  selected state. The CSS's --accent. */
 export const FINE = "#6aa9ff";
 
+/** A kept sweep: a light gray, drawn fainter the older it is. */
+export const KEPT = "#c9d1dc";
+/** The dip path, from the kept sweeps' dips to the curve's: the accent. */
+export const DIP_PATH = "#6aa9ff";
+
 /** The curve's color at f: green where you may transmit with SWR at or under
  *  Max SWR, gray where the SWR is under it outside your segments, yellow over
  *  it or at the top of the scale. */

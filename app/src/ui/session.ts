@@ -7,7 +7,7 @@
  */
 
 import type { Quad } from "@/geometry";
-import { DEFAULT_FIELDS, type Doc, type Fields, type FineSpan, type GridNote, type OcrNote } from "./model";
+import { DEFAULT_FIELDS, type Doc, type Fields, type FineSpan, type GridNote, type Kept, type OcrNote } from "./model";
 
 export interface Snapshot {
   fields: Fields;
@@ -17,6 +17,8 @@ export interface Snapshot {
   view: [number, number] | null;
   /** The bands fine sweeps filled in, so a refresh marks them again. */
   fine: FineSpan[];
+  /** A NanoVNA sweep's kept sweeps. */
+  kept: Kept[];
   straight: boolean;
   sweepTyped: boolean;
   collapsed: boolean;
@@ -28,7 +30,7 @@ export function snapshotOf(d: Doc): Snapshot {
   const t = d.trace;
   const ocr = d.ocr && d.ocr.kind !== "looking" && d.ocr.kind !== "offer" ? d.ocr : null;
   return {
-    fields: d.fields, corners: d.corners, refs: d.refs, manual: d.manual, view: d.view, fine: d.fine,
+    fields: d.fields, corners: d.corners, refs: d.refs, manual: d.manual, view: d.view, fine: d.fine, kept: d.kept,
     straight: d.straight, sweepTyped: d.sweepTyped, collapsed: d.collapsed,
     trace: t?.kind === "photo" ? { N: t.N, v: t.v.slice(), auto: t.auto, edited: t.edited } : null,
     notes: { grid: d.grid, ocr },
@@ -54,7 +56,9 @@ export function applySnapshot(d: Doc, sv: Partial<Snapshot>, traceIt: (d: Doc) =
   out.fields = d.source === "image" ? fields : { ...fields, start: d.fields.start, stop: d.fields.stop };
   if (d.source !== "image") {
     const ok = (f: FineSpan): boolean => typeof f?.band === "string" && Number.isFinite(f.lo) && Number.isFinite(f.hi);
-    return Array.isArray(sv.fine) ? { ...out, fine: sv.fine.filter(ok) } : out;
+    if (Array.isArray(sv.fine)) out = { ...out, fine: sv.fine.filter(ok) };
+    const isKept = (k: Kept): boolean => Number.isFinite(k?.n) && k.f instanceof Float64Array && k.s instanceof Float64Array && k.f.length === k.s.length && k.f.length > 1;
+    return d.source === "vna" && Array.isArray(sv.kept) ? { ...out, kept: sv.kept.filter(isKept).map((k) => ({ n: k.n, f: k.f, s: k.s, on: k.on !== false })) } : out;
   }
   const isNote = (n: unknown): boolean => typeof n === "object" && n !== null && "kind" in n;
   out = {
