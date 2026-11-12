@@ -5,14 +5,12 @@
  * of the band itself while the calibrated points are close. So a band gets a
  * fine sweep only when the calibrated points are at most FINE_STEP_HZ apart,
  * and only when it at least doubles the band's readings. On a slot calibrated
- * for the band itself, it would add nothing. Nor does it where the sweep has
- * the whole band at the top of the SWR scale: it would only draw the top.
+ * for the band itself, it would add nothing.
  *
  * The scan uses the device's own point count, so the device keeps its
  * settings, and its range is never left.
  */
 
-import { alongTop, swrAt } from "./analysis";
 import type { Band } from "./bands";
 import type { Range, Scan } from "./vna";
 
@@ -46,16 +44,6 @@ export function fineCheck(r: Range, b: Band): Fine | NoFine {
 export function fineFor(r: Range, b: Band): Fine | null {
   const f = fineCheck(r, b);
   return typeof f === "string" ? null : f;
-}
-
-/** Whether the sweep has every reading over lo–hi (MHz) at the top of the
- *  SWR scale. Its values at lo and hi count too, so a band narrower than the
- *  spacing of the readings has some. Readings it lacks do not count. */
-export function offScale(c: { f: ArrayLike<number>; s: ArrayLike<number> }, lo: number, hi: number, scale: { top: number; bot: number }): boolean {
-  const w = [swrAt(c.f, c.s, lo), swrAt(c.f, c.s, hi)];
-  for (let i = 0; i < c.f.length; i++) if (c.f[i]! > lo && c.f[i]! < hi) w.push(c.s[i]!);
-  const known = w.filter((x) => !Number.isNaN(x));
-  return known.length > 0 && known.every((x) => alongTop(x, scale));
 }
 
 /** The full sweep with a fine sweep in place of its readings over the same span. */

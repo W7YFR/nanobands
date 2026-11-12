@@ -7,6 +7,18 @@ them.
 
 ## Unreleased
 
+## v1.14.0 — 2026-11-12
+
+### Added
+
+- **All bands** in the **+ Band** menu fine-sweeps every band it offers and shows them together when the last is in. The panel says how far it has got.
+- **All** in the **Fine** row makes Sweep and Live cover the whole range and each fine band. A band in the row makes them repeat only that band.
+
+### Changed
+
+- **+ Band** offers a band whatever its SWR. It no longer grays out a band that is all at the top of the SWR scale.
+- The ✦ on a fine-swept band's chip above the chart sits on its corner, so the chips no longer shift.
+
 ## v1.13.5 — 2026-11-11
 
 ### Changed

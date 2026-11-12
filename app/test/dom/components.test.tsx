@@ -28,7 +28,7 @@ const vnaStub = (over: Partial<Vna> = {}): Vna => ({
   connect: vi.fn(async () => undefined), disconnect: vi.fn(async () => undefined), sweep: vi.fn(async () => undefined),
   setLive: vi.fn(), recall: vi.fn(async () => undefined),
   slots: null, slot: null, reading: false, readSlots: vi.fn(async () => undefined), command: vi.fn(async () => []), reread: vi.fn(async () => undefined),
-  fine: null, setFine: vi.fn(async () => undefined), cal: null, ...over,
+  bands: [], focus: null, setFine: vi.fn(async () => undefined), fineAll: vi.fn(async () => undefined), setAll: vi.fn(async () => undefined), progress: null, cal: null, ...over,
 });
 
 describe("AnalyzeCard", () => {
