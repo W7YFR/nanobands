@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.14.0 — 2026-11-12
+
 ### Added
 
 - **All bands** in the **+ Band** menu fine-sweeps every band it offers and shows them together when the last is in. The panel says how far it has got.
