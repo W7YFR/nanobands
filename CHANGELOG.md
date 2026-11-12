@@ -14,13 +14,9 @@ them.
 
 ### Changed
 
-- The note beside the chart's title counts the fine sweeps, with the ✦ that marks their chips, rather than naming each band. A ✦ chip's tooltip says its calibration is filled in.
+- The chart's note counts the fine sweeps, as **✦ 10 fine sweeps**, rather than naming each band, and no longer says to zoom in. A ✦ chip's tooltip says its calibration is filled in.
 - The Export buttons name their files as **Touchstone (.s1p)** does: **Chart (.png)**, **Photo with overlay (.png)** and **SWR (.csv)**, which was **Data (CSV)**.
 - The **Fine** row lines its bands up in even columns. **+ Band** goes once every band it offers has a fine sweep.
-
-### Removed
-
-- The chart's note no longer says to zoom in to see readings.
 
 ### Fixed
 
