@@ -9,7 +9,7 @@ them.
 
 ### Added
 
-- **All bands** in the **+ Band** menu fine-sweeps every band and shows them together when the last is in. The panel says how far it has got.
+- **All bands** in the **+ Band** menu fine-sweeps every band it offers and shows them together when the last is in. The panel says how far it has got.
 - **All** in the **Fine** row makes Sweep and Live cover the whole range and each fine band. A band in the row makes them repeat only that band.
 
 ### Changed
