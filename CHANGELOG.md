@@ -7,6 +7,24 @@ them.
 
 ## Unreleased
 
+## v1.15.0 — 2026-11-12
+
+### Added
+
+- The page dims and shows a spinner while it sweeps, loads a slot, reads the slots or opens a photo. It says what it is doing and how far it has got. Live sweeps leave the page free.
+- **Connect NanoVNA** and the NanoVNA panel say **Connecting…** until the first sweep is in.
+
+### Changed
+
+- The chart's note counts the fine sweeps, as **✦ 10 fine sweeps**, rather than naming each band, and no longer says to zoom in. A ✦ chip's tooltip says its calibration is filled in.
+- The Export buttons name their files as **Touchstone (.s1p)** does: **Chart (.png)**, **Photo with overlay (.png)** and **SWR (.csv)**, which was **Data (CSV)**.
+- The **Fine** row lines its bands up in even columns. **+ Band** goes once every band it offers has a fine sweep.
+
+### Fixed
+
+- The status line in the NanoVNA panel no longer breaks onto a second line when a sweep of all bands reaches the whole range.
+- A photo the browser cannot open, such as a HEIC photo outside Safari, no longer flashes the page before the dialog shows.
+
 ## v1.14.0 — 2026-11-12
 
 ### Added

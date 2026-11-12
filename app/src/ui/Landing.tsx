@@ -5,9 +5,11 @@
 import type { Ref } from "react";
 import { NAME_ART, SUBTITLE } from "./wordmarks";
 
-export function Landing({ heroRef, onConnect, unsupported, note, onOpen }: {
+export function Landing({ heroRef, onConnect, connecting = false, unsupported, note, onOpen }: {
   heroRef: Ref<HTMLDivElement>;
   onConnect(): void;
+  /** True while the NanoVNA connects. */
+  connecting?: boolean;
   /** Why Connect cannot work in this browser, or "". */
   unsupported: string;
   /** The last connection error, or "". */
@@ -20,7 +22,7 @@ export function Landing({ heroRef, onConnect, unsupported, note, onOpen }: {
       <div className="art" id="hero" role="img" aria-label="NanoBands" ref={heroRef}>{NAME_ART}</div>
       <p className="lead">{SUBTITLE}</p>
       <div className="ways">
-        <button id="landConnect" className="primary" disabled={!!unsupported} onClick={onConnect}>Connect NanoVNA</button>
+        <button id="landConnect" className="primary" disabled={!!unsupported || connecting} onClick={onConnect}>{connecting ? "Connecting…" : "Connect NanoVNA"}</button>
         {why && <p className="hint" id="landNote">{why}</p>}
         <div className="or">or</div>
         <button id="landOpen" onClick={onOpen}>Open a photo or .s1p file</button>

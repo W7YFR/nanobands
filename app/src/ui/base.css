@@ -186,7 +186,8 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 #vnaRange,#vnaFine{font-size:13px;font-variant-numeric:tabular-nums}
 /* The fine band, and its × at the row's end, on one line. */
 .panel .row.fine{flex-wrap:nowrap}
-#vnaFine{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:4px}
+/* The chips sit in even columns, so the rows line up whatever the band names. */
+#vnaFine{flex:1;min-width:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:4px}
 /* A fine-swept band, as a chip; the one Sweep and Live repeat is pressed. */
 #vnaFine button{padding:1px 8px;font-size:12px;border-radius:12px;color:var(--muted)}
 #vnaFine button[aria-pressed="true"]{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
@@ -195,7 +196,10 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 /* Under the pointer or the keyboard: a band chip brightens; + Band and + 40m fill with the accent. */
 #vnaFine button:not(.add):not([aria-pressed="true"]):hover,#vnaFine button:not(.add):not([aria-pressed="true"]):focus-visible{color:var(--text);border-color:#4a5260;outline:none}
 #vnaFine button.add:hover,#vnaFine button.add:focus-visible,#vnaFine button.add[aria-expanded="true"]{border-style:solid;border-color:var(--accent);background:color-mix(in srgb, var(--accent) 14%, transparent);outline:none}
-.fine-menu{display:inline-flex}
+/* + Band and + 40m take two columns: their names are longer. */
+#vnaFine > .add,.fine-menu{grid-column:span 2}
+.fine-menu{display:flex}
+.fine-menu button{flex:1}
 /* The menu hangs from the whole Fine row, as wide as it, so it stays inside the card. */
 .panel .row.fine{position:relative}
 #fineMenu{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:20;padding:4px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 22px rgba(0,0,0,.45)}
@@ -235,13 +239,13 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 /* A chip whose band has a fine sweep carries a ✦ on its corner, so the chip keeps its width. */
 .chips button.fined::after{content:"✦";position:absolute;top:-5px;right:-3px;color:var(--accent);font-size:10px;line-height:1}
 #resNote{text-transform:none;letter-spacing:0;font-weight:400}
+#resNote .star{color:var(--accent)}
 /* While Live sweeps: a pulsing green mark, as the NanoVNA panel's status has. */
 #liveNote{display:inline-flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ok);font-weight:600;white-space:nowrap}
 #chartCard h2 .title{white-space:nowrap}
 /* The note gives way first: it wraps, and the title, the Live mark and the tools keep their lines. */
 @media (min-width:601px){ #resNote{flex:1 1 200px;min-width:0} }
 #liveNote i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(63,185,80,.2);animation:pulse 1s ease-in-out infinite}
-#resNote::before{content:"· "}
 /* On a phone: the resolution on its own line under the title, and the band
    chips in one row that scrolls sideways, fading out at the right edge where
    more chips wait. */
@@ -250,7 +254,6 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
   /* The chart's switches and Full screen wrap onto a second line rather than run off the card. */
   #chartCard h2 .tools{flex-wrap:wrap;justify-content:flex-end;row-gap:6px}
   #resNote{order:1;flex-basis:100%;font-size:11px}
-  #resNote::before{content:none}
   .chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain;margin:0 -14px 8px;padding:0 14px;
     mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
   .chips::-webkit-scrollbar{display:none}
@@ -402,3 +405,12 @@ html.shell-open{overflow:hidden}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .modal-field{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .modal-field input{flex:1;width:auto}
+
+/* The veil while the page waits. It fades in late, so quick work does not flash it. */
+.busy-back{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:16px;cursor:progress;animation:busyIn .2s ease-out .25s backwards}
+.busy{display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 24px;min-width:200px;box-shadow:0 12px 40px rgba(0,0,0,.4);font-size:14px;font-weight:600}
+.busy small{color:var(--muted);font-size:12px;font-weight:400}
+.busy i{width:26px;height:26px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes busyIn{from{opacity:0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.busy i{animation-duration:2.4s}}

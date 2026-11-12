@@ -70,6 +70,11 @@ export interface Vna {
   /** The scan a pass of more than one is on: its band, or null for the whole
    *  range, and its place in the pass. Null between passes. */
   progress: { band: string | null; at: number; of: number } | null;
+  /** True from the port's opening to the first sweep. */
+  connecting: boolean;
+  /** What the page waits on while the device works, such as `Reading the slots ·
+   *  2 of 7`, or null. Live sweeps wait on nothing: Hold stays at hand. */
+  waiting: string | null;
   /** The calibration terms the device reports, such as `load isoln Es Er Et
    *  cal'ed`, or null before they are read. */
   cal: string[] | null;
@@ -90,6 +95,8 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
   const [focus, setFocusState] = useState<Focus>(null);
   const [cal, setCal] = useState<string[] | null>(null);
   const [progress, setProgress] = useState<Vna["progress"]>(null);
+  const [waiting, setWaiting] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const bandsRef = useRef<readonly Fine[]>([]), focusRef = useRef<Focus>(null);
   /** Counts the changes that drop a pass in flight. */
   const gen = useRef(0);
@@ -160,6 +167,7 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
     try {
       const link = await connectPort(serial);
       if (!link) return;
+      setConnecting(true);
       const d = await NanoVNA.open(link, log);
       log(d.info);
       const r = await d.range(), terms = await d.cal();
@@ -176,6 +184,8 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
       await sweepOnce();
     } catch (e) {
       fail(e);
+    } finally {
+      setConnecting(false);
     }
   }, [serial, sweepOnce, fail]);
 
@@ -185,9 +195,10 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
     if (liveOn.current) return;
     if (busy.current) { again.current = true; return; }
     busy.current = true;
+    setWaiting("Sweeping");
     try {
       do { again.current = false; await sweepOnce(); } while (again.current && !liveOn.current && dev.current);
-    } catch (e) { fail(e); } finally { busy.current = false; setProgress(null); }
+    } catch (e) { fail(e); } finally { busy.current = false; setProgress(null); setWaiting(null); }
   }, [sweepOnce, fail]);
 
   /** Set the fine bands and the focus, then sweep; Live scans them on its next pass. */
@@ -231,6 +242,7 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
   const recall = useCallback(async (slot: number): Promise<void> => {
     const d = dev.current;
     if (!d) return;
+    setWaiting(`Loading slot ${slot}`);
     try {
       dropFine();
       const r = await d.recall(slot);
@@ -243,6 +255,8 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
       if (!liveOn.current) await sweepOnce();
     } catch (e) {
       fail(e);
+    } finally {
+      setWaiting(null);
     }
   }, [sweepOnce, fail]);
 
@@ -273,7 +287,7 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
     busy.current = true;
     setReading(true);
     try {
-      const got = await readAll(d, d.info.slots);
+      const got = await readAll(d, d.info.slots, (i) => setWaiting(`Reading the slots · ${i + 1} of ${d.info.slots}`));
       if (dev.current !== d) return;
       storeSlots(d.info, got.slots);
       setSlots(got.slots);
@@ -284,6 +298,7 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
     } finally {
       busy.current = false;
       setReading(false);
+      setWaiting(null);
     }
   }, [follow, fail]);
 
@@ -328,6 +343,6 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
 
   return {
     unsupported: typeof serial === "string" ? serial : "",
-    device, range, live, note, connect, disconnect, sweep, setLive, recall, slots, slot, reading, readSlots, command, reread, bands, focus, setFine, fineAll, setAll, progress, cal,
+    device, range, live, note, connect, disconnect, sweep, setLive, recall, slots, slot, reading, readSlots, command, reread, bands, focus, setFine, fineAll, setAll, progress, connecting, waiting, cal,
   };
 }

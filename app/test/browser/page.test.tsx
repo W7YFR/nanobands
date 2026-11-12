@@ -812,8 +812,14 @@ describe("an opened .s1p file", () => {
     const dialog = (): HTMLElement | null => document.querySelector<HTMLElement>("[role=alertdialog]");
     const button = (label: string): HTMLButtonElement => [...dialog()!.querySelectorAll("button")].find((b) => b.textContent === label)!;
     const heic = new Uint8Array([0, 0, 0, 24, ...new TextEncoder().encode("ftypheic"), 0, 0, 0, 0, ...new TextEncoder().encode("mif1heic")]);
+    // A file that does not open goes straight to the dialog: the page never shows it opening.
+    let flashed = false;
+    const watch = new MutationObserver(() => { flashed ||= has("#opening") || has("#busy"); });
+    watch.observe(document.body, { childList: true, subtree: true });
     openFile(new File([heic], "IMG_0001.HEIC", { type: "image/heic" }));
     await until(() => dialog() !== null);
+    watch.disconnect();
+    expect(flashed).toBe(false);
     expect($("#modalTitle").textContent).toBe("This browser can't open HEIC photos.");
     expect($(".app").inert).toBe(true);
     button("Close").click();
@@ -1001,6 +1007,7 @@ describe("a connected NanoVNA", () => {
       "Slot 6 · 3–55 MHz",
     ]);
     await until(() => $("#readSlots").textContent === "Read");
+    expect(has("#busy")).toBe(false);
     expect(slot.value).toBe("0");
     expect(device.log.slice(from).filter((c) => c.startsWith("recall")).at(-1)).toBe("recall 0");
     expect($("#vnaRange").textContent).toBe("144–148 MHz · 101 points");
@@ -1064,12 +1071,13 @@ describe("a connected NanoVNA", () => {
     expect(fineRow()).toEqual(["40m"]);
     expect(repeats()).toBe("40m");
     // The 3 readings of the full sweep inside 40 m give way to 401.
-    expect($("#resNote").textContent).toBe("799 points from the NanoVNA, 40m fine sweep with calibration filled in · zoom in to see readings");
+    expect($("#resNote").textContent).toBe("799 points from the NanoVNA · ✦ 1 fine sweep");
     // Swept, 40m is a chip in the row, and no longer offered.
     expect(has("#fineSuggest")).toBe(false);
     chipBtn("Full sweep").click();
     await until(() => $("#chips button.on")?.textContent === "Full sweep");
     expect(chipBtn("40m").classList.contains("fined")).toBe(true);
+    expect(chipBtn("40m").title).toBe("Fine sweep, with calibration filled in");
     expect($("#bandTable").textContent).toContain("20m");
 
     // Live scans the band, says so, and resumes the device when it stops.
@@ -1096,10 +1104,10 @@ describe("a connected NanoVNA", () => {
     item("20m").click();
     await until(() => !has("#fineMenu") && $("#chips button.on")?.textContent === "20m");
     // A second band's fine sweep keeps the first's, and Sweep then repeats the second.
-    await until(() => repeats() === "20m" && $("#resNote").textContent!.includes("40m and 20m"));
+    await until(() => repeats() === "20m" && $("#resNote").textContent!.includes("2 fine sweeps"));
     expect(fineRow()).toEqual(["40m", "20m"]);
     // 3 readings each in 40 m and 20 m give way to 401 each.
-    expect($("#resNote").textContent).toMatch(/^1197 points from the NanoVNA, 40m and 20m fine sweeps with calibration filled in/);
+    expect($("#resNote").textContent).toBe("1197 points from the NanoVNA · ✦ 2 fine sweeps");
     expect(chipBtn("40m").classList.contains("fined")).toBe(true);
     expect(chipBtn("20m").classList.contains("fined")).toBe(true);
     const sent = device.log.length;
@@ -1151,14 +1159,18 @@ describe("a connected NanoVNA", () => {
     device.scanMs = 50;
     const from = device.log.length;
     $("#fineAll").click();
-    // The status line says where the pass is; the chart keeps its last sweep until the pass is in.
+    // The status line and the veil over the page say where the pass is; the
+    // chart keeps its last sweep until the pass is in.
+    await until(() => status() === `Sweeping Full · 1 of ${open.length + 1}`);
     await until(() => status() === `Sweeping ${open[1]} · 3 of ${open.length + 1}`);
+    expect($("#busy").textContent).toBe(`Sweeping…${open[1]} · 3 of ${open.length + 1}`);
     expect($("#resNote").textContent).toMatch(/^401 points from the NanoVNA(?! ,)/);
     expect($("#resNote").textContent).not.toContain("fine");
     expect(fineRow()).toEqual([]);
     expect($<HTMLButtonElement>("#sweepBtn").disabled).toBe(true);
     expect($<HTMLButtonElement>("#liveBtn").disabled).toBe(true);
     await until(() => status() === "Connected");
+    expect(has("#busy")).toBe(false);
     // The whole range, then one scan per band, the device paused between them and resumed once.
     const sent = device.log.slice(from);
     expect(sent.filter((c) => c.startsWith("scan ")).length).toBe(open.length + 1);
@@ -1168,6 +1180,8 @@ describe("a connected NanoVNA", () => {
     // All of it painted at once, with All pressed.
     expect(fineRow()).toEqual(open);
     expect($("#fineEvery").getAttribute("aria-pressed")).toBe("true");
+    // Every band it offers is swept, so + Band goes.
+    expect(has("#fineAdd")).toBe(false);
     expect($("#chips button.on")?.textContent).toBe("Full sweep");
 
     // Live with All: each pass is the whole range and every band.
@@ -1176,6 +1190,7 @@ describe("a connected NanoVNA", () => {
     $("#liveBtn").click();
     await until(() => status().startsWith("Sweeping all live · "));
     expect($("#liveNote").textContent).toBe("Live");
+    expect(has("#busy")).toBe(false);
     await until(() => passes() >= before + 2);
     $("#liveBtn").click();
     await until(() => $("#liveBtn").textContent === "Live" && !device.paused && status() === "Connected");
