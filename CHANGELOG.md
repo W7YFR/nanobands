@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.15.0 — 2026-11-12
+
 ### Added
 
 - The page dims and shows a spinner while it sweeps, loads a slot, reads the slots or opens a photo. It says what it is doing and how far it has got. Live sweeps leave the page free.
