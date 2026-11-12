@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { bandsInRange, type Band, type LicenseClass } from "@/bands";
-import { fineCheck, mergeScan, offScale } from "@/fine";
+import { fineCheck, mergeScan } from "@/fine";
 import { mappingFor, solveRefs, type Quad } from "@/geometry";
 import { detectGrid, type GridResult } from "@/grid";
 import { readScreen } from "@/read-screen";
@@ -508,9 +508,8 @@ export function App(): React.ReactElement {
     ? bandsInRange(r.start / 1e6, r.stop / 1e6).flatMap((b): FineChoice[] => {
       const c = fineCheck(r, b);
       if (c === "outside") return [];
-      const why = c === "coarse" ? "calibration too coarse" : c === "close" ? "already swept closely"
-        : offScale(curve, b.lo, b.hi, settings) ? "all over the SWR scale" : null;
-      return [{ band: b.name, fine: why || typeof c === "string" ? null : c, why, swept: doc.fine.some((f) => f.band === b.name) }];
+      const why = c === "coarse" ? "calibration too coarse" : c === "close" ? "already swept closely" : null;
+      return [{ band: b.name, fine: typeof c === "string" ? null : c, why, swept: doc.fine.some((f) => f.band === b.name) }];
     })
     : [];
   // The band the chart shows, as + 40m in the Fine row, when it can have a fine sweep and has none yet.
@@ -521,6 +520,11 @@ export function App(): React.ReactElement {
     const b = bandsInRange(0, 1e6).find((x) => x.name === c.band);
     if (an && b) setDoc((d) => ({ ...d, view: bandView(an, b) }));
     if (c.fine) void vna.setFine(c.fine);
+  };
+  /** All bands: fine-sweep each band that can have one, and show the full sweep. */
+  const onFineAll = (): void => {
+    setDoc((d) => ({ ...d, view: null }));
+    void vna.fineAll(fineChoices.flatMap((c) => (c.fine ? [c.fine] : [])));
   };
 
   /** The photo does not look like a NanoVNA screen, and the user has not said to use it anyway. */
@@ -561,7 +565,8 @@ export function App(): React.ReactElement {
             <div className="wrap">
               <aside>
                 <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} fine={doc.fine} onClearFine={clearFine}
-                  choices={fineChoices} suggest={fineSuggest} onFine={doc.source === "vna" ? onFine : undefined} />
+                  choices={fineChoices} suggest={fineSuggest} onFine={doc.source === "vna" ? onFine : undefined}
+                  onFineAll={doc.source === "vna" ? onFineAll : undefined} />
                 {doc.source === "image" && (
                   <>
                     <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr} straight={doc.straight} onStraight={onStraight}

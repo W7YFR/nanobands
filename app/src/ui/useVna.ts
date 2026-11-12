@@ -4,7 +4,8 @@
  * The device sweeps the range it is set to, so its calibration applies as
  * stored. Each finished sweep goes to `onSweep`. A fine sweep scans one band
  * of that range instead, at the same point count, until it is cleared or the
- * range changes; Sweep and Live then scan the band. A scan pauses the device's
+ * range changes; Sweep and Live then scan the band. All bands fine-sweeps
+ * each band in turn, and Sweep and Live then scan the last. A scan pauses the device's
  * own sweep, so each sweep ends with `resume`. Live resumes once, when it
  * stops. The device and its range live
  * in refs as well as state: the live loop and a sweep in flight read them
@@ -47,6 +48,10 @@ export interface Vna {
   fine: Fine | null;
   /** Sweep a band finely from now on, or the whole range again with null. */
   setFine(f: Fine | null): Promise<void>;
+  /** Fine-sweep each band in turn, and keep the last for Sweep and Live. */
+  fineAll(list: readonly Fine[]): Promise<void>;
+  /** The band All bands sweeps, how far it has got, and every band it sweeps, or null. */
+  allAt: { band: string; at: number; of: number; list: readonly Fine[] } | null;
   /** The calibration terms the device reports, such as `load isoln Es Er Et
    *  cal'ed`, or null before they are read. */
   cal: string[] | null;
@@ -65,6 +70,7 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
   const [reading, setReading] = useState(false);
   const [fine, setFineState] = useState<Fine | null>(null);
   const [cal, setCal] = useState<string[] | null>(null);
+  const [allAt, setAllAt] = useState<{ band: string; at: number; of: number; list: readonly Fine[] } | null>(null);
   const fineRef = useRef<Fine | null>(null);
   const keepFine = (f: Fine | null): void => { fineRef.current = f; setFineState(f); };
   const slotList = useRef<Slot[] | null>(null);
@@ -157,6 +163,31 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
     // Live scans it on its next sweep.
     if (!liveOn.current) await sweep();
   }, [sweep]);
+
+  const fineAll = useCallback(async (list: readonly Fine[]): Promise<void> => {
+    const d = dev.current;
+    if (!d || !list.length || busy.current) return;
+    stopLive();
+    busy.current = true;
+    let done = false;
+    try {
+      for (const [i, f] of list.entries()) {
+        setAllAt({ band: f.band, at: i + 1, of: list.length, list });
+        keepFine(f);
+        // The device stays paused between bands, and resumes after the last.
+        await sweepOnce(i < list.length - 1);
+        // Disconnected, a recall, or another band picked: that one wins.
+        if (dev.current !== d || fineRef.current !== f) break;
+        done = i === list.length - 1;
+      }
+    } catch (e) { fail(e); } finally {
+      busy.current = false;
+      setAllAt(null);
+      if (!done && dev.current === d) await d.resume().catch(() => undefined);
+    }
+    // A sweep asked for while it ran, as by a click on a band.
+    if (again.current && dev.current === d) await sweep();
+  }, [sweepOnce, sweep, fail]);
 
   const setLive = useCallback((on: boolean): void => {
     if (!on) { stopLive(); return; }
@@ -278,6 +309,6 @@ export function useVna(onSweep: (scan: Scan, board: string, range: Range, fine: 
 
   return {
     unsupported: typeof serial === "string" ? serial : "",
-    device, range, live, note, connect, disconnect, sweep, setLive, recall, slots, slot, reading, readSlots, command, reread, fine, setFine, cal,
+    device, range, live, note, connect, disconnect, sweep, setLive, recall, slots, slot, reading, readSlots, command, reread, fine, setFine, fineAll, allAt, cal,
   };
 }

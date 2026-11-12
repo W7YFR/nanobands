@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { BANDS } from "@/bands";
-import { fineCheck, fineFor, mergeScan, offScale } from "@/fine";
+import { fineCheck, fineFor, mergeScan } from "@/fine";
 import type { Scan } from "@/vna";
 
 const band = (name: string) => BANDS.find((b) => b.name === name)!;
@@ -50,25 +50,6 @@ describe("fineCheck", () => {
     expect(fineCheck({ start: 0.05 * MHZ, stop: 900 * MHZ, points: 101 }, band("2m"))).toBe("coarse");
     expect(fineCheck({ start: 3 * MHZ, stop: 30 * MHZ, points: 401 }, band("6m"))).toBe("outside");
     expect(fineCheck({ start: 3 * MHZ, stop: 55 * MHZ, points: 401 }, band("40m"))).toEqual({ band: "40m", start: 7 * MHZ, stop: 7.3 * MHZ });
-  });
-});
-
-describe("offScale", () => {
-  const scale = { top: 5, bot: 1 };
-  const sweep = (pts: [number, number][]) => ({ f: pts.map((p) => p[0]), s: pts.map((p) => p[1]) });
-
-  it("says so when every reading over the band is at the top of the scale", () => {
-    expect(offScale(sweep([[6.9, 5], [7.03, 5], [7.16, 5], [7.29, 5], [7.42, 5]]), 7, 7.3, scale)).toBe(true);
-  });
-
-  it("does not when one reading, or the curve at an edge, is under the top", () => {
-    expect(offScale(sweep([[6.9, 5], [7.03, 5], [7.16, 3.2], [7.29, 5], [7.42, 5]]), 7, 7.3, scale)).toBe(false);
-    // 30 m falls between two readings; the curve comes down toward the second.
-    expect(offScale(sweep([[10.06, 5], [10.19, 2]]), 10.1, 10.15, scale)).toBe(false);
-  });
-
-  it("does not for a band the sweep has no reading of", () => {
-    expect(offScale(sweep([[3, NaN], [55, NaN]]), 7, 7.3, scale)).toBe(false);
   });
 });
 

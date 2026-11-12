@@ -194,6 +194,9 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 #vnaFine button.add{border-style:dashed;border-color:color-mix(in srgb, var(--accent) 50%, var(--line));color:var(--accent);background:none}
 /* Under the pointer or the keyboard: a band chip brightens; + Band and + 40m fill with the accent. */
 #vnaFine button:not(.add):not([aria-pressed="true"]):hover,#vnaFine button:not(.add):not([aria-pressed="true"]):focus-visible{color:var(--text);border-color:#4a5260;outline:none}
+/* A band All bands has still to sweep: dimmed; the one it sweeps now pulses. */
+#vnaFine button.waiting{opacity:1;color:var(--faint);border-style:dashed}
+#vnaFine button.waiting.now{color:var(--accent);border-color:var(--accent);animation:pulse 1.2s ease-in-out infinite}
 #vnaFine button.add:hover,#vnaFine button.add:focus-visible,#vnaFine button.add[aria-expanded="true"]{border-style:solid;border-color:var(--accent);background:color-mix(in srgb, var(--accent) 14%, transparent);outline:none}
 .fine-menu{display:inline-flex}
 /* The menu hangs from the whole Fine row, as wide as it, so it stays inside the card. */
@@ -231,9 +234,9 @@ button.quiet:hover{color:var(--text);border-color:var(--line)}
 #chartCard.full #chart{flex:1;min-height:0;height:auto}
 html.chart-full{overflow:hidden;overscroll-behavior:none}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
-.chips button{padding:3px 9px;font-size:12px;border-radius:12px}
-/* A chip whose band has a fine sweep carries a ✦. */
-.chips button.fined::after{content:" ✦";color:var(--accent);font-size:10px}
+.chips button{position:relative;padding:3px 9px;font-size:12px;border-radius:12px}
+/* A chip whose band has a fine sweep carries a ✦ on its corner, so the chip keeps its width. */
+.chips button.fined::after{content:"✦";position:absolute;top:-5px;right:-3px;color:var(--accent);font-size:10px;line-height:1}
 #resNote{text-transform:none;letter-spacing:0;font-weight:400}
 /* While Live sweeps: a pulsing green mark, as the NanoVNA panel's status has. */
 #liveNote{display:inline-flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;color:var(--ok);font-weight:600;white-space:nowrap}
