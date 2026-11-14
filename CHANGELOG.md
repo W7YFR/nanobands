@@ -7,6 +7,10 @@ them.
 
 ## Unreleased
 
+### Added
+
+- The pills under the chart light up on hover. A tooltip under each one names its line and gives the line's range.
+
 ## v1.18.0 — 2026-11-14
 
 ### Added

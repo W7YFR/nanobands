@@ -310,6 +310,9 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 .keptChip.live button{color:var(--ok)}
 .keptChip .pulse{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(63,185,80,.2);animation:pulse 1s ease-in-out infinite}
 .keptChip.off button{color:var(--faint);text-decoration:line-through}
+/* Hover lights the pill's border, as it does a band chip's. */
+.keptChip:hover,.keptChip:has(button:focus-visible){border-color:#4a5260}
+.keptChip button:focus-visible{outline:none}
 #resNote{text-transform:none;letter-spacing:0;font-weight:400}
 #resNote .star{color:var(--accent)}
 /* While Live sweeps: a pulsing green mark, as the NanoVNA panel's status has. */

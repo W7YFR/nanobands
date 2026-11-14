@@ -137,6 +137,23 @@ describe("ShowRow", () => {
     expect(screen.queryByRole("button", { name: /Drop/ })).toBeNull();
   });
 
+  it("names a pill's line and gives its range in a tooltip under the mouse", () => {
+    const { container } = render(<ShowRow showing={showing()} curve={curve} range={[14, 14.2]} top={5} zoomed />);
+    const tip = (): string | null => container.querySelector("#pillTip")?.textContent ?? null;
+    fireEvent.pointerEnter(screen.getByRole("button", { name: /^1/ }), { pointerType: "mouse" });
+    expect(tip()).toBe("Kept 1 · 14–14.2 MHz");
+    fireEvent.pointerLeave(screen.getByRole("button", { name: /^1/ }));
+    expect(tip()).toBeNull();
+    fireEvent.pointerEnter(screen.getByRole("button", { name: /^Latest/ }), { pointerType: "mouse" });
+    expect(tip()).toBe("Latest · 14–14.2 MHz");
+  });
+
+  it("shows no tooltip for a touch", () => {
+    const { container } = render(<ShowRow showing={showing()} curve={curve} range={[14, 14.2]} top={5} zoomed />);
+    fireEvent.pointerEnter(screen.getByRole("button", { name: /^1/ }), { pointerType: "touch" });
+    expect(container.querySelector("#pillTip")).toBeNull();
+  });
+
   it("says Live while Live sweeps", () => {
     render(<ShowRow showing={showing({ curveName: "Live" })} curve={curve} range={[14, 14.2]} top={5} zoomed />);
     expect(screen.getByRole("button", { name: /^Live · 14.100/ })).toBeTruthy();
@@ -151,7 +168,8 @@ describe("ShowRow", () => {
 
   it("says to pick a band for the dip path in the full sweep", () => {
     render(<ShowRow showing={showing()} curve={curve} range={[14, 14.2]} top={5} zoomed={false} />);
-    expect(screen.getByRole("button", { name: "Dip path" }).title).toBe("Pick a band to see the dip path");
+    fireEvent.pointerEnter(screen.getByRole("button", { name: "Dip path" }), { pointerType: "mouse" });
+    expect(document.querySelector("#pillTip")?.textContent).toBe("Dip path · Pick a band to see the dip path");
   });
 });
 
