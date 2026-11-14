@@ -13,10 +13,10 @@
  * Full screen fills the window with the card, and the page behind stays put.
  * Done, Back or Escape leave it.
  *
- * With the NanoVNA, a row under the chips keeps sweeps to compare with. Keep
- * adds the sweep the chart shows, once: it waits for the next sweep. Each
- * kept sweep's chip names its dip in view. A click hides or shows it, and ×
- * drops it.
+ * With sweeps kept, a row of pills under the chips shows or hides each line:
+ * the sweep itself (Latest, or Live while Live sweeps), the kept sweeps
+ * newest first, and the dip path. Each pill names its line's dip in view.
+ * Keeping and dropping sweeps is the NanoVNA panel's work, not the chart's.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
@@ -27,7 +27,7 @@ import { Help } from "./Help";
 import { bandTip, drawChart, freqAt, type ChartGeom, type KeyKind, type KeyPoint, type Readings } from "./draw-chart";
 import { fitCanvas } from "./draw-photo";
 import type { Band } from "@/bands";
-import { MAX_KEPT, bandView, dipIn, fitView, sameView, type Curve, type FineSpan, type Kept, type ScaleTop, type Settings } from "./model";
+import { bandView, dipIn, fitView, keptNumber, sameView, type Curve, type FineSpan, type Kept, type ScaleTop, type Settings } from "./model";
 import { Switch } from "./Switch";
 import { useNoSwipe } from "./useNoSwipe";
 
@@ -48,50 +48,57 @@ function Chips({ an, view, onView, fine }: {
   );
 }
 
-/** The kept sweeps and what the kept row does with them. */
-export interface Keeping {
+/** The lines the pills show or hide, and the switches for them. */
+export interface Showing {
   kept: readonly Kept[];
+  /** The sweep's name: Latest, or Live while Live sweeps. */
+  curveName: "Latest" | "Live";
+  curveOn: boolean;
   dipPath: boolean;
-  /** False while the sweep the chart shows is kept already. */
-  canKeep: boolean;
-  onKeep(): void;
-  onToggle(n: number): void;
-  onDrop(n: number): void;
-  onClear(): void;
+  onCurve(on: boolean): void;
+  /** Show or hide a kept sweep, by its index, oldest first. */
+  onToggle(i: number): void;
   onDipPath(on: boolean): void;
 }
 
-/** `zoomed`: the chart shows less than the full sweep, so the dip path draws. */
-export function KeptRow({ keeping: k, range, top, zoomed }: { keeping: Keeping; range: [number, number]; top: number; zoomed: boolean }): React.ReactElement {
-  const any = k.kept.length > 0;
+/** One pill: a line's mark, its name, and a click to hide or show it. */
+function Pill({ cls, on, title, onClick, children }: { cls: string; on: boolean; title: string; onClick(): void; children: React.ReactNode }): React.ReactElement {
   return (
-    <div className="kept" id="kept">
-      {any && <span className="keptChips">
-        {k.kept.map((x) => {
-        const d = dipIn(x.f, x.s, range[0], range[1]);
-        return (
-          <span key={x.n} className={"keptChip" + (x.on ? "" : " off")}>
-            <button type="button" aria-pressed={x.on} title={`${x.on ? "Hide" : "Show"} kept sweep ${x.n}`} onClick={() => k.onToggle(x.n)}>
-              <span className="n">{x.n}</span>{d ? `${fmtF(d.f)} · ${d.s >= top ? "≥" + top : d.s.toFixed(2)}` : "—"}
-            </button>
-            <button type="button" className="x" aria-label={`Drop kept sweep ${x.n}`} title={`Drop kept sweep ${x.n}`} onClick={() => k.onDrop(x.n)}>×</button>
-          </span>
-        );
-        })}
-      </span>}
-      <span className="right">
-        {any && <button type="button" id="dipPath" className={"small" + (k.dipPath ? " on" : "")} aria-pressed={k.dipPath}
-          title={zoomed ? "Joins the kept sweeps' dips to the sweep's dip" : "Pick a band to see the dip path"} onClick={() => k.onDipPath(!k.dipPath)}>Dip path</button>}
-        {any && <button type="button" id="keptClear" className="small" onClick={k.onClear}>Clear</button>}
-        <button type="button" id="keepBtn" className="small" onClick={k.onKeep} disabled={!k.canKeep}
-          title={!k.canKeep ? "This sweep is kept. Sweep again to keep the next one"
-            : k.kept.length >= MAX_KEPT ? `Keeps this sweep, and drops kept sweep ${k.kept[0]!.n}` : "Keeps this sweep on the chart, to compare the next sweeps with"}>Keep</button>
+    <span className={"keptChip " + cls + (on ? "" : " off")}>
+      <button type="button" aria-pressed={on} title={title} onClick={onClick}>{children}</button>
+    </span>
+  );
+}
+
+/** `zoomed`: the chart shows less than the full sweep, so the dip path draws. */
+export function ShowRow({ showing: k, curve, range, top, zoomed }: {
+  showing: Showing; curve: Curve | null; range: [number, number]; top: number; zoomed: boolean;
+}): React.ReactElement {
+  const dip = (f: Float64Array, s: Float64Array): React.ReactNode => {
+    const d = dipIn(f, s, range[0], range[1]);
+    return d ? `${fmtF(d.f)} · ${d.s >= top ? "≥" + top : d.s.toFixed(2)}` : <span className="none">No dip</span>;
+  };
+  const live = k.curveName === "Live";
+  return (
+    <div className="kept" id="showRow">
+      <span className="keptChips">
+        <Pill cls={"now" + (live ? " live" : "")} on={k.curveOn} title={`${k.curveOn ? "Hide" : "Show"} the ${live ? "live" : "latest"} sweep`} onClick={() => k.onCurve(!k.curveOn)}>
+          {live ? <i className="pulse" /> : <span className="sw" />}{k.curveName} · {curve ? dip(curve.f, curve.s) : "—"}
+        </Pill>
+        {k.kept.map((x, i) => ({ x, i, n: keptNumber(k.kept, i) })).reverse().map(({ x, i, n }) => (
+          <Pill key={n} cls={`k${n}`} on={x.on} title={`${x.on ? "Hide" : "Show"} kept sweep ${n}`} onClick={() => k.onToggle(i)}>
+            <span className="n">{n}</span>{dip(x.f, x.s)}
+          </Pill>
+        ))}
+        <Pill cls="path" on={k.dipPath} title={zoomed ? "Joins the kept sweeps' dips to the sweep's dip" : "Pick a band to see the dip path"} onClick={() => k.onDipPath(!k.dipPath)}>
+          <span className="sw" />Dip path
+        </Pill>
       </span>
     </div>
   );
 }
 
-export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], readings = null, onReadings, live = null, scaleTop = null, onScaleTop, keeping = null }: {
+export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], readings = null, onReadings, live = null, scaleTop = null, onScaleTop, showing = null }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   an: Analysis | null;
   curve: Curve | null;
@@ -114,8 +121,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   /** How to show readings, or null for a photo's trace, which has none. */
   readings?: Readings | null;
   onReadings?(v: Readings): void;
-  /** The kept sweeps, with the NanoVNA. Null otherwise: there is nothing to keep. */
-  keeping?: Keeping | null;
+  /** The pills, with sweeps kept. Null with none. */
+  showing?: Showing | null;
 }): React.ReactElement {
   const geom = useRef<ChartGeom | null>(null);
   /** A press on the chart. `pan` holds the view it started from. */
@@ -158,7 +165,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
     fitCanvas(c, ctx, Math.round(W * dpr), Math.round(H * dpr));
     geom.current = drawChart(ctx, W, H, dpr, {
       settings, an, curve, range, manual, probe, hoverF, drag: drag.current?.zoom ? drag.current : null, fine, readings,
-      kept: keeping?.kept ?? [], dipPath: !!keeping?.dipPath,
+      kept: showing?.kept ?? [], dipPath: !!showing?.dipPath, hideCurve: !!showing && !showing.curveOn, curveName: showing?.curveName ?? "Latest",
       snap, hoverNote: snap === "pin" ? (touch ? "tap to unpin" : "click to unpin") : snap === "probe" ? (touch ? "tap to pin" : "click to pin") : undefined,
     });
   };
@@ -263,7 +270,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         </span>
       </h2>
       {an && <Chips an={an} view={view} onView={onView} fine={fine} />}
-      {keeping && range && <KeptRow keeping={keeping} range={range} top={settings.top} zoomed={view !== null} />}
+      {showing && range && <ShowRow showing={showing} curve={curve} range={range} top={settings.top} zoomed={view !== null} />}
       <canvas id="chart" ref={canvasRef}
         style={panning ? { cursor: "grabbing" } : snap === "pin" || snap === "probe" || tip ? { cursor: "pointer" } : undefined}
         // Stops the middle button's autoscroll.
@@ -344,8 +351,11 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         <span><i style={{ background: "var(--all)" }}></i>All modes / 60 m channel</span>
         {readings && readings !== "line" && <span><i className="dot"></i>Reading</span>}
         {readings && readings !== "line" && curve && curve.s.some((w) => w > settings.top) && <span><i className="tri"></i>Reading over the scale</span>}
-        {keeping?.kept.some((k) => k.on) && <span id="keptKey"><i className="dash"></i>Kept sweep, fainter when older</span>}
-        {keeping?.dipPath && view && keeping.kept.some((k) => k.on) && <span id="dipKey"><i className="path"></i>Dip path</span>}
+        {showing?.kept.some((k) => k.on) && (
+          <span id="keptKey">{showing.kept.map((x, i) => ({ x, n: keptNumber(showing.kept, i) })).reverse().filter(({ x }) => x.on)
+            .map(({ n }) => <i key={n} className={`dash k${n}`}></i>)}Kept sweep</span>
+        )}
+        {showing?.dipPath && view && showing.kept.some((k) => k.on) && <span id="dipKey"><i className="path"></i>Dip path</span>}
         {fine.length > 0 && <span id="fineKey"><i style={{ background: "var(--accent)" }}></i>Fine sweep, calibration filled in</span>}
       </div>
     </div>

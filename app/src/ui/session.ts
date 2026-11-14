@@ -7,7 +7,7 @@
  */
 
 import type { Quad } from "@/geometry";
-import { DEFAULT_FIELDS, type Doc, type Fields, type FineSpan, type GridNote, type Kept, type OcrNote } from "./model";
+import { DEFAULT_FIELDS, type Doc, type Fields, type FineSpan, type GridNote, type Kept, type OcrNote, type Origin } from "./model";
 
 export interface Snapshot {
   fields: Fields;
@@ -19,6 +19,8 @@ export interface Snapshot {
   fine: FineSpan[];
   /** A NanoVNA sweep's kept sweeps. */
   kept: Kept[];
+  /** Where a NanoVNA sweep came from. */
+  origin: Origin | null;
   straight: boolean;
   sweepTyped: boolean;
   collapsed: boolean;
@@ -30,7 +32,7 @@ export function snapshotOf(d: Doc): Snapshot {
   const t = d.trace;
   const ocr = d.ocr && d.ocr.kind !== "looking" && d.ocr.kind !== "offer" ? d.ocr : null;
   return {
-    fields: d.fields, corners: d.corners, refs: d.refs, manual: d.manual, view: d.view, fine: d.fine, kept: d.kept,
+    fields: d.fields, corners: d.corners, refs: d.refs, manual: d.manual, view: d.view, fine: d.fine, kept: d.kept, origin: d.origin,
     straight: d.straight, sweepTyped: d.sweepTyped, collapsed: d.collapsed,
     trace: t?.kind === "photo" ? { N: t.N, v: t.v.slice(), auto: t.auto, edited: t.edited } : null,
     notes: { grid: d.grid, ocr },
@@ -57,8 +59,18 @@ export function applySnapshot(d: Doc, sv: Partial<Snapshot>, traceIt: (d: Doc) =
   if (d.source !== "image") {
     const ok = (f: FineSpan): boolean => typeof f?.band === "string" && Number.isFinite(f.lo) && Number.isFinite(f.hi);
     if (Array.isArray(sv.fine)) out = { ...out, fine: sv.fine.filter(ok) };
-    const isKept = (k: Kept): boolean => Number.isFinite(k?.n) && k.f instanceof Float64Array && k.s instanceof Float64Array && k.f.length === k.s.length && k.f.length > 1;
-    return d.source === "vna" && Array.isArray(sv.kept) ? { ...out, kept: sv.kept.filter(isKept).map((k) => ({ n: k.n, f: k.f, s: k.s, on: k.on !== false })) } : out;
+    if (d.source !== "vna") return out;
+    const isKept = (k: Kept): boolean => k?.f instanceof Float64Array && k.s instanceof Float64Array && k.f.length === k.s.length && k.f.length > 1;
+    if (Array.isArray(sv.kept)) out = {
+      ...out,
+      kept: sv.kept.filter(isKept).map((k) => ({
+        f: k.f, s: k.s, on: k.on !== false,
+        ...(typeof k.s1p?.text === "string" && typeof k.s1p.name === "string" ? { s1p: { text: k.s1p.text, name: k.s1p.name } } : {}),
+      })),
+    };
+    const o = sv.origin;
+    const isOrigin = typeof o?.board === "string" && typeof o.version === "string" && [o.start, o.stop, o.points, o.at].every(Number.isFinite);
+    return isOrigin ? { ...out, origin: { board: o.board, version: o.version, slot: typeof o.slot === "string" ? o.slot : null, start: o.start, stop: o.stop, points: o.points, at: o.at } } : out;
   }
   const isNote = (n: unknown): boolean => typeof n === "object" && n !== null && "kind" in n;
   out = {

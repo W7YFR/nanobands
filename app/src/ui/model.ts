@@ -76,17 +76,35 @@ export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "T", mode: "any", prom: "0.
 /** A fine sweep's band in the data: its name, and its span in MHz. */
 export interface FineSpan { band: string; lo: number; hi: number }
 
-/** A NanoVNA sweep kept to compare the next sweeps with. `n` numbers it on
- *  the chart, and `on` says whether the chart shows it. */
-export interface Kept { n: number; f: Float64Array; s: Float64Array; on: boolean }
+/** A NanoVNA sweep kept to compare the next sweeps with. `on` says whether
+ *  the chart shows it. Its number is its place counting back from the
+ *  newest, so ① is always the newest. `s1p` is its Touchstone text, for the
+ *  .s1p export; a sweep kept before it was saved has none. */
+export interface Kept { f: Float64Array; s: Float64Array; on: boolean; s1p?: { text: string; name: string } }
 
 /** The most sweeps the chart keeps. A Keep past it drops the oldest. */
 export const MAX_KEPT = 3;
 
-/** The kept sweeps with `c` added, under the next number. */
-export function keep(kept: readonly Kept[], c: Curve): Kept[] {
-  const n = kept.reduce((m, k) => Math.max(m, k.n), 0) + 1;
-  return [...kept, { n, f: c.f.slice(), s: c.s.slice(), on: true }].slice(-MAX_KEPT);
+/** The kept sweeps, oldest first, with `c` added as the newest. */
+export function keep(kept: readonly Kept[], c: Curve, s1p?: { text: string; name: string } | null): Kept[] {
+  return [...kept, { f: c.f.slice(), s: c.s.slice(), on: true, ...(s1p ? { s1p } : {}) }].slice(-MAX_KEPT);
+}
+
+/** A kept sweep's number: 1 for the newest. `i` is its index, oldest first. */
+export const keptNumber = (kept: readonly Kept[], i: number): number => kept.length - i;
+
+/** Where a NanoVNA sweep came from, so the page can say so with the NanoVNA gone. */
+export interface Origin {
+  board: string;
+  version: string;
+  /** The calibration slot, as the Calibration menu names it, or null as set. */
+  slot: string | null;
+  /** The range, in Hz. */
+  start: number;
+  stop: number;
+  points: number;
+  /** When it was swept, in ms since 1970. */
+  at: number;
 }
 
 /** Whether `c` is one of the kept sweeps: the same readings, as when no sweep came since Keep. */
@@ -128,6 +146,8 @@ export interface Doc {
   fine: FineSpan[];
   /** NanoVNA sweeps kept to compare with, oldest first. */
   kept: Kept[];
+  /** Where a NanoVNA sweep came from. Null for a file. */
+  origin: Origin | null;
   collapsed: boolean;
   /** The user typed the sweep, so text recognition offers its reading instead of using it. */
   sweepTyped: boolean;
@@ -140,7 +160,7 @@ export interface Doc {
 
 export const EMPTY_DOC: Doc = {
   source: null, fileName: null, photo: null, corners: null, straight: false, trace: null, s1p: null,
-  refs: [], manual: [], view: null, fine: [], kept: [], collapsed: false, sweepTyped: false, retrace: false,
+  refs: [], manual: [], view: null, fine: [], kept: [], origin: null, collapsed: false, sweepTyped: false, retrace: false,
   fields: DEFAULT_FIELDS, grid: null, ocr: null,
 };
 

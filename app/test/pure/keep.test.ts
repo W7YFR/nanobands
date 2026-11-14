@@ -1,7 +1,7 @@
 /* Kept sweeps: how Keep numbers them and drops the oldest, and the dip each is named by. */
 
 import { describe, expect, it } from "vitest";
-import { MAX_KEPT, dipIn, isKept, keep, type Curve, type Kept } from "@/ui/model";
+import { MAX_KEPT, dipIn, isKept, keep, keptNumber, type Curve, type Kept } from "@/ui/model";
 
 const curve = (dip: number): Curve => {
   const f = Float64Array.from({ length: 11 }, (_, i) => 14 + i / 20), s = f.map((x) => 1.2 + Math.abs(x - dip) * 4);
@@ -9,21 +9,23 @@ const curve = (dip: number): Curve => {
 };
 
 describe("keep", () => {
-  it("numbers each sweep after the last, and drops the oldest past the most it keeps", () => {
+  it("adds the newest last, and drops the oldest past the most it keeps", () => {
     let kept: Kept[] = [];
-    for (let i = 0; i < MAX_KEPT + 1; i++) kept = keep(kept, curve(14.1));
-    expect(kept.map((k) => k.n)).toEqual([2, 3, 4]);
+    for (const dip of [14.05, 14.1, 14.15, 14.2]) kept = keep(kept, curve(dip));
+    expect(kept.length).toBe(MAX_KEPT);
+    expect(kept.map((k) => dipIn(k.f, k.s, 14, 14.5)?.f)).toEqual([14.1, 14.15, 14.2]);
     expect(kept.every((k) => k.on)).toBe(true);
+  });
+
+  it("numbers the newest 1, counting back", () => {
+    const kept = keep(keep(keep([], curve(14.1)), curve(14.15)), curve(14.2));
+    expect(kept.map((_, i) => keptNumber(kept, i))).toEqual([3, 2, 1]);
   });
 
   it("keeps a copy, so a later sweep does not change it", () => {
     const c = curve(14.1), [k] = keep([], c);
     c.s[0] = 9;
     expect(k!.s[0]).not.toBe(9);
-  });
-
-  it("starts again at 1 once none is kept", () => {
-    expect(keep([], curve(14.1))[0]!.n).toBe(1);
   });
 });
 

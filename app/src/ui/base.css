@@ -2,6 +2,8 @@
   /* The palette is cwt's and w7yfr.com's, so the site reads as one. */
   --bg:#12151a;--panel:#1a1f27;--panel2:#222937;--line:#2e3644;--text:#e6eaf0;--muted:#97a3b6;--faint:#66708a;
   --accent:#6aa9ff;--warn:#f2cc60;--ok:#3fb950;--bad:#f85149;--data:#58a6ff;--phone:#e3a33b;--cw:#bc8cff;--all:#39c5bb;--match:#93a1b3;
+  /* The kept sweeps, newest first, as the chart draws them. */
+  --kept1:#ff6ec7;--kept2:#9d7bff;--kept3:#22d3ee;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box}
@@ -125,12 +127,37 @@ button.text:hover,button.text:focus-visible{text-decoration:underline;outline:no
 .form .span{grid-column:1 / 3}
 /* Buttons one under another, full width. */
 .stack{display:flex;flex-direction:column;gap:8px}
+/* An export with sweeps kept: the button saves the sweep, and ▾ at its end
+   opens what else it can save. The menu sits on the window; the page places
+   it under the button, or over it where the window has no room below. */
+.split{position:relative;display:flex}
+.split .main{flex:1;min-width:0;border-radius:6px 0 0 6px}
+.split .more{flex:none;width:38px;margin-left:-1px;border-radius:0 6px 6px 0;color:var(--muted)}
+.split .more:hover,.split .more[aria-expanded="true"]{color:var(--text)}
+.split-menu{position:fixed;z-index:30;padding:4px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 22px rgba(0,0,0,.45)}
+.split-menu button{display:flex;justify-content:space-between;align-items:center;width:100%;padding:6px 8px;border:none;border-radius:5px;background:none;color:var(--text);font-size:13px;text-align:left}
+.split-menu button > span{display:inline-flex;align-items:center;gap:8px}
+.split-menu button:hover:not(:disabled),.split-menu button:focus-visible{background:#1c2a40;color:var(--accent);outline:none}
+.split-menu button:disabled{opacity:1;color:var(--faint)}
+.split-menu small{color:var(--faint);font-size:11px}
+/* A mark before each name, all in one 15px slot: the sweep's green dot, a
+   kept sweep's number, and a stack of files for All. */
+.split-menu .mk{flex:none;display:inline-grid;place-items:center;width:15px;height:15px;font-style:normal}
+.split-menu .mk.latest::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.split-menu .mk.all svg{width:15px;height:15px;fill:var(--panel2);stroke:var(--muted);stroke-width:1.3}
+.split-menu button:disabled .mk{opacity:.5}
 .refs{margin-top:8px}
 .card h2 b{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#000;font-size:11px}
 .row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
 .row label{color:var(--muted);font-size:12px;min-width:84px}
 input[type=number],select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 7px;width:90px;font:inherit}
-select{width:auto}
+/* A select draws its own chevron, clear of its right edge, in place of the
+   browser's, which sits against it. The menu that opens stays the browser's. */
+select{width:auto;appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2397a3b6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 11px center;background-size:10px 6px}
+select:disabled{cursor:default}
+select::-ms-expand{display:none}
 input[type=range]{flex:1}
 button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font:inherit;cursor:pointer}
 button:hover{border-color:#4a5260}
@@ -186,18 +213,18 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 #vnaRange,#vnaFine{font-size:13px;font-variant-numeric:tabular-nums}
 /* The fine band, and its × at the row's end, on one line. */
 .panel .row.fine{flex-wrap:nowrap}
-/* The chips sit in even columns, so the rows line up whatever the band names. */
-#vnaFine{flex:1;min-width:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:4px}
+/* The chips sit in thirds, as the Keep row's do, so the rows line up whatever the band names. */
+#vnaFine{flex:1;min-width:0;display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
 /* A fine-swept band, as a chip; the one Sweep and Live repeat is pressed. */
-#vnaFine button{padding:1px 8px;font-size:12px;border-radius:12px;color:var(--muted)}
+#vnaFine button{padding:1px 8px;min-height:22px;font-size:12px;border-radius:12px;color:var(--muted);white-space:nowrap}
 #vnaFine button[aria-pressed="true"]{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 /* + Band, and + the band the chart shows: actions, dashed, in the accent. */
 #vnaFine button.add{border-style:dashed;border-color:color-mix(in srgb, var(--accent) 50%, var(--line));color:var(--accent);background:none}
 /* Under the pointer or the keyboard: a band chip brightens; + Band and + 40m fill with the accent. */
 #vnaFine button:not(.add):not([aria-pressed="true"]):hover,#vnaFine button:not(.add):not([aria-pressed="true"]):focus-visible{color:var(--text);border-color:#4a5260;outline:none}
 #vnaFine button.add:hover,#vnaFine button.add:focus-visible,#vnaFine button.add[aria-expanded="true"]{border-style:solid;border-color:var(--accent);background:color-mix(in srgb, var(--accent) 14%, transparent);outline:none}
-/* + Band and + 40m take two columns: their names are longer. */
-#vnaFine > .add,.fine-menu{grid-column:span 2}
+/* + Band takes a row of its own, as + Keep does. */
+.fine-menu{grid-column:1 / -1}
 .fine-menu{display:flex}
 .fine-menu button{flex:1}
 /* The menu hangs from the whole Fine row, as wide as it, so it stays inside the card. */
@@ -209,7 +236,30 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 #fineMenu button small{color:var(--muted);font-size:11px}
 #fineMenu button:disabled{opacity:1;color:var(--faint)}
 #fineMenu button:disabled small{color:var(--faint)}
-#fineClear{flex:none}
+#fineClear,#keptClear{flex:none}
+/* Fine and Keep: rows of pills. The label, × and ? line up with the first row. */
+.panel .row.fine,.panel .row.keep{flex-wrap:nowrap;align-items:flex-start}
+.panel .row.fine > label,.panel .row.keep > label{line-height:22px}
+.panel .row.fine > .quiet,.panel .row.keep > .quiet{line-height:16px}
+.panel .row.fine > .help,.panel .row.keep > .help{margin-top:2px}
+/* Keep: a pill per kept sweep in thirds, newest first, then + Keep on a row of its own. */
+#vnaKeep{flex:1;min-width:0;display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+/* The whole pill drops its kept sweep. It shows its number; under the
+   pointer or the keyboard, an × takes the number's place, in the warning
+   yellow: a click drops the sweep. */
+.kp{display:flex;justify-content:center;align-items:center;min-height:22px;padding:0 6px;border:1px solid var(--line);border-radius:12px;background:none;font-size:12px;color:var(--text)}
+.kp .x{display:none;place-items:center;width:15px;height:15px;font-size:14px;line-height:1}
+.kp:hover,.kp:focus-visible{border-color:var(--warn);background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn);outline:none}
+.kp:hover .n,.kp:focus-visible .n{display:none}
+.kp:hover .x,.kp:focus-visible .x{display:inline-grid}
+#vnaKeep .add{grid-column:1 / -1;min-height:22px;padding:1px 8px;font-size:12px;border-radius:12px;border-style:dashed;border-color:color-mix(in srgb, var(--accent) 50%, var(--line));color:var(--accent);background:none}
+#vnaKeep .add:hover:not(:disabled),#vnaKeep .add:focus-visible{border-style:solid;border-color:var(--accent);background:color-mix(in srgb, var(--accent) 14%, transparent);outline:none}
+#vnaKeep .add:disabled,#vnaFine button.add:disabled{color:var(--faint);border-color:var(--line)}
+/* Without the NanoVNA: a gray status, and Reconnect in place of Sweep and Live. */
+.panel.off .status{color:var(--muted)}
+.panel.off .status i{background:var(--faint);box-shadow:none}
+#vnaGone{margin:-4px 0 10px}
+.panel-actions.one{grid-template-columns:1fr}
 .panel-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}button.quiet{background:none;border-color:transparent;color:var(--muted);padding:2px 6px;font-size:12px}
 button.quiet:hover{color:var(--text);border-color:var(--line)}
 .refs{font-size:12px;color:var(--muted)}
@@ -238,18 +288,23 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 .chips button{position:relative;padding:3px 9px;font-size:12px;border-radius:12px}
 /* A chip whose band has a fine sweep carries a ✦ on its corner, so the chip keeps its width. */
 .chips button.fined::after{content:"✦";position:absolute;top:-5px;right:-3px;color:var(--accent);font-size:10px;line-height:1}
-/* The kept row, under the chips: a chip per kept sweep, with its number as
-   the chart marks its dip. A click on the chip hides or shows it, and × drops
-   it. Dip path, Clear and Keep sit at the right. */
-.kept{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px;font-size:12px;color:var(--muted)}
-.keptChips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
-.kept .right{margin-left:auto;display:flex;gap:6px;align-items:center}
-.keptChip{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
-.keptChip button{display:inline-flex;align-items:center;gap:6px;border:none;background:none;font-size:12px;padding:3px 3px 3px 8px;border-radius:12px}
-.keptChip button.x{padding:3px 8px 3px 3px;color:var(--faint)}
-.keptChip button.x:hover{color:var(--bad)}
-.keptChip .n{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;border:1px solid currentColor;font-size:10px;line-height:1}
-.keptChip.off button:first-child{color:var(--faint);text-decoration:line-through}
+/* The pills under the chips, with sweeps kept: the sweep, each kept sweep
+   newest first, and the dip path. A pill shows or hides its line; a hidden
+   one is struck through. Each kept sweep wears its place's color, here and
+   in the NanoVNA panel. */
+.k1{--k:var(--kept1)}.k2{--k:var(--kept2)}.k3{--k:var(--kept3)}
+.kept{display:flex;align-items:center;margin:0 0 8px;font-size:12px;color:var(--muted)}
+.keptChips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+.keptChip{display:inline-flex;align-items:center;flex:none;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.keptChip button{display:inline-flex;align-items:center;gap:6px;border:none;background:none;font-size:12px;padding:3px 9px 3px 8px;border-radius:12px;white-space:nowrap}
+.keptChip .n,.kp .n,.split-menu .n{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--k);color:var(--k);font-size:10px;line-height:1}
+.keptChip .none{color:var(--muted)}
+/* The sweep's mark is its solid green line; Live's, the pulsing dot. The dip path's is dotted white. */
+.keptChip .sw{width:14px;height:0;border-top:2px solid var(--ok)}
+.keptChip.path .sw{border-top:2px dotted #e6edf3}
+.keptChip.live button{color:var(--ok)}
+.keptChip .pulse{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(63,185,80,.2);animation:pulse 1s ease-in-out infinite}
+.keptChip.off button{color:var(--faint);text-decoration:line-through}
 #resNote{text-transform:none;letter-spacing:0;font-weight:400}
 #resNote .star{color:var(--accent)}
 /* While Live sweeps: a pulsing green mark, as the NanoVNA panel's status has. */
@@ -270,22 +325,19 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
     mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
   .chips::-webkit-scrollbar{display:none}
   .chips button{flex:none}
-  /* The kept chips scroll in one row as the band chips do. Under them, Dip
-     path, Clear and Keep share the card's width evenly. */
-  .kept{flex-direction:column;align-items:stretch;gap:8px}
+  /* The pills scroll in one row, as the band chips do. */
   .keptChips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain;margin:0 -14px;padding:0 14px;
     mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
   .keptChips::-webkit-scrollbar{display:none}
-  .keptChips > *{flex:none}
-  .kept .right{margin-left:0;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
 }
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:6px}
 .legend i{display:inline-block;width:12px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 /* A reading's dot, and the ▲ of a reading over the scale, as the chart draws them. */
 .legend i.dot{width:8px;height:8px;border-radius:50%;background:var(--text);vertical-align:0}
-/* A kept sweep's dashed line, and the dip path's dotted one. */
-.legend i.dash{height:0;border-top:2px dashed #c9d1dc;border-radius:0;background:none;vertical-align:3px}
-.legend i.path{height:0;border-top:2px dotted var(--accent);border-radius:0;background:none;vertical-align:3px}
+/* Each kept sweep's dashed line, in its color, and the dip path's dotted one. */
+.legend i.dash{height:0;border-top:2px dashed var(--k);border-radius:0;background:none;vertical-align:3px;margin-right:2px}
+.legend i.dash:last-of-type{margin-right:5px}
+.legend i.path{height:0;border-top:2px dotted #e6edf3;border-radius:0;background:none;vertical-align:3px}
 .legend i.tri{width:0;height:0;border-radius:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid #e3c84a;vertical-align:0}
 /* On a wide screen a band's name and pill sit in its own column. */
 .bands td.band .pill{margin-top:4px}

@@ -14,17 +14,19 @@
  * view stays clean, and a tick within EDGE_GAP px of the one before is left
  * out.
  *
- * Kept sweeps draw as dashed gray lines under the curve, fainter the older
- * they are, each with its number over its dip. While the chart is zoomed in,
- * the dip path joins their dips to the curve's, oldest first. A dip here is
- * the lowest reading in view, away from the view's ends.
+ * Kept sweeps draw as dashed lines under the curve, each in its place's
+ * color and dash, with its number over its dip. While the chart is zoomed
+ * in, the dip path joins their dips to the curve's, oldest first. A dip here
+ * is the lowest reading in view, away from the view's ends. The curve itself
+ * can be hidden, to see the kept sweeps alone. With kept sweeps in view, the
+ * hover's readout gives each one's SWR too, on a second line.
  */
 
 import { alongTop, atTop, coverNote, segUsable, usableLimit, type Analysis } from "@/analysis";
 import { MODES, bandAt, bandEdges, bandsInRange, inSegment, segsFor, type Band } from "@/bands";
 import { fmtF, niceStep } from "@/format";
-import { dipIn, swrOn, type Curve, type FineSpan, type Kept, type Settings } from "./model";
-import { BAD, DIP_PATH, FINE, HIGH, KEPT, MATCH, OK, PROBE, curveColor } from "./colors";
+import { dipIn, keptNumber, swrOn, type Curve, type FineSpan, type Kept, type Settings } from "./model";
+import { BAD, DIP_PATH, FINE, HIGH, KEPT, KEPT_DASH, MATCH, OK, PROBE, curveColor } from "./colors";
 
 /** Where the plot sits, for turning a pointer position into a frequency. */
 export interface ChartGeom {
@@ -56,9 +58,6 @@ export const EDGE_GAP = 8;
 /** The least width of a band on the chart, in px, for its edges to show. */
 export const EDGE_BAND = 80;
 
-/** How strong a kept sweep draws: the newest first. */
-const KEPT_ALPHA = [0.85, 0.6, 0.4];
-
 /** `probe` is the frequency typed in the Analyze card, not pinned yet. */
 export type KeyKind = "dip" | "peak" | "crossing" | "pin" | "probe" | "reading" | "edge";
 export interface KeyPoint { kind: KeyKind; f: number; x: number; y: number }
@@ -88,6 +87,10 @@ export interface ChartScene {
   kept?: readonly Kept[];
   /** Whether to join the kept sweeps' dips to the curve's. */
   dipPath?: boolean;
+  /** Hide the curve, its readings and its key points, to see the kept sweeps alone. */
+  hideCurve?: boolean;
+  /** The curve's name in the hover's readout: Latest, or Live while Live sweeps. */
+  curveName?: string;
 }
 
 /** Draw the chart at W × H CSS pixels. Returns the plot's geometry, or null
@@ -179,12 +182,17 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   ctx.fillStyle = "#8b949e"; ctx.font = "11px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "right";
   ctx.fillText("bands", x0 - 6, stripY + stripH / 2);
 
-  // Kept sweeps, under the curve. A hidden one still counts for its age.
-  const kept = (sc.kept ?? []).map((k, i, all) => ({ k, alpha: KEPT_ALPHA[Math.min(all.length - 1 - i, KEPT_ALPHA.length - 1)]! })).filter((x) => x.k.on);
+  // Kept sweeps, under the curve, oldest first. A hidden one keeps its number.
+  const all = sc.kept ?? [];
+  const kept = all.map((k, i) => {
+    const n = keptNumber(all, i);
+    return { k, n, color: KEPT[n - 1] ?? KEPT[KEPT.length - 1], dash: KEPT_DASH[n - 1] ?? KEPT_DASH[KEPT_DASH.length - 1] };
+  }).filter((x) => x.k.on);
+  const hide = !!sc.hideCurve;
   ctx.save(); ctx.beginPath(); ctx.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); ctx.clip();
-  ctx.lineWidth = 1.5; ctx.lineJoin = "round"; ctx.setLineDash([5, 4]); ctx.strokeStyle = KEPT;
-  for (const { k, alpha } of kept) {
-    ctx.globalAlpha = alpha; ctx.beginPath();
+  ctx.lineWidth = 1.6; ctx.lineJoin = "round"; ctx.globalAlpha = 0.9;
+  for (const { k, color, dash } of kept) {
+    ctx.strokeStyle = color; ctx.setLineDash([...dash]); ctx.beginPath();
     let on = false;
     for (let i = 0; i < k.f.length; i++) {
       const fi = k.f[i]!, si = k.s[i]!;
@@ -233,7 +241,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     pen = true; pf = fi; ps = si;
   }
   const mode = sc.readings ?? null;
-  if (mode !== "points") {
+  if (mode !== "points" && !hide) {
     ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.strokeStyle = HIGH; ctx.stroke(path);
     // Under the usable limit, not Max SWR: a flat line along the top of the
     // scale stays yellow even where the top is at or under Max SWR.
@@ -252,7 +260,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   // still shows.
   const readings: number[] = [];
   let crowded = false;
-  if (mode && mode !== "line") {
+  if (mode && mode !== "line" && !hide) {
     for (let i = 0; i < t.N; i++) if (t.f[i]! >= lo && t.f[i]! <= hi && !Number.isNaN(t.s[i]!)) readings.push(i);
     const n = readings.length, gap = n > 1 ? (X(t.f[readings[n - 1]!]!) - X(t.f[readings[0]!]!)) / (n - 1) : Infinity;
     crowded = gap < READING_GAP;
@@ -273,7 +281,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
 
   // Band and segment edges: a tick across the curve where the sweep has one.
   const wide = new Set(bandsInRange(lo, hi).filter((b) => X(b.hi) - X(b.lo) >= EDGE_BAND).map((b) => b.name));
-  const edges = bandEdges(lo, hi, s).filter((e) => wide.has(e.band));
+  const edges = hide ? [] : bandEdges(lo, hi, s).filter((e) => wide.has(e.band));
   let lastEdge = -Infinity;
   ctx.strokeStyle = "#e6edf3"; ctx.lineWidth = 2; ctx.lineCap = "round";
   for (const e of edges) {
@@ -320,7 +328,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   else tag(`Max SWR ${s.thr}`, x1, Y(s.thr) - 11, BAD);
   // extrema
   for (const e of an.extrema) {
-    if (!inView(e.f)) continue;
+    if (!inView(e.f) || hide) continue;
     const x = X(e.f), y = Y(e.s), col = e.type === "dip" ? curveColor(e.s, e.f, s) : "#f2cc60";
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
     points.push({ kind: e.type, f: e.f, x, y });
@@ -332,15 +340,15 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
   // The labels give way to the curve's own.
   // The full sweep can hold a dip in each band, and its lowest reading can
   // move from band to band, so the path waits for a zoom.
-  const dips = kept.map(({ k, alpha }) => ({ n: k.n, alpha, d: dipIn(k.f, k.s, lo, hi) }));
-  const trail = [...dips.map((x) => x.d), dipIn(t.f, t.s, lo, hi)].filter((d) => d !== null);
+  const dips = kept.map((x) => ({ ...x, d: dipIn(x.k.f, x.k.s, lo, hi) }));
+  const trail = [...dips.map((x) => x.d), hide ? null : dipIn(t.f, t.s, lo, hi)].filter((d) => d !== null);
   const zoomed = lo > an.fmin || hi < an.fmax;
   if (sc.dipPath && zoomed && dips.length && trail.length > 1) {
     ctx.strokeStyle = DIP_PATH; ctx.fillStyle = DIP_PATH; ctx.lineWidth = 1.5; ctx.setLineDash([2, 4]);
     ctx.beginPath();
     trail.forEach((d, i) => (i ? ctx.lineTo(X(d.f), Y(d.s)) : ctx.moveTo(X(d.f), Y(d.s))));
     ctx.stroke(); ctx.setLineDash([]);
-    // An arrowhead short of the curve's dip, so the dip's dot stays clear.
+    // An arrowhead short of the last dip, so the dip's dot stays clear.
     const a = trail[trail.length - 2]!, b = trail[trail.length - 1]!;
     const ang = Math.atan2(Y(b.s) - Y(a.s), X(b.f) - X(a.f)), ex = X(b.f) - 7 * Math.cos(ang), ey = Y(b.s) - 7 * Math.sin(ang);
     if (Math.hypot(X(b.f) - X(a.f), Y(b.s) - Y(a.s)) > 16) {
@@ -351,26 +359,21 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     }
   }
   // Every number first, so a label gives way to a number rather than cover it.
-  for (const { n, alpha, d } of dips) {
+  for (const { n, color, d } of dips) {
     if (!d) continue;
     const x = X(d.f), y = Y(d.s), by = Math.max(y - 17, y0 + 9);
-    ctx.save(); ctx.globalAlpha = alpha;
-    ctx.fillStyle = KEPT; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
-    ctx.strokeStyle = KEPT; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, by, 8, 0, 7); ctx.stroke();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, by, 8, 0, 7); ctx.stroke();
     ctx.font = "600 10px -apple-system,Segoe UI,sans-serif"; ctx.textAlign = "center"; ctx.fillText(String(n), x, by + 0.5);
-    ctx.restore();
     placed.push({ l: x - 9, r: x + 9, t: by - 9, b: by + 9 });
   }
-  for (const { alpha, d } of dips) {
-    if (!d || atTop(d.s, s)) continue;
-    ctx.save(); ctx.globalAlpha = alpha;
-    tag(`${fmtF(d.f)} · ${d.s.toFixed(2)}`, X(d.f), Math.min(Y(d.s) + 14, y1 - 8), KEPT, true);
-    ctx.restore();
+  for (const { color, d } of dips) {
+    if (d && !atTop(d.s, s)) tag(`${fmtF(d.f)} · ${d.s.toFixed(2)}`, X(d.f), Math.min(Y(d.s) + 14, y1 - 8), color, true);
   }
   // crossings: dots on the threshold line
   ctx.fillStyle = BAD;
   for (const c of an.crossings) {
-    if (!inView(c.f)) continue;
+    if (!inView(c.f) || hide) continue;
     ctx.beginPath(); ctx.arc(X(c.f), Y(s.thr), 3.5, 0, 7); ctx.fill();
     points.push({ kind: "crossing", f: c.f, x: X(c.f), y: Y(s.thr) });
   }
@@ -440,10 +443,15 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
     ctx.fillStyle = "rgba(242,204,96,.12)";
     ctx.fillRect(Math.min(d.x0, d.x1), y0, Math.abs(d.x1 - d.x0), y1 - y0);
   }
-  // hover: a line, a dot on the curve, and the readout
+  // hover: a line, a dot on the curve and on each kept sweep, and the readout
   if (sc.hoverF !== null && !d && sc.hoverF >= lo && sc.hoverF <= hi) {
-    const f = sc.hoverF, x = X(f), w = swr(f);
+    const f = sc.hoverF, x = X(f), w = hide ? NaN : swr(f);
     ctx.strokeStyle = "rgba(255,255,255,.3)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+    const others = [...kept].sort((a, b) => a.n - b.n).map((k) => ({ ...k, w: swrOn({ N: k.k.f.length, f: k.k.f, s: k.k.s }, f) }));
+    for (const k of others) {
+      if (Number.isNaN(k.w)) continue;
+      ctx.fillStyle = k.color; ctx.beginPath(); ctx.arc(x, Y(k.w), 3.5, 0, 7); ctx.fill();
+    }
     // A snapped hover rings the key point itself.
     const snapped = sc.snap === "reading" ? { kind: "reading" as const, f, x, y: Y(w) }
       : sc.snap ? points.find((p) => p.f === f && p.kind === sc.snap) : undefined;
@@ -455,14 +463,39 @@ export function drawChart(ctx: CanvasRenderingContext2D, W: number, Hh: number, 
       ctx.beginPath(); ctx.arc(x, Y(w), 5.5, 0, 7); ctx.fill(); ctx.stroke();
     }
     const band = bandAt(f);
-    // Rides with the dot, above it, or below it where above would leave the plot.
-    const dy = snapped ? snapped.y : Y(w), off = snapped ? 22 : 18;
-    const ly = Number.isNaN(dy) ? y0 + 10 : dy - off >= y0 + 10 ? dy - off : Math.min(dy + off, y1 - 10);
+    const val = (v: number): string => (Number.isNaN(v) ? "—" : atTop(v, s) ? "≥" + yTop : v.toFixed(2));
     // NanoVNA and file data say whether the value is a reading or the line's estimate.
     const from = !mode || Number.isNaN(w) ? "" : isReading(t, f) ? " · reading" : " · estimate";
     // An edge the hover snapped to says what starts or ends there.
     const edge = snapped?.kind === "edge" ? edges.find((e) => e.f === f) : undefined;
-    tag(`${fmtF(f)} MHz · SWR ${Number.isNaN(w) ? "—" : atTop(w, s) ? "≥" + yTop : w.toFixed(2)}${band ? " · " + band.name : ""}${edge ? " · " + edge.label : ""}${from}${sc.hoverNote ? " · " + sc.hoverNote : ""}`, x, ly, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s));
+    const rest = `${band ? " · " + band.name : ""}${edge ? " · " + edge.label : ""}${from}${sc.hoverNote ? " · " + sc.hoverNote : ""}`;
+    const dy = snapped ? snapped.y : Y(w);
+    if (!others.length) {
+      // Rides with the dot, above it, or below it where above would leave the plot.
+      const off = snapped ? 22 : 18;
+      const ly = Number.isNaN(dy) ? y0 + 10 : dy - off >= y0 + 10 ? dy - off : Math.min(dy + off, y1 - 10);
+      tag(`${fmtF(f)} MHz · SWR ${val(w)}${rest}`, x, ly, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s));
+    } else {
+      // Two lines: the frequency, then each line's SWR in pill order, the
+      // curve first. Beside the hover's line, just over the curve's dot, or
+      // the newest kept sweep's with the curve hidden.
+      const parts: [string, string][] = [
+        ...(hide ? [] : [[`${sc.curveName ?? "Latest"} ${val(w)}`, Number.isNaN(w) ? "#e6edf3" : curveColor(w, f, s)] as [string, string]]),
+        ...others.map((k): [string, string] => [`${String.fromCharCode(0x2460 + k.n - 1)} ${val(k.w)}`, k.color]),
+      ];
+      ctx.font = "600 11px -apple-system,Segoe UI,sans-serif";
+      const head = `${fmtF(f)} MHz${rest}`, gap = 10;
+      const w2 = parts.reduce((a, [p]) => a + ctx.measureText(p).width, 0) + gap * (parts.length - 1);
+      const bw = Math.max(ctx.measureText(head).width, w2) + 12, bh = 36;
+      const anchor = Number.isNaN(dy) ? Y(others.find((k) => !Number.isNaN(k.w))?.w ?? yTop) : dy;
+      const by = Math.min(Math.max(anchor - bh - 10, y0), y1 - bh);
+      const bx = x + 10 + bw <= x1 ? x + 10 : Math.max(x0, x - 10 - bw);
+      ctx.fillStyle = "rgba(26,31,39,.92)"; ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = "#2e3644"; ctx.lineWidth = 1; ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+      ctx.textAlign = "left"; ctx.fillStyle = "#e6edf3"; ctx.fillText(head, bx + 6, by + 10);
+      let px = bx + 6;
+      for (const [p, col] of parts) { ctx.fillStyle = col; ctx.fillText(p, px, by + 26); px += ctx.measureText(p).width + gap; }
+    }
   }
   return { x0, x1, y0, y1, lo, hi, points, bands: bandBoxes, readings: readings.map((i) => t.f[i]!), crowded };
 }

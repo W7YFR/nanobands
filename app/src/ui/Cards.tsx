@@ -2,13 +2,13 @@
  * They show settings and send changes up; the state lives in App.
  */
 
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MODES, type LicenseClass, type OperatingMode } from "@/bands";
 import { fmtF } from "@/format";
 import { calibrated, slotLabel } from "@/slots";
 import type { Range } from "@/vna";
 import type { Fine } from "@/fine";
-import type { Doc, FineSpan, FreqCheck, Fields, GridNote, OcrNote, Prefs } from "./model";
+import { MAX_KEPT, keptNumber, type Doc, type FineSpan, type FreqCheck, type Fields, type GridNote, type Kept, type OcrNote, type Origin, type Prefs } from "./model";
 import { Confirm } from "./Confirm";
 import { Help } from "./Help";
 import { ShellWindow, type ShellEntry } from "./ShellWindow";
@@ -79,7 +79,24 @@ function FineMenu({ choices, onPick, onAll }: {
   );
 }
 
-export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onClearFine, choices = [], suggest = null, onFine, onFineAll }: {
+/** The Keep row's sweeps, and what it does with them. */
+export interface Keeper {
+  kept: readonly Kept[];
+  /** False while the sweep on the chart is kept already. */
+  canKeep: boolean;
+  onKeep(): void;
+  /** Drop a kept sweep, by its index, oldest first. */
+  onDrop(i: number): void;
+  onClear(): void;
+}
+
+/** When a sweep was taken: the time today, or the date and time before. */
+function sweptAt(ms: number): string {
+  const d = new Date(ms), time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return d.toDateString() === new Date().toDateString() ? `Today, ${time}` : `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
+}
+
+export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onClearFine, choices = [], suggest = null, onFine, onFineAll, keeper, origin = null }: {
   source: Doc["source"];
   fileName: string | null;
   over: boolean;
@@ -97,8 +114,15 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
   onFine?: ((c: FineChoice) => void) | undefined;
   /** Fine-sweep every band that can have one. */
   onFineAll?: (() => void) | undefined;
+  /** The Keep row, for a NanoVNA sweep. */
+  keeper?: Keeper | undefined;
+  /** Where the NanoVNA sweep came from, for the panel without the NanoVNA. */
+  origin?: Origin | null;
 }): React.ReactElement {
   const d = vna.device;
+  // A NanoVNA sweep with the NanoVNA gone, as after a reload or an unplug:
+  // the panel stays, says where the sweep came from, and offers Reconnect.
+  const off = !d && source === "vna";
   const why = vna.unsupported || vna.note;
   // A sweep from the NanoVNA has a file name for its export, but no file was opened.
   const opened = source === "vna" ? null : fileName;
@@ -116,29 +140,40 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
   const status = p ? (vna.live ? `Sweeping all live · ${on(p.band)}` : `Sweeping ${on(p.band)} · ${p.at} of ${p.of}`)
     : vna.live ? (focus === "all" ? "Sweeping all live" : focus ? `Sweeping ${focus.band} live` : "Sweeping live") : vna.connecting ? "Connecting…" : "Connected";
 
-  const device = d ? (
-    <div className={"panel" + (vna.live || p ? " live" : "")} id="vnaPanel">
+  const board = d ? d.info : origin;
+  const range = d ? vna.range : origin && { start: origin.start, stop: origin.stop, points: origin.points };
+  const device = d || off ? (
+    <div className={"panel" + (vna.live || p ? " live" : "") + (off ? " off" : "")} id="vnaPanel">
       <div className="panel-head">
-        <span className="status"><i />{status}</span>
+        <span className="status"><i />{off ? (vna.connecting ? "Connecting…" : "Not connected") : status}</span>
         {/* Quiet on purpose: the shell is for those who know the NanoVNA's commands. */}
         {/* Under Change it hides but keeps its room, so the row keeps its height. */}
         <span className="panel-tools" style={changing ? { visibility: "hidden" } : undefined}>
-          <button id="readSlots" className="quiet" disabled={vna.reading || vna.live || asking}
+          <button id="readSlots" className="quiet" disabled={off || vna.reading || vna.live || asking}
             title="Reads the range and calibration in each slot on the NanoVNA"
             onClick={() => (vna.slot === null ? setAsking(true) : read())}>{vna.reading ? "Reading…" : "Read"}</button>
-          <button id="shellBtn" className="quiet" onClick={shell.show}>Shell</button>
+          <button id="shellBtn" className="quiet" disabled={off} onClick={shell.show}>Shell</button>
         </span>
       </div>
-      <p className="panel-sub" id="vnaInfo"><b>{d.info.board}</b> · firmware {d.info.version}</p>
+      <p className="panel-sub" id="vnaInfo">{board ? <><b>{board.board}</b> · firmware {board.version}</> : <b>NanoVNA</b>}</p>
+      {off && why && <p className="hint" id="vnaGone">{why}</p>}
       {/* Change shows only the ways out, so the settings step aside under it. */}
       {!changing && <>
+      {off && origin && (
+        <div className="row">
+          <label>Swept</label>
+          <span id="vnaSwept">{sweptAt(origin.at)}</span>
+        </div>
+      )}
       <div className="row">
         <label htmlFor="vnaSlot">Calibration</label>
-        <select id="vnaSlot" value={vna.slot ?? ""} disabled={vna.reading} title="Loads a saved calibration on the NanoVNA, as its RECALL menu does"
-          onChange={(e) => { if (e.target.value !== "") void vna.recall(+e.target.value); }}>
-          {vna.slot === null && <option value="">As set</option>}
-          {Array.from({ length: d.info.slots }, (_, i) => <option key={i} value={i}>{slotLabel(i, vna.slots?.[i])}</option>)}
-        </select>
+        {d ? (
+          <select id="vnaSlot" value={vna.slot ?? ""} disabled={vna.reading} title="Loads a saved calibration on the NanoVNA, as its RECALL menu does"
+            onChange={(e) => { if (e.target.value !== "") void vna.recall(+e.target.value); }}>
+            {vna.slot === null && <option value="">As set</option>}
+            {Array.from({ length: d.info.slots }, (_, i) => <option key={i} value={i}>{slotLabel(vna.slots?.[i])}</option>)}
+          </select>
+        ) : <select id="vnaSlot" disabled><option>{origin?.slot ?? "As set"}</option></select>}
       </div>
       {/* Raw readings give a wrong SWR either way, so the warning stays until a calibration applies. */}
       {vna.cal && !calibrated(vna.cal) && (
@@ -153,13 +188,24 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
           <p>If it is already saved, you can ignore this message.</p>
         </Confirm>
       )}
-      {vna.range && (
+      {range && (
         <div className="row">
           <label>Range</label>
-          <span id="vnaRange">{rangeText(vna.range)}</span>
+          <span id="vnaRange">{rangeText(range)}</span>
         </div>
       )}
-      {vna.range && onFine && (
+      {off && fine.length > 0 && (
+        <div className="row fine">
+          <label>Fine</label>
+          <span id="vnaFine" role="group" aria-label="Fine sweeps">
+            {fine.map((f) => <button key={f.band} type="button" disabled>{f.band}</button>)}
+            <span className="fine-menu"><button type="button" className="add" disabled>+ Band</button></span>
+          </span>
+          <button className="quiet" disabled aria-label="Sweep the whole range">×</button>
+          <Help text="Sweeps one band with all the NanoVNA's points, for more detail than the whole range gives." />
+        </div>
+      )}
+      {d && vna.range && onFine && (
         <div className="row fine">
           <label>Fine</label>
           {/* All, then every band with a fine sweep. Sweep and Live repeat
@@ -185,17 +231,43 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
                 With none swept it stays, to say why no band can be. */}
             {(fine.length === 0 || choices.some((c) => c.fine && !c.swept)) && <FineMenu choices={choices} onPick={onFine} onAll={onFineAll} />}
           </span>
-          {fine.length > 0 && (
-            <button id="fineClear" className="quiet" title="Drops the fine sweeps and sweeps the whole range again" aria-label="Sweep the whole range"
-              onClick={() => (onClearFine ? onClearFine() : void vna.setFine(null))}>×</button>
-          )}
+          {/* Hidden, not gone, with no fine sweep: the ? keeps its column. */}
+          <button id="fineClear" className="quiet" title="Drops the fine sweeps and sweeps the whole range again" aria-label="Sweep the whole range"
+            style={fine.length ? undefined : { visibility: "hidden" }} onClick={() => (onClearFine ? onClearFine() : void vna.setFine(null))}>×</button>
           <Help text="Sweeps one band with all the NanoVNA's points, for more detail than the whole range gives." />
         </div>
       )}
-      <div className="panel-actions">
-        <button id="sweepBtn" className="primary" disabled={vna.live || !!p} onClick={() => void vna.sweep()}>Sweep</button>
-        <button id="liveBtn" className={vna.live ? "on" : ""} disabled={!!p && !vna.live} onClick={() => vna.setLive(!vna.live)}>{vna.live ? "Hold" : "Live"}</button>
-      </div>      </>}
+      {keeper && (
+        <div className="row keep">
+          <label>Keep</label>
+          {/* Newest first, as the chart's pills are; + Keep under them. */}
+          <span id="vnaKeep" role="group" aria-label="Kept sweeps">
+            {keeper.kept.map((_, i) => ({ i, n: keptNumber(keeper.kept, i) })).reverse().map(({ i, n }) => (
+              <button key={n} type="button" className={`kp k${n}`} aria-label={`Drop kept sweep ${n}`} title={`Drop kept sweep ${n}`} onClick={() => keeper.onDrop(i)}>
+                <span className="n">{n}</span><span className="x" aria-hidden="true">×</span>
+              </button>
+            ))}
+            <button id="keepBtn" type="button" className="add" disabled={off || !keeper.canKeep} onClick={keeper.onKeep}
+              title={off ? "Reconnect the NanoVNA to keep a sweep" : !keeper.canKeep ? "This sweep is kept. Sweep again to keep the next one"
+                : keeper.kept.length >= MAX_KEPT ? `Keeps this sweep, and drops kept sweep ${MAX_KEPT}` : undefined}>+ Keep</button>
+          </span>
+          <button id="keptClear" className="quiet" title="Drops every kept sweep" aria-label="Drop every kept sweep"
+            style={keeper.kept.length ? undefined : { visibility: "hidden" }} onClick={keeper.onClear}>×</button>
+          <Help text="Keeps the sweep on the chart, to compare the next sweeps with, up to three." />
+        </div>
+      )}
+      {off ? (
+        <div className="panel-actions one">
+          <button id="reconnectBtn" className="primary" disabled={!!vna.unsupported || vna.connecting} onClick={() => void vna.connect()}>
+            {vna.connecting ? "Connecting…" : "Reconnect NanoVNA"}</button>
+        </div>
+      ) : (
+        <div className="panel-actions">
+          <button id="sweepBtn" className="primary" disabled={vna.live || !!p} onClick={() => void vna.sweep()}>Sweep</button>
+          <button id="liveBtn" className={vna.live ? "on" : ""} disabled={!!p && !vna.live} onClick={() => vna.setLive(!vna.live)}>{vna.live ? "Hold" : "Live"}</button>
+        </div>
+      )}
+      </>}
     </div>
   ) : (
     <div className="row">
@@ -222,6 +294,16 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
   // NanoVNA keeps its panel in view, file or not; Change holds only the ways
   // out: Disconnect, and a file instead. With only a file open, the card
   // shrinks to its name, and Change offers another file or the NanoVNA.
+  if (off) {
+    return (
+      <div className="card" id="loadCard">
+        {header(true)}
+        {device}
+        {changing && <div className="change">{drop}</div>}
+        {shell.window}
+      </div>
+    );
+  }
   if (d || opened) {
     return (
       <div className="card" id="loadCard">
@@ -483,11 +565,75 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref, onPin, onV
 
 /** Files to save. A file that does not apply to what is loaded is left out;
  *  one with nothing to save yet is off. */
-export function ExportCard({ onPhoto, onChart, onCsv, onS1p }: {
+/** What an export saves: the sweep, one kept sweep by its number, or all of them in a .zip. */
+export type ExportPick = "latest" | number | "all";
+
+/** A kept sweep Export can save, by its number. `s1p`: it has Touchstone data. */
+export interface ExportKept { n: number; s1p: boolean }
+
+/** An export button. With sweeps kept, a ▾ at its end opens a menu of what
+ *  else it can save; the button itself saves the sweep. The menu opens
+ *  downward, or upward where the window has no room below. It sits on the
+ *  window, not in the sidebar, which would cut it off, so a scroll or a
+ *  resize closes it. */
+function SplitExport({ id, label, onSave, kept, s1p = false }: {
+  id: string; label: string; onSave: (pick: ExportPick) => void; kept: readonly ExportKept[]; s1p?: boolean;
+}): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const [place, setPlace] = useState<React.CSSProperties | null>(null);
+  const box = useRef<HTMLSpanElement>(null), menu = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: PointerEvent): void => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent): void => { if (e.key === "Escape") setOpen(false); };
+    const close = (): void => setOpen(false);
+    document.addEventListener("pointerdown", down);
+    document.addEventListener("keydown", esc);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", down); document.removeEventListener("keydown", esc);
+      window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close);
+    };
+  }, [open]);
+  // Down when it fits under the button, up when it fits only above.
+  useLayoutEffect(() => {
+    if (!open || !box.current || !menu.current) { setPlace(null); return; }
+    const r = box.current.getBoundingClientRect(), h = menu.current.offsetHeight, gap = 4, edge = 8;
+    const down = r.bottom + gap + h <= window.innerHeight - edge || r.top - gap - h < edge;
+    setPlace({ left: r.left, width: r.width, ...(down ? { top: r.bottom + gap } : { bottom: window.innerHeight - r.top + gap }) });
+  }, [open]);
+  const pick = (p: ExportPick): void => { setOpen(false); onSave(p); };
+  if (!kept.length) return <button id={id} onClick={() => onSave("latest")}>{label}</button>;
+  return (
+    <span className="split" ref={box}>
+      <button id={id} className="main" onClick={() => onSave("latest")}>{label}</button>
+      <button type="button" className="more" aria-haspopup="menu" aria-expanded={open} aria-label={`Choose which ${label} to save`} onClick={() => setOpen(!open)}>▾</button>
+      {open && (
+        <div className="split-menu" role="menu" aria-label={label} ref={menu} style={place ?? { visibility: "hidden" }}>
+          {/* Each row has a mark in the same slot, so the names line up. */}
+          <button type="button" role="menuitem" onClick={() => pick("latest")}><span><i className="mk latest" />Latest</span></button>
+          {kept.map((k) => (
+            <button key={k.n} type="button" role="menuitem" disabled={s1p && !k.s1p} onClick={() => pick(k.n)}>
+              <span><i className={`mk n k${k.n}`}>{k.n}</i>Kept sweep {k.n}</span>{s1p && !k.s1p && <small>no Touchstone data</small>}
+            </button>
+          ))}
+          <button type="button" role="menuitem" onClick={() => pick("all")}>
+            <span><i className="mk all"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="4.5" y="1.5" width="9" height="9" rx="2" /><rect x="1.5" y="4.5" width="9" height="9" rx="2" /></svg></i>All (.zip)</span>
+          </button>
+        </div>
+      )}
+    </span>
+  );
+}
+
+export function ExportCard({ onPhoto, onChart, onCsv, onS1p, kept = [] }: {
   onPhoto: (() => void) | null;
   onChart: (() => void) | null;
-  onCsv: (() => void) | null;
-  onS1p: (() => void) | null;
+  onCsv: ((pick: ExportPick) => void) | null;
+  onS1p: ((pick: ExportPick) => void) | null;
+  /** The kept sweeps, newest first, for the SWR and Touchstone menus. */
+  kept?: readonly ExportKept[];
 }): React.ReactElement {
   return (
     <div className="card" id="exportCard">
@@ -495,8 +641,8 @@ export function ExportCard({ onPhoto, onChart, onCsv, onS1p }: {
       <div className="stack">
         {onPhoto && <button id="expPhoto" onClick={onPhoto}>Photo with overlay (.png)</button>}
         <button id="expChart" disabled={!onChart} onClick={onChart ?? undefined}>Chart (.png)</button>
-        <button id="expCsv" disabled={!onCsv} onClick={onCsv ?? undefined}>SWR (.csv)</button>
-        {onS1p && <button id="expS1p" onClick={onS1p}>Touchstone (.s1p)</button>}
+        {onCsv ? <SplitExport id="expCsv" label="SWR (.csv)" onSave={onCsv} kept={kept} /> : <button id="expCsv" disabled>SWR (.csv)</button>}
+        {onS1p && <SplitExport id="expS1p" label="Touchstone (.s1p)" onSave={onS1p} kept={kept} s1p />}
       </div>
     </div>
   );
