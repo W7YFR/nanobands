@@ -7,6 +7,12 @@ them.
 
 ## Unreleased
 
+## v1.19.0 — 2026-11-14
+
+### Added
+
+- Hovering a pill under the chart lights its border and shows a tooltip. A sweep's tooltip gives its range.
+
 ## v1.18.0 — 2026-11-14
 
 ### Added

@@ -16,7 +16,9 @@
  * With sweeps kept, a row of pills under the chips shows or hides each line:
  * the sweep itself (Latest, or Live while Live sweeps), the kept sweeps
  * newest first, and the dip path. Each pill names its line's dip in view.
- * Keeping and dropping sweeps is the NanoVNA panel's work, not the chart's.
+ * Over a pill, or with it focused from the keyboard, a tooltip names its
+ * line and gives the line's range. Keeping and dropping sweeps is the
+ * NanoVNA panel's work, not the chart's.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
@@ -61,11 +63,30 @@ export interface Showing {
   onDipPath(on: boolean): void;
 }
 
-/** One pill: a line's mark, its name, and a click to hide or show it. */
-function Pill({ cls, on, title, onClick, children }: { cls: string; on: boolean; title: string; onClick(): void; children: React.ReactNode }): React.ReactElement {
+/** A frequency in MHz with no trailing zeros, as the NanoVNA panel gives a range. */
+const mhz = (f: number): number => +f.toFixed(6);
+
+/** A line's range, such as `3–55 MHz`. */
+const rangeOf = (f: Float64Array): string => `${mhz(f[0]!)}–${mhz(f[f.length - 1]!)} MHz`;
+
+/** What a pill's tooltip says: the line's name, and its range or what it does. */
+interface TipText { name: string; text: string }
+
+/** One pill: a line's mark, its name, and a click to hide or show it. A
+ *  mouse over it, or keyboard focus on it, shows its tooltip under it. */
+function Pill({ cls, on, tip, onTip, onClick, children }: {
+  cls: string; on: boolean; tip: TipText; onTip(t: { tip: TipText; at: DOMRect } | null): void; onClick(): void; children: React.ReactNode;
+}): React.ReactElement {
+  const show = (el: HTMLElement): void => onTip({ tip, at: el.getBoundingClientRect() });
   return (
     <span className={"keptChip " + cls + (on ? "" : " off")}>
-      <button type="button" aria-pressed={on} title={title} onClick={onClick}>{children}</button>
+      <button type="button" aria-pressed={on} aria-description={`${tip.name} · ${tip.text}`} onClick={onClick}
+        onPointerEnter={(e) => { if (e.pointerType === "mouse") show(e.currentTarget); }}
+        onPointerLeave={() => onTip(null)}
+        onFocus={(e) => { if (e.currentTarget.matches(":focus-visible")) show(e.currentTarget); }}
+        onBlur={() => onTip(null)}>
+        {children}
+      </button>
     </span>
   );
 }
@@ -79,21 +100,34 @@ export function ShowRow({ showing: k, curve, range, top, zoomed }: {
     return d ? `${fmtF(d.f)} · ${d.s >= top ? "≥" + top : d.s.toFixed(2)}` : <span className="none">No dip</span>;
   };
   const live = k.curveName === "Live";
+  const [tip, setTip] = useState<{ tip: TipText; at: DOMRect } | null>(null);
+  // A pill that goes takes its tooltip with it.
+  useEffect(() => setTip(null), [k.kept.length]);
   return (
     <div className="kept" id="showRow">
       <span className="keptChips">
-        <Pill cls={"now" + (live ? " live" : "")} on={k.curveOn} title={`${k.curveOn ? "Hide" : "Show"} the ${live ? "live" : "latest"} sweep`} onClick={() => k.onCurve(!k.curveOn)}>
+        <Pill cls={"now" + (live ? " live" : "")} on={k.curveOn} onTip={setTip} onClick={() => k.onCurve(!k.curveOn)}
+          tip={{ name: k.curveName, text: curve ? rangeOf(curve.f) : "No sweep" }}>
           {live ? <i className="pulse" /> : <span className="sw" />}{k.curveName} · {curve ? dip(curve.f, curve.s) : "—"}
         </Pill>
         {k.kept.map((x, i) => ({ x, i, n: keptNumber(k.kept, i) })).reverse().map(({ x, i, n }) => (
-          <Pill key={n} cls={`k${n}`} on={x.on} title={`${x.on ? "Hide" : "Show"} kept sweep ${n}`} onClick={() => k.onToggle(i)}>
+          <Pill key={n} cls={`k${n}`} on={x.on} onTip={setTip} onClick={() => k.onToggle(i)} tip={{ name: `Kept ${n}`, text: rangeOf(x.f) }}>
             <span className="n">{n}</span>{dip(x.f, x.s)}
           </Pill>
         ))}
-        <Pill cls="path" on={k.dipPath} title={zoomed ? "Joins the kept sweeps' dips to the sweep's dip" : "Pick a band to see the dip path"} onClick={() => k.onDipPath(!k.dipPath)}>
+        <Pill cls="path" on={k.dipPath} onTip={setTip} onClick={() => k.onDipPath(!k.dipPath)}
+          tip={{ name: "Dip path", text: zoomed ? "Joins the kept sweeps' dips to the sweep's dip" : "Pick a band to see the dip path" }}>
           <span className="sw" />Dip path
         </Pill>
       </span>
+      {tip && (
+        <div className="chartTip" id="pillTip" style={{
+          top: tip.at.bottom + 6,
+          ...(tip.at.left > window.innerWidth - 260 ? { right: window.innerWidth - tip.at.right } : { left: tip.at.left }),
+        }}>
+          <b>{tip.tip.name}</b> · {tip.tip.text}
+        </div>
+      )}
     </div>
   );
 }
