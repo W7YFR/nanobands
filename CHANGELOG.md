@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.18.0 — 2026-11-14
+
 ### Added
 
 - **Open another file** has a **▾** that adds a Touchstone file as a kept sweep. A file already on the chart is not added again.
