@@ -9,7 +9,7 @@ them.
 
 ### Added
 
-- The pills under the chart light up on hover. A tooltip under each one names its line and gives the line's range.
+- Hovering a pill under the chart lights its border and shows a tooltip. A sweep's tooltip gives its range.
 
 ## v1.18.0 — 2026-11-14
 
