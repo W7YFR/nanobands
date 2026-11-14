@@ -4,8 +4,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { analyze } from "@/analysis";
 import { Busy } from "@/ui/Busy";
-import { KeptRow, type Keeping } from "@/ui/ChartCard";
-import { AnalyzeCard, CalibrateCard, LoadCard } from "@/ui/Cards";
+import { ShowRow, type Showing } from "@/ui/ChartCard";
+import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, type Keeper } from "@/ui/Cards";
 import { Landing } from "@/ui/Landing";
 import { BANDS } from "@/bands";
 import { DEFAULT_FIELDS, DEFAULT_PREFS, bandView, checkAt, settingsOf } from "@/ui/model";
@@ -111,55 +111,129 @@ describe("AnalyzeCard", () => {
   });
 });
 
-describe("KeptRow", () => {
-  const kept = [2, 3].map((n) => ({ n, f: Float64Array.from([14, 14.1, 14.2]), s: Float64Array.from([2, 1.3 + n / 10, 6]), on: n === 2 }));
-  const keeping = (over: Partial<Keeping> = {}): Keeping => ({
-    kept, dipPath: true, canKeep: true, onKeep: vi.fn(), onToggle: vi.fn(), onDrop: vi.fn(), onClear: vi.fn(), onDipPath: vi.fn(), ...over,
+describe("ShowRow", () => {
+  // Oldest first: kept sweep 2, then 1. Kept sweep 2 is hidden.
+  const kept = [1.6, 1.5].map((dip, i) => ({ f: Float64Array.from([14, 14.1, 14.2]), s: Float64Array.from([2, dip, 6]), on: i === 1 }));
+  const curve = { N: 3, f: Float64Array.from([14, 14.1, 14.2]), s: Float64Array.from([2, 1.2, 3]) };
+  const showing = (over: Partial<Showing> = {}): Showing => ({
+    kept, curveName: "Latest", curveOn: true, dipPath: true, onCurve: vi.fn(), onToggle: vi.fn(), onDipPath: vi.fn(), ...over,
   });
 
-  it("offers only Keep with nothing kept", () => {
-    render(<KeptRow keeping={keeping({ kept: [] })} range={[14, 14.2]} top={5} zoomed />);
-    expect(screen.getByRole("button", { name: "Keep" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Clear" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Dip path" })).toBeNull();
+  it("lists the sweep, the kept sweeps newest first, then the dip path, each with its dip", () => {
+    render(<ShowRow showing={showing()} curve={curve} range={[14, 14.2]} top={5} zoomed />);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Latest · 14.100 · 1.20", "114.100 · 1.50", "214.100 · 1.60", "Dip path"]);
+    expect(screen.getByRole("button", { name: /^2/ }).getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("names each kept sweep by its number and its dip in view, and wires its buttons", () => {
-    const k = keeping();
-    render(<KeptRow keeping={k} range={[14, 14.2]} top={5} zoomed />);
-    const chip = screen.getByRole("button", { name: "2 14.100 · 1.50" });
-    expect(chip.getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "3 14.100 · 1.60" }).getAttribute("aria-pressed")).toBe("false");
-    fireEvent.click(chip);
-    expect(k.onToggle).toHaveBeenCalledWith(2);
-    fireEvent.click(screen.getByRole("button", { name: "Drop kept sweep 3" }));
-    expect(k.onDrop).toHaveBeenCalledWith(3);
+  it("shows or hides each line, and drops nothing", () => {
+    const k = showing();
+    render(<ShowRow showing={k} curve={curve} range={[14, 14.2]} top={5} zoomed />);
+    fireEvent.click(screen.getByRole("button", { name: /^Latest/ }));
+    expect(k.onCurve).toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByRole("button", { name: /^1/ }));
+    expect(k.onToggle).toHaveBeenCalledWith(1);
     fireEvent.click(screen.getByRole("button", { name: "Dip path" }));
     expect(k.onDipPath).toHaveBeenCalledWith(false);
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-    expect(k.onClear).toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Keep" }));
-    expect(k.onKeep).toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Drop/ })).toBeNull();
   });
 
-  it("holds Keep while the sweep is kept already", () => {
-    render(<KeptRow keeping={keeping({ canKeep: false })} range={[14, 14.2]} top={5} zoomed />);
-    expect((screen.getByRole("button", { name: "Keep" }) as HTMLButtonElement).disabled).toBe(true);
+  it("says Live while Live sweeps", () => {
+    render(<ShowRow showing={showing({ curveName: "Live" })} curve={curve} range={[14, 14.2]} top={5} zoomed />);
+    expect(screen.getByRole("button", { name: /^Live · 14.100/ })).toBeTruthy();
   });
 
-  it("says a dip over the top of the scale is at least the top", () => {
-    render(<KeptRow keeping={keeping({ kept: [{ ...kept[0]!, s: Float64Array.from([7, 6, 8]) }] })} range={[14, 14.2]} top={5} zoomed />);
-    expect(screen.getByRole("button", { name: "2 14.100 · ≥5" })).toBeTruthy();
-  });
-
-  it("names no dip for a kept sweep whose dip is out of view", () => {
-    render(<KeptRow keeping={keeping({ kept: [{ ...kept[0]!, s: Float64Array.from([1.2, 2, 3]) }] })} range={[14, 14.2]} top={5} zoomed />);
-    expect(screen.getByRole("button", { name: "2 —" })).toBeTruthy();
+  it("says No dip for a line whose dip is out of view, and at least the top over the scale", () => {
+    const out = [{ f: Float64Array.from([14, 14.1, 14.2]), s: Float64Array.from([1.2, 2, 3]), on: true }, { f: Float64Array.from([14, 14.1, 14.2]), s: Float64Array.from([7, 6, 8]), on: true }];
+    render(<ShowRow showing={showing({ kept: out })} curve={curve} range={[14, 14.2]} top={5} zoomed />);
+    expect(screen.getByRole("button", { name: /^2\s*No dip$/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^1\s*14.100 · ≥5$/ })).toBeTruthy();
   });
 
   it("says to pick a band for the dip path in the full sweep", () => {
-    render(<KeptRow keeping={keeping()} range={[14, 14.2]} top={5} zoomed={false} />);
+    render(<ShowRow showing={showing()} curve={curve} range={[14, 14.2]} top={5} zoomed={false} />);
     expect(screen.getByRole("button", { name: "Dip path" }).title).toBe("Pick a band to see the dip path");
+  });
+});
+
+describe("the Keep row", () => {
+  const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7 } } as unknown as NanoVNA;
+  const range = { start: 3e6, stop: 55e6, points: 401 };
+  const kept = [0, 1, 2].map(() => ({ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: true }));
+  const keeper = (over: Partial<Keeper> = {}): Keeper => ({ kept, canKeep: true, onKeep: vi.fn(), onDrop: vi.fn(), onClear: vi.fn(), ...over });
+
+  it("keeps, drops one or drops them all, newest first", () => {
+    const k = keeper();
+    render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range })} keeper={k} />);
+    expect(screen.getAllByRole("button", { name: /^Drop kept sweep/ }).map((b) => b.getAttribute("aria-label"))).toEqual(["Drop kept sweep 1", "Drop kept sweep 2", "Drop kept sweep 3"]);
+    fireEvent.click(screen.getByRole("button", { name: "Drop kept sweep 1" }));
+    expect(k.onDrop).toHaveBeenCalledWith(2);
+    fireEvent.click(screen.getByRole("button", { name: "Drop every kept sweep" }));
+    expect(k.onClear).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "+ Keep" }));
+    expect(k.onKeep).toHaveBeenCalled();
+  });
+
+  it("holds + Keep while the sweep is kept already", () => {
+    render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range })} keeper={keeper({ canKeep: false })} />);
+    expect((screen.getByRole("button", { name: "+ Keep" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe("ExportCard", () => {
+  it("saves the sweep from plain buttons with nothing kept", () => {
+    const onCsv = vi.fn(), onS1p = vi.fn();
+    render(<ExportCard onPhoto={null} onChart={vi.fn()} onCsv={onCsv} onS1p={onS1p} />);
+    expect(screen.queryByRole("button", { name: /Choose which/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "SWR (.csv)" }));
+    expect(onCsv).toHaveBeenCalledWith("latest");
+  });
+
+  it("offers the sweep, each kept sweep and all of them, with sweeps kept", () => {
+    const onS1p = vi.fn();
+    render(<ExportCard onPhoto={null} onChart={vi.fn()} onCsv={vi.fn()} onS1p={onS1p} kept={[{ n: 1, s1p: true }, { n: 2, s1p: false }]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Touchstone (.s1p)" }));
+    expect(onS1p).toHaveBeenLastCalledWith("latest");
+    fireEvent.click(screen.getByRole("button", { name: "Choose which Touchstone (.s1p) to save" }));
+    expect(screen.getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Latest", "1Kept sweep 1", "2Kept sweep 2no Touchstone data", "All (.zip)"]);
+    // A sweep kept before its Touchstone data was saved has none to give.
+    expect(screen.getByRole("menuitem", { name: /Kept sweep 2/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Kept sweep 1/ }));
+    expect(onS1p).toHaveBeenLastCalledWith(1);
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Choose which Touchstone (.s1p) to save" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "All (.zip)" }));
+    expect(onS1p).toHaveBeenLastCalledWith("all");
+  });
+});
+
+describe("the NanoVNA panel without the NanoVNA", () => {
+  const origin = { board: "NanoVNA-H 4", version: "1.2.44", slot: "3–55 MHz · 401 points", start: 3e6, stop: 55e6, points: 401, at: Date.now() };
+  const keeper: Keeper = { kept: [{ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: true }], canKeep: true, onKeep: vi.fn(), onDrop: vi.fn(), onClear: vi.fn() };
+
+  it("says where the sweep came from, and offers Reconnect", () => {
+    const vna = vnaStub();
+    const { container } = render(<LoadCard source="vna" fileName="nanovna-3-55mhz.s1p" over={false} onBrowse={() => {}} vna={vna} keeper={keeper} origin={origin}
+      fine={[{ band: "20m", lo: 14, hi: 14.35 }]} />);
+    expect(container.querySelector(".status")?.textContent).toBe("Not connected");
+    expect(container.querySelector("#vnaInfo")?.textContent).toBe("NanoVNA-H 4 · firmware 1.2.44");
+    expect(container.querySelector("#vnaSwept")?.textContent).toMatch(/^Today, /);
+    expect(container.querySelector("#vnaRange")?.textContent).toBe("3–55 MHz · 401 points");
+    expect((container.querySelector("#vnaSlot") as HTMLSelectElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Sweep" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Reconnect NanoVNA" }));
+    expect(vna.connect).toHaveBeenCalled();
+  });
+
+  it("grays out what needs the NanoVNA, and still drops kept sweeps", () => {
+    render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vnaStub()} keeper={keeper} origin={origin} fine={[{ band: "20m", lo: 14, hi: 14.35 }]} />);
+    for (const name of ["Read", "Shell", "+ Keep", "20m", "+ Band"]) expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Drop kept sweep 1" }));
+    expect(keeper.onDrop).toHaveBeenCalledWith(0);
+  });
+
+  it("says why when the NanoVNA went away", () => {
+    render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ note: "The NanoVNA was unplugged or turned off." })} origin={origin} />);
+    expect(screen.getByText("The NanoVNA was unplugged or turned off.")).toBeTruthy();
   });
 });
 
@@ -222,8 +296,8 @@ describe("LoadCard", () => {
     const vna = vnaStub({ device, range: { start: 144e6, stop: 148e6, points: 101 }, slots, slot: 0 });
     render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vna} />);
     expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "Slot 0 · 144–148 MHz", "Slot 1 · 13–15 MHz · S11 only", "Slot 2 · empty", "Slot 3 · unknown",
-      "Slot 4", "Slot 5", "Slot 6",
+      "144–148 MHz · 101 points", "13–15 MHz · 101 points · S11 only", "Empty", "Unknown",
+      "Not read", "Not read", "Not read",
     ]);
     expect(screen.getByLabelText("Calibration")).toHaveValue("0");
     // The device is on a known slot, so Read starts at once.
@@ -341,8 +415,9 @@ describe("the shell", () => {
   beforeEach(() => localStorage.clear());
 
   it("is offered only while a device is connected", () => {
+    // A NanoVNA sweep keeps its panel without the device, and Shell waits for Reconnect.
     const { rerender } = render(<ShellCard vna={vnaStub()} />);
-    expect(screen.queryByRole("button", { name: "Shell" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Shell" })).toBeDisabled();
     rerender(<ShellCard vna={vnaStub({ device })} />);
     expect(screen.getByRole("button", { name: "Shell" })).toBeEnabled();
   });
@@ -351,7 +426,7 @@ describe("the shell", () => {
     const { rerender } = render(<ShellCard vna={vnaStub({ device })} />);
     fireEvent.click(screen.getByRole("button", { name: "Shell" }));
     rerender(<ShellCard vna={vnaStub()} />);
-    expect(screen.queryByRole("button", { name: "Shell" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Shell" })).toBeDisabled();
     expect(screen.getByRole("dialog", { name: "Shell" })).toHaveTextContent("Not connected");
     expect(screen.getByLabelText("Command")).toBeDisabled();
   });

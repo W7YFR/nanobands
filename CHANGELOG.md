@@ -7,6 +7,30 @@ them.
 
 ## Unreleased
 
+## v1.17.0 — 2026-11-14
+
+### Added
+
+- The chart's **Latest** pill hides the sweep, to compare the kept sweeps alone. It says **Live** while Live sweeps.
+- The chart's hover readout gives each kept sweep's SWR as well.
+- With sweeps kept, **SWR (.csv)** and **Touchstone (.s1p)** have a **▾** that saves the latest sweep, one kept sweep, or **All (.zip)**.
+- After a reload or a disconnect, the NanoVNA panel stays. It says where the sweep came from and when, and **Reconnect NanoVNA** connects again.
+
+### Changed
+
+- **Keep** moves to the NanoVNA panel as **+ Keep**, in a **Keep** row with a pill per kept sweep to drop it. The chart's pills only show or hide lines.
+- Kept sweeps are numbered from the newest, each in its own color. **Dip path** is white, and a pill of its own.
+- A kept sweep whose dip is out of view says **No dip**.
+- The **Fine** pills match the **Keep** pills, and **+ Band** has a row of its own.
+- The **Calibration** menu names each slot by its range and points, such as **3–55 MHz · 401 points**, without its number.
+- Each menu's arrow sits clear of its right edge.
+- **Connect NanoVNA** and **Reconnect NanoVNA** open a NanoVNA used before without asking for its port.
+
+### Fixed
+
+- The page now notices at once when the NanoVNA is unplugged or turned off.
+- The **Fine** row's label, **×** and **?** line up with its pills.
+
 ## v1.16.0 — 2026-11-12
 
 ### Added

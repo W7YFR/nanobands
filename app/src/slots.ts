@@ -95,12 +95,15 @@ const mhz = (hz: number): number => +(hz / 1e6).toFixed(6);
  *  one, the device's readings are raw. */
 export const calibrated = (cal: readonly string[]): boolean => cal.includes("cal'ed");
 
-/** The menu's name for a slot, such as "Slot 6 · 3–55 MHz". The Range row shows its points. */
-export function slotLabel(i: number, s: Slot | undefined): string {
-  if (!s) return `Slot ${i}`;
-  if (s.kind !== "set") return `Slot ${i} · ${s.kind}`;
+/** The menu's name for a slot, such as "3–55 MHz · 401 points". The menu
+ *  lists the slots in order, so the name leaves out the number. The points
+ *  tell apart two slots of the same range. */
+export function slotLabel(s: Slot | undefined): string {
+  if (!s) return "Not read";
+  if (s.kind === "empty") return "Empty";
+  if (s.kind === "unknown") return "Unknown";
   const cal = !calibrated(s.cal) ? " · no calibration" : !s.cal.includes("Et") ? " · S11 only" : "";
-  return `Slot ${i} · ${mhz(s.range.start)}–${mhz(s.range.stop)} MHz${cal}`;
+  return `${mhz(s.range.start)}–${mhz(s.range.stop)} MHz · ${s.range.points} points${cal}`;
 }
 
 /* ---------------- The cache ---------------- */

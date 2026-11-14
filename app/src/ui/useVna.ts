@@ -15,10 +15,10 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { NanoVNA, VnaError, type Range, type Scan } from "@/vna";
+import { NanoVNA, VnaError, type DeviceInfo, type Range, type Scan } from "@/vna";
 import type { Fine } from "@/fine";
 import { commandMs } from "@/shell";
-import { loadSlots, readSlots as readAll, slotOf, storeSlots, type Slot } from "@/slots";
+import { loadSlots, readSlots as readAll, slotLabel, slotOf, storeSlots, type Slot } from "@/slots";
 import { connectPort, serialApi, type SerialLike } from "@/vna-serial";
 
 /** One pass: the whole range's scan if it had one, each fine band's scan,
@@ -82,7 +82,11 @@ export interface Vna {
 
 const log = (line: unknown): void => console.info("[NanoVNA]", line);
 
-export function useVna(onSweep: (pass: Pass, board: string, range: Range) => void): Vna {
+/** The note when the NanoVNA goes away. */
+export const GONE = "The NanoVNA was unplugged or turned off.";
+
+/** `onSweep` gets each pass, the device, its range, and its slot as the Calibration menu names it, or null as set. */
+export function useVna(onSweep: (pass: Pass, info: DeviceInfo, range: Range, slot: string | null) => void): Vna {
   const [serial, setSerial] = useState<SerialLike | string>(() => serialApi());
   const [device, setDevice] = useState<NanoVNA | null>(null);
   const [range, setRange] = useState<Range | null>(null);
@@ -109,13 +113,18 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
   const slotList = useRef<Slot[] | null>(null);
   const setSlots = (s: Slot[] | null): void => { slotList.current = s; setSlotsState(s); };
   const dev = useRef<NanoVNA | null>(null), rng = useRef<Range | null>(null), liveOn = useRef(false), busy = useRef(false);
-  const sink = useRef(onSweep);
-  useLayoutEffect(() => { sink.current = onSweep; });
+  const sink = useRef(onSweep), slotNow = useRef<number | null>(null);
+  useLayoutEffect(() => { sink.current = onSweep; slotNow.current = slot; });
 
   // `make dev` at ?fake: a stand-in NanoVNA, for work without the device.
   useEffect(() => {
     if (!import.meta.env.DEV || !new URLSearchParams(location.search).has("fake")) return;
-    void import("@/vna-fake").then(({ FakeNanoVNA }) => setSerial(new FakeNanoVNA({ noise: 0.004 }).serial()));
+    void import("@/vna-fake").then(({ FakeNanoVNA }) => {
+      const fake = new FakeNanoVNA({ noise: 0.004 });
+      // The console can pull its cable: fakeNanoVNA.unplug().
+      (window as { fakeNanoVNA?: unknown }).fakeNanoVNA = fake;
+      setSerial(fake.serial());
+    });
   }, []);
 
   const stopLive = (): void => { liveOn.current = false; setLiveState(false); };
@@ -137,8 +146,9 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
   const fail = useCallback((e: unknown): void => {
     console.error("[NanoVNA]", e);
     stopLive();
-    setNote(e instanceof Error ? e.message : String(e));
-    if (!(e instanceof VnaError) || e.closed) void disconnect();
+    const closed = !(e instanceof VnaError) || e.closed;
+    setNote(e instanceof VnaError && e.closed ? GONE : e instanceof Error ? e.message : String(e));
+    if (closed) void disconnect();
   }, [disconnect]);
 
   /** Sweep one pass and hand it on. Live passes `hold` to leave the device
@@ -159,7 +169,8 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
     }
     if (!hold) await d.resume();
     if (gen.current !== g || dev.current !== d) return;
-    sink.current(pass, d.info.board, r);
+    const at = slotNow.current;
+    sink.current(pass, d.info, r, at === null ? null : slotLabel(slotList.current?.[at]));
   }, []);
 
   const connect = useCallback(async (): Promise<void> => {
@@ -177,6 +188,12 @@ export function useVna(onSweep: (pass: Pass, board: string, range: Range) => voi
       setCal(terms);
       dev.current = d;
       rng.current = r;
+      // Unplugged or turned off: the panel says so at once, with no command running.
+      void link.gone?.then(() => {
+        if (dev.current !== d) return;
+        setNote(GONE);
+        void disconnect();
+      });
       dropFine();
       setDevice(d);
       setRange(r);

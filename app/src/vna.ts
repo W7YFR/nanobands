@@ -20,6 +20,8 @@ export interface Link {
   /** The next chunk of text, or null when the link has closed. */
   read(): Promise<string | null>;
   close(): Promise<void>;
+  /** Settles when the device goes away, unplugged or turned off, even with no command running. */
+  gone?: Promise<void>;
 }
 
 const PROMPT = "ch> ";

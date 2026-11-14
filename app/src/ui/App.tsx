@@ -18,11 +18,12 @@ import { openStore } from "@/store";
 import { looksLikeScreen } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { traceBest } from "@/trace";
-import { toTouchstone, type Scan } from "@/vna";
-import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type FineChoice, type Mode } from "./Cards";
+import { toTouchstone, type DeviceInfo, type Scan } from "@/vna";
+import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type ExportPick, type FineChoice, type Keeper, type Mode } from "./Cards";
+import { zip } from "@/zip";
 import { AskNumber } from "./AskNumber";
 import { Busy } from "./Busy";
-import { ChartCard, type Keeping } from "./ChartCard";
+import { ChartCard, type Showing } from "./ChartCard";
 import { Confirm } from "./Confirm";
 import { drawChart } from "./draw-chart";
 import { Disclaimer } from "./Disclaimer";
@@ -32,8 +33,8 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
-  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, isHeif, isKept, keep, loadImage, photoFrom, pickBand, rectOf, sameView, settingsOf, swrOn, viewAround, viewOf,
-  type Doc, type Fields, type FineSpan, type Photo, type Picked, type Prefs, type Trace,
+  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, isHeif, isKept, keep, keptNumber, loadImage, photoFrom, pickBand, rectOf, sameView, settingsOf, swrOn, viewAround, viewOf,
+  type Doc, type Fields, type FineSpan, type Origin, type Photo, type Picked, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
 import { applySnapshot, snapshotOf, type Snapshot } from "./session";
@@ -176,13 +177,14 @@ export function App(): React.ReactElement {
   /** Show Touchstone data. A repeat sweep of the same range keeps the pins and
    *  the zoom. `fine` lists the bands fine sweeps filled in. Says whether the
    *  file had a sweep to show. */
-  const showTouchstone = useCallback((text: string, name: string, source: "s1p" | "vna", repeat: boolean, fine: FineSpan[] = []): boolean => {
+  const showTouchstone = useCallback((text: string, name: string, source: "s1p" | "vna", repeat: boolean, fine: FineSpan[] = [], origin: Origin | null = null): boolean => {
     const { f, s } = parseTouchstone(text);
     if (f.length < 2) { setProblem(NO_S11); return false; }
     setDoc((d) => ({
       ...(repeat ? d : EMPTY_DOC),
       // Kept sweeps stay from one NanoVNA sweep to the next.
       kept: source === "vna" ? d.kept : [],
+      origin: source === "vna" ? origin ?? d.origin : null,
       source, fileName: name, s1p: { text, name }, fine, photo: null, corners: null, straight: false, refs: [], grid: null, ocr: null,
       trace: { kind: "data", N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) },
       fields: { ...(repeat ? d.fields : DEFAULT_FIELDS), start: String(+f[0]!.toFixed(4)), stop: String(+f[f.length - 1]!.toFixed(4)) },
@@ -250,40 +252,48 @@ export function App(): React.ReactElement {
   const fullScan = useRef<Scan | null>(null);
   const fineScans = useRef(new Map<string, { span: FineSpan; scan: Scan }>());
   /** Show the full sweep with the fine sweeps kept, and keep it for a refresh. */
-  const showSweep = (board: string, r: { start: number; stop: number }): void => {
+  const showSweep = (info: DeviceInfo, r: { start: number; stop: number; points: number }, slot: string | null): void => {
     const fines = [...fineScans.current.values()].sort((a, b) => a.span.lo - b.span.lo);
     if (!fullScan.current) return;
     const data = fines.reduce((d, x) => mergeScan(d, x.scan), fullScan.current);
     const spans = fines.map((x) => x.span);
     // A fine sweep keeps the range's name: it is that sweep, filled in.
-    const name = `nanovna-${mhz(r.start)}-${mhz(r.stop)}mhz.s1p`, text = toTouchstone(data, board);
+    const name = `nanovna-${mhz(r.start)}-${mhz(r.stop)}mhz.s1p`, text = toTouchstone(data, info.board);
     const d = docRef.current, repeat = d.source === "vna" && d.s1p?.name === name;
     const blob = new Blob([text], { type: "text/plain" });
     if (repeat) void store.set("file", { blob, name, fromVna: true });
     else saveFile(blob, name, true);
-    showTouchstone(text, name, "vna", repeat, spans);
+    showTouchstone(text, name, "vna", repeat, spans,
+      { board: info.board, version: info.version, slot, start: r.start, stop: r.stop, points: r.points, at: Date.now() });
   };
-  const vna = useVna((pass, board, r) => {
+  const vna = useVna((pass, info, r, slot) => {
     if (pass.full) fullScan.current = pass.full;
     for (const { fine, scan } of pass.fines) fineScans.current.set(fine.band, { span: { band: fine.band, lo: fine.start / 1e6, hi: fine.stop / 1e6 }, scan });
     for (const band of fineScans.current.keys()) if (!pass.bands.some((b) => b.band === band)) fineScans.current.delete(band);
-    showSweep(board, r);
+    showSweep(info, r, slot);
   });
   /** ×: drop the fine sweeps from the page at once, then sweep the whole range. */
   const clearFine = (): void => {
     fineScans.current.clear();
-    if (vna.device && vna.range) showSweep(vna.device.info.board, vna.range);
+    if (vna.device && vna.range) showSweep(vna.device.info, vna.range, docRef.current.origin?.slot ?? null);
     void vna.setFine(null);
   };
-  /** The kept sweeps, with the NanoVNA's data on the chart. */
-  const keeping: Keeping | null = doc.source === "vna" ? {
-    kept: doc.kept, dipPath: prefs.dipPath, canKeep: !!curve && !isKept(doc.kept, curve),
-    onKeep: () => { if (curve && !isKept(docRef.current.kept, curve)) setDoc((d) => ({ ...d, kept: keep(d.kept, curve) })); },
-    onToggle: (n) => setDoc((d) => ({ ...d, kept: d.kept.map((k) => (k.n === n ? { ...k, on: !k.on } : k)) })),
-    onDrop: (n) => setDoc((d) => ({ ...d, kept: d.kept.filter((k) => k.n !== n) })),
+  /** The Keep row in the NanoVNA panel: Keep, and dropping kept sweeps. */
+  const keeper: Keeper | undefined = doc.source === "vna" ? {
+    kept: doc.kept, canKeep: !!curve && !isKept(doc.kept, curve),
+    onKeep: () => { if (curve && !isKept(docRef.current.kept, curve)) setDoc((d) => ({ ...d, kept: keep(d.kept, curve, d.s1p) })); },
+    onDrop: (i) => setDoc((d) => ({ ...d, kept: d.kept.filter((_, j) => j !== i) })),
     onClear: () => setDoc((d) => ({ ...d, kept: [] })),
+  } : undefined;
+  /** Whether the chart shows the sweep itself. A pill hides it while sweeps are kept; with none kept, it shows. */
+  const [curveOn, setCurveOn] = useState(true);
+  const showing: Showing | null = doc.source === "vna" && doc.kept.length ? {
+    kept: doc.kept, curveName: vna.live ? "Live" : "Latest", curveOn, dipPath: prefs.dipPath,
+    onCurve: setCurveOn,
+    onToggle: (i) => setDoc((d) => ({ ...d, kept: d.kept.map((k, j) => (j === i ? { ...k, on: !k.on } : k)) })),
     onDipPath: (on) => setPrefs((p) => ({ ...p, dipPath: on })),
   } : null;
+  useEffect(() => { if (!doc.kept.length) setCurveOn(true); }, [doc.kept.length]);
 
   /* ---------------- The saved session ---------------- */
 
@@ -492,17 +502,39 @@ export function App(): React.ReactElement {
     const W = cv.clientWidth, H = cv.clientHeight, c = document.createElement("canvas");
     c.width = W * 2;
     c.height = H * 2;
-    drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null, fine: doc.fine, readings: doc.source === "image" ? null : prefs.readings, kept: doc.kept, dipPath: prefs.dipPath });
+    drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null, fine: doc.fine, readings: doc.source === "image" ? null : prefs.readings,
+      kept: showing?.kept ?? [], dipPath: !!showing?.dipPath, hideCurve: !!showing && !showing.curveOn, curveName: showing?.curveName ?? "Latest" });
     download("swr-chart.png", c.toDataURL("image/png"));
   };
-  const exportCsv = (): void => {
-    if (!curve) return;
+  /** The kept sweeps, newest first, with their numbers. */
+  const keptByNumber = doc.kept.map((k, i) => ({ k, n: keptNumber(doc.kept, i) })).reverse();
+  /** Save one file as it is, or several, or All, as a .zip. */
+  const save = (files: { name: string; text: string }[], zipName: string, pick: ExportPick): void => {
+    const one = files.length === 1 && pick !== "all" ? files[0] : undefined;
+    const enc = new TextEncoder();
+    if (one) download(one.name, URL.createObjectURL(new Blob([one.text], { type: "text/plain" })));
+    else if (files.length) download(zipName, URL.createObjectURL(zip(files.map((f) => ({ name: f.name, data: enc.encode(f.text) })))));
+  };
+  /** Which of the sweep and the kept sweeps a pick takes. */
+  const takes = (pick: ExportPick, n: number | "latest"): boolean => pick === "all" || pick === n;
+  const csvOf = (f: Float64Array, s: Float64Array): string => {
     let csv = "freq_mhz,swr\n";
-    for (let i = 0; i < curve.N; i++) if (!Number.isNaN(curve.s[i]) && !Number.isNaN(curve.f[i])) csv += `${curve.f[i]!.toFixed(6)},${curve.s[i]!.toFixed(3)}\n`;
-    download("swr-trace.csv", URL.createObjectURL(new Blob([csv], { type: "text/csv" })));
+    for (let i = 0; i < f.length; i++) if (!Number.isNaN(s[i]) && !Number.isNaN(f[i])) csv += `${f[i]!.toFixed(6)},${s[i]!.toFixed(3)}\n`;
+    return csv;
+  };
+  const exportCsv = (pick: ExportPick): void => {
+    if (!curve) return;
+    save([
+      ...(takes(pick, "latest") ? [{ name: "swr-trace.csv", text: csvOf(curve.f, curve.s) }] : []),
+      ...keptByNumber.filter(({ n }) => takes(pick, n)).map(({ k, n }) => ({ name: `swr-trace-kept${n}.csv`, text: csvOf(k.f, k.s) })),
+    ], "swr-traces.zip", pick);
   };
   const s1p = doc.s1p;
-  const exportS1p = s1p ? (): void => download(s1p.name, URL.createObjectURL(new Blob([s1p.text], { type: "text/plain" }))) : null;
+  const stem = (name: string): string => name.replace(/\.s1p$/i, "");
+  const exportS1p = s1p ? (pick: ExportPick): void => save([
+    ...(takes(pick, "latest") ? [s1p] : []),
+    ...keptByNumber.flatMap(({ k, n }) => (takes(pick, n) && k.s1p ? [{ name: `${stem(k.s1p.name)}-kept${n}.s1p`, text: k.s1p.text }] : [])),
+  ], `${stem(s1p.name)}-sweeps.zip`, pick) : null;
 
   /* ---------------- Layout ---------------- */
 
@@ -581,7 +613,7 @@ export function App(): React.ReactElement {
               <aside>
                 <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} fine={doc.fine} onClearFine={clearFine}
                   choices={fineChoices} suggest={fineSuggest} onFine={doc.source === "vna" ? onFine : undefined}
-                  onFineAll={doc.source === "vna" ? onFineAll : undefined} />
+                  onFineAll={doc.source === "vna" ? onFineAll : undefined} keeper={keeper} origin={doc.origin} />
                 {doc.source === "image" && (
                   <>
                     <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr} straight={doc.straight} onStraight={onStraight}
@@ -593,7 +625,8 @@ export function App(): React.ReactElement {
                   </>
                 )}
                 <AnalyzeCard prefs={prefs} onPref={onPref} onPin={onPinFreq} onView={onViewFreq} check={check} sweep={sweep} thr={settings.thr} top={settings.top} />
-                <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p} />            </aside>
+                <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p}
+                  kept={doc.source === "vna" ? keptByNumber.map(({ k, n }) => ({ n, s1p: !!k.s1p })) : []} />            </aside>
               <main>
                 {opening ? (
                   <div className="card" id="opening">
@@ -610,7 +643,7 @@ export function App(): React.ReactElement {
                   live={vna.live ? (vna.focus && vna.focus !== "all" ? vna.focus.band : "") : null}
                   readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
                   scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
-                  fine={doc.fine} keeping={keeping} />
+                  fine={doc.fine} showing={showing} />
                 <div className="card" id="bandCard">
                   <h2>Band segments
                     <span style={{ flex: 1 }}></span>

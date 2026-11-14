@@ -55,13 +55,24 @@ describe("the session", () => {
     expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, { ...sv, fine: fine[0] as never }, noTrace).fine).toEqual([]);
   });
 
-  it("keeps a NanoVNA sweep's kept sweeps, and only a NanoVNA sweep's", () => {
-    const kept = [{ n: 2, f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: false }];
-    const sv = snapshotOf({ ...EMPTY_DOC, source: "vna", kept });
-    expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, sv, noTrace).kept).toEqual(kept);
-    expect(applySnapshot({ ...EMPTY_DOC, source: "s1p" }, sv, noTrace).kept).toEqual([]);
-    // A kept sweep without its readings is left out.
-    expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, { ...sv, kept: [{ n: 1, f: [14], s: [1] }] as never }, noTrace).kept).toEqual([]);
+  it("keeps a NanoVNA sweep's kept sweeps and where it came from, and only a NanoVNA sweep's", () => {
+    const kept = [{ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: false, s1p: { text: "# Hz S RI R 50", name: "nanovna-14-14.35mhz.s1p" } }];
+    const origin = { board: "NanoVNA-H 4", version: "1.2.44", slot: "Slot 2", start: 3e6, stop: 55e6, points: 401, at: 1_700_000_000_000 };
+    const sv = snapshotOf({ ...EMPTY_DOC, source: "vna", kept, origin });
+    const back = applySnapshot({ ...EMPTY_DOC, source: "vna" }, sv, noTrace);
+    expect(back.kept).toEqual(kept);
+    expect(back.origin).toEqual(origin);
+    const file = applySnapshot({ ...EMPTY_DOC, source: "s1p" }, sv, noTrace);
+    expect(file.kept).toEqual([]);
+    expect(file.origin).toBeNull();
+    // A kept sweep without its readings, or an origin without its range, is left out.
+    const bad = { ...sv, kept: [{ f: [14], s: [1] }], origin: { board: "NanoVNA-H 4", version: "1.2.44" } } as never;
+    expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, bad, noTrace)).toMatchObject({ kept: [], origin: null });
+  });
+
+  it("reads a kept sweep saved with its number", () => {
+    const old = { kept: [{ n: 4, f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: true }] } as never;
+    expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, old, noTrace).kept).toEqual([{ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: true }]);
   });
 
   it("traces a photo afresh when its snapshot has corners and no trace", () => {

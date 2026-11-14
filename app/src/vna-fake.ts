@@ -176,13 +176,21 @@ export class FakeNanoVNA {
     return { requestPort: async () => this.port() };
   }
 
+  private gone = new Set<() => void>();
+  private stream: ReadableStreamDefaultController<Uint8Array> | null = null;
+  /** Pull the cable: the port's stream fails and the port says `disconnect`, as a real one does. */
+  unplug(): void {
+    try { this.stream?.error(new Error("The device has been lost.")); } catch { /* closed */ }
+    for (const l of this.gone) l();
+  }
+
   private port(): SerialPortLike {
     const enc = new TextEncoder(), dec = new TextDecoder();
     let ctrl: ReadableStreamDefaultController<Uint8Array> | null = null, partial = "";
     let readable: ReadableStream<Uint8Array> | null = null, writable: WritableStream<Uint8Array> | null = null;
     return {
       open: async () => {
-        readable = new ReadableStream({ start: (c) => { ctrl = c; if (this.stale) c.enqueue(enc.encode(this.stale)); } });
+        readable = new ReadableStream({ start: (c) => { ctrl = this.stream = c; if (this.stale) c.enqueue(enc.encode(this.stale)); } });
         writable = new WritableStream({
           write: (chunk) => {
             partial += dec.decode(chunk, { stream: true });
@@ -200,6 +208,8 @@ export class FakeNanoVNA {
         });
       },
       close: async () => { try { ctrl?.close(); } catch { /* already closed */ } },
+      addEventListener: (_type, l) => { this.gone.add(l); },
+      removeEventListener: (_type, l) => { this.gone.delete(l); },
       get readable() { return readable; },
       get writable() { return writable; },
     };

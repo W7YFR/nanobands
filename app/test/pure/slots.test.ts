@@ -104,13 +104,16 @@ describe("readSlots", () => {
 
 describe("the slot menu", () => {
   const range = { start: 3e6, stop: 55e6, points: 401 };
-  it("names a slot by its range and calibration", () => {
-    expect(slotLabel(6, { kind: "set", range, cal: FULL })).toBe("Slot 6 · 3–55 MHz");
-    expect(slotLabel(1, { kind: "set", range: { start: 50e3, stop: 900e6, points: 101 }, cal: FULL })).toBe("Slot 1 · 0.05–900 MHz");
-    expect(slotLabel(4, { kind: "set", range, cal: ["load", "Es", "Er", "cal'ed"] })).toContain("· S11 only");
-    expect(slotLabel(5, { kind: "set", range, cal: [] })).toContain("· no calibration");
-    expect(slotLabel(2, { kind: "empty" })).toBe("Slot 2 · empty");
-    expect(slotLabel(3, undefined)).toBe("Slot 3");
+  it("names a slot by its range, points and calibration, without its number", () => {
+    expect(slotLabel({ kind: "set", range, cal: FULL })).toBe("3–55 MHz · 401 points");
+    expect(slotLabel({ kind: "set", range: { start: 50e3, stop: 900e6, points: 101 }, cal: FULL })).toBe("0.05–900 MHz · 101 points");
+    // Two slots of one range differ by their points.
+    expect(slotLabel({ kind: "set", range: { ...range, points: 101 }, cal: FULL })).not.toBe(slotLabel({ kind: "set", range, cal: FULL }));
+    expect(slotLabel({ kind: "set", range, cal: ["load", "Es", "Er", "cal'ed"] })).toContain("· S11 only");
+    expect(slotLabel({ kind: "set", range, cal: [] })).toContain("· no calibration");
+    expect(slotLabel({ kind: "empty" })).toBe("Empty");
+    expect(slotLabel({ kind: "unknown" })).toBe("Unknown");
+    expect(slotLabel(undefined)).toBe("Not read");
   });
 
   it("finds the slot that holds a range and calibration", () => {

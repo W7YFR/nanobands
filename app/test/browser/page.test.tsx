@@ -999,12 +999,12 @@ describe("a connected NanoVNA", () => {
     localStorage.removeItem("nanobands-slots");
     const from = device.log.length;
     $("#readSlots").click();
-    await until(() => $<HTMLSelectElement>("#vnaSlot").options[1]?.textContent === "Slot 1 · 0.05–900 MHz");
+    await until(() => $<HTMLSelectElement>("#vnaSlot").options[1]?.textContent === "0.05–900 MHz · 101 points");
     const slot = $<HTMLSelectElement>("#vnaSlot");
     expect([...slot.options].map((o) => o.textContent)).toEqual([
-      "Slot 0 · 144–148 MHz", "Slot 1 · 0.05–900 MHz", "Slot 2 · 14–14.35 MHz",
-      "Slot 3 · 28–30 MHz", "Slot 4 · 13–15 MHz · S11 only", "Slot 5 · 6–50 MHz",
-      "Slot 6 · 3–55 MHz",
+      "144–148 MHz · 101 points", "0.05–900 MHz · 101 points", "14–14.35 MHz · 101 points",
+      "28–30 MHz · 101 points", "13–15 MHz · 101 points · S11 only", "6–50 MHz · 101 points",
+      "3–55 MHz · 401 points",
     ]);
     await until(() => $("#readSlots").textContent === "Read");
     expect(has("#busy")).toBe(false);
@@ -1042,8 +1042,8 @@ describe("a connected NanoVNA", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     await until(() => !has("#shell"));
     const names = [...$<HTMLSelectElement>("#vnaSlot").options].map((o) => o.textContent);
-    expect(names).toContain("Slot 1");
-    expect(names).not.toContain("Slot 1 · 0.05–900 MHz");
+    expect(names).toContain("Not read");
+    expect(names).not.toContain("0.05–900 MHz · 101 points");
     device.slots = kept;
   });
 
@@ -1058,7 +1058,8 @@ describe("a connected NanoVNA", () => {
     // The Fine row offers + Band, and nothing more at the full view.
     expect($("#fineAdd").textContent).toBe("+ Band");
     expect(has("#fineSuggest")).toBe(false);
-    expect(has("#fineClear")).toBe(false);
+    // × waits, hidden, so the ? keeps its column.
+    expect($("#fineClear").style.visibility).toBe("hidden");
     // Zoomed to 40m, the row offers it.
     chipBtn("40m").click();
     await until(() => has("#fineSuggest"));
@@ -1130,7 +1131,8 @@ describe("a connected NanoVNA", () => {
     $("#fineClear").click();
     await frames(2);
     expect(fineRow()).toEqual([]);
-    expect(has("#fineClear")).toBe(false);
+    // × waits, hidden, so the ? keeps its column.
+    expect($("#fineClear").style.visibility).toBe("hidden");
     expect($("#resNote").textContent).not.toContain("fine");
     expect(chipBtn("40m").classList.contains("fined")).toBe(false);
     expect($("#liveNote").textContent).toBe("Live");
@@ -1293,8 +1295,10 @@ describe("a connected NanoVNA", () => {
     // As a scan typed in the shell leaves it.
     device.paused = true;
     $("#vnaBtn").click();
-    await until(() => $("#vnaBtn").textContent === "Connect NanoVNA");
-    expect(has("#vnaPanel")).toBe(false);
+    // The panel stays, without the NanoVNA, and offers Reconnect.
+    await until(() => has("#reconnectBtn"));
+    expect($("#vnaPanel .status").textContent).toBe("Not connected");
+    expect($("#vnaInfo").textContent).toContain("firmware");
     expect(device.paused).toBe(false);
     expect($("#bandTable").textContent).toContain("2m");
     expect(has(".app.no-data")).toBe(false);
@@ -1305,10 +1309,18 @@ describe("a connected NanoVNA", () => {
     await until(() => $("#bandTable").textContent!.includes("2m"));
     expect(has("#fileName")).toBe(false);
     expect($("#resNote").textContent).toContain("from the NanoVNA");
-    // Connecting sweeps afresh, and the card still names no file.
-    $("#vnaBtn").click();
-    await until(() => has("#vnaPanel"));
+    // The panel waits without the NanoVNA. Reconnecting sweeps afresh, and the card still names no file.
+    expect($("#vnaPanel .status").textContent).toBe("Not connected");
+    $("#reconnectBtn").click();
+    await until(() => $("#vnaPanel .status").textContent === "Connected");
     expect(has("#fileName")).toBe(false);
+  });
+
+  it("notices at once when the NanoVNA is unplugged or turned off, with no command running", async () => {
+    device.unplug();
+    await until(() => has("#reconnectBtn"));
+    expect($("#vnaPanel .status").textContent).toBe("Not connected");
+    expect($("#vnaGone").textContent).toBe("The NanoVNA was unplugged or turned off.");
   });
 });
 
