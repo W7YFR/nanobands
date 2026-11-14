@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.17.0 — 2026-11-14
+
 ### Added
 
 - The chart's **Latest** pill hides the sweep, to compare the kept sweeps alone. It says **Live** while Live sweeps.
