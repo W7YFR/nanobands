@@ -55,16 +55,18 @@ describe("the session", () => {
     expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, { ...sv, fine: fine[0] as never }, noTrace).fine).toEqual([]);
   });
 
-  it("keeps a NanoVNA sweep's kept sweeps and where it came from, and only a NanoVNA sweep's", () => {
+  it("keeps a Touchstone sweep's kept sweeps, and where a NanoVNA sweep came from", () => {
     const kept = [{ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: false, s1p: { text: "# Hz S RI R 50", name: "nanovna-14-14.35mhz.s1p" } }];
     const origin = { board: "NanoVNA-H 4", version: "1.2.44", slot: "Slot 2", start: 3e6, stop: 55e6, points: 401, at: 1_700_000_000_000 };
     const sv = snapshotOf({ ...EMPTY_DOC, source: "vna", kept, origin });
     const back = applySnapshot({ ...EMPTY_DOC, source: "vna" }, sv, noTrace);
     expect(back.kept).toEqual(kept);
     expect(back.origin).toEqual(origin);
+    // An opened file keeps its kept sweeps too, but came from no NanoVNA.
     const file = applySnapshot({ ...EMPTY_DOC, source: "s1p" }, sv, noTrace);
-    expect(file.kept).toEqual([]);
+    expect(file.kept).toEqual(kept);
     expect(file.origin).toBeNull();
+    expect(applySnapshot({ ...EMPTY_DOC, source: "image" }, sv, noTrace).kept).toEqual([]);
     // A kept sweep without its readings, or an origin without its range, is left out.
     const bad = { ...sv, kept: [{ f: [14], s: [1] }], origin: { board: "NanoVNA-H 4", version: "1.2.44" } } as never;
     expect(applySnapshot({ ...EMPTY_DOC, source: "vna" }, bad, noTrace)).toMatchObject({ kept: [], origin: null });

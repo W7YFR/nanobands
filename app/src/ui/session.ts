@@ -59,7 +59,7 @@ export function applySnapshot(d: Doc, sv: Partial<Snapshot>, traceIt: (d: Doc) =
   if (d.source !== "image") {
     const ok = (f: FineSpan): boolean => typeof f?.band === "string" && Number.isFinite(f.lo) && Number.isFinite(f.hi);
     if (Array.isArray(sv.fine)) out = { ...out, fine: sv.fine.filter(ok) };
-    if (d.source !== "vna") return out;
+    // Kept sweeps come back with any Touchstone sweep; where it came from, only with the NanoVNA's.
     const isKept = (k: Kept): boolean => k?.f instanceof Float64Array && k.s instanceof Float64Array && k.f.length === k.s.length && k.f.length > 1;
     if (Array.isArray(sv.kept)) out = {
       ...out,
@@ -69,7 +69,7 @@ export function applySnapshot(d: Doc, sv: Partial<Snapshot>, traceIt: (d: Doc) =
       })),
     };
     const o = sv.origin;
-    const isOrigin = typeof o?.board === "string" && typeof o.version === "string" && [o.start, o.stop, o.points, o.at].every(Number.isFinite);
+    const isOrigin = d.source === "vna" && typeof o?.board === "string" && typeof o.version === "string" && [o.start, o.stop, o.points, o.at].every(Number.isFinite);
     return isOrigin ? { ...out, origin: { board: o.board, version: o.version, slot: typeof o.slot === "string" ? o.slot : null, start: o.start, stop: o.stop, points: o.points, at: o.at } } : out;
   }
   const isNote = (n: unknown): boolean => typeof n === "object" && n !== null && "kind" in n;

@@ -131,6 +131,7 @@ button.text:hover,button.text:focus-visible{text-decoration:underline;outline:no
    opens what else it can save. The menu sits on the window; the page places
    it under the button, or over it where the window has no room below. */
 .split{position:relative;display:flex}
+.split.wide{flex:1}
 .split .main{flex:1;min-width:0;border-radius:6px 0 0 6px}
 .split .more{flex:none;width:38px;margin-left:-1px;border-radius:0 6px 6px 0;color:var(--muted)}
 .split .more:hover,.split .more[aria-expanded="true"]{color:var(--text)}
@@ -238,10 +239,13 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 #fineMenu button:disabled small{color:var(--faint)}
 #fineClear,#keptClear{flex:none}
 /* Fine and Keep: rows of pills. The label, × and ? line up with the first row. */
-.panel .row.fine,.panel .row.keep{flex-wrap:nowrap;align-items:flex-start}
-.panel .row.fine > label,.panel .row.keep > label{line-height:22px}
-.panel .row.fine > .quiet,.panel .row.keep > .quiet{line-height:16px}
-.panel .row.fine > .help,.panel .row.keep > .help{margin-top:2px}
+.panel .row.fine,.row.keep{flex-wrap:nowrap;align-items:flex-start}
+.panel .row.fine > label,.row.keep > label{line-height:22px}
+.panel .row.fine > .quiet,.row.keep > .quiet{line-height:16px}
+.panel .row.fine > .help,.row.keep > .help{margin-top:2px}
+/* An opened file's kept sweeps, under its name. */
+.file-keep{margin-top:10px}
+.file-keep .row.keep{margin:0}
 /* Keep: a pill per kept sweep in thirds, newest first, then + Keep on a row of its own. */
 #vnaKeep{flex:1;min-width:0;display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
 /* The whole pill drops its kept sweep. It shows its number; under the
@@ -297,7 +301,8 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 .keptChips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
 .keptChip{display:inline-flex;align-items:center;flex:none;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
 .keptChip button{display:inline-flex;align-items:center;gap:6px;border:none;background:none;font-size:12px;padding:3px 9px 3px 8px;border-radius:12px;white-space:nowrap}
-.keptChip .n,.kp .n,.split-menu .n{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--k);color:var(--k);font-size:10px;line-height:1}
+/* As the chart draws a kept dip's number. */
+.keptChip .n,.kp .n,.split-menu .n{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;border-radius:50%;border:1px solid var(--k);color:var(--k);font:600 10px/1 -apple-system,Segoe UI,sans-serif}
 .keptChip .none{color:var(--muted)}
 /* The sweep's mark is its solid green line; Live's, the pulsing dot. The dip path's is dotted white. */
 .keptChip .sw{width:14px;height:0;border-top:2px solid var(--ok)}
