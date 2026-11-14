@@ -16,6 +16,7 @@ import pkg from "../../../package.json";
 import { FakeNanoVNA, fakeSwr } from "@/vna-fake";
 import { detectGrid } from "@/grid";
 import { openStore } from "@/store";
+import { zip } from "@/zip";
 import type { Snapshot } from "@/ui/session";
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string): T => document.querySelector<T>(sel)!;
@@ -844,6 +845,58 @@ describe("an opened .s1p file", () => {
     await mount();
     await until(() => has("#fileName"));
     expect($("#fileName").textContent).toBe("dipole.s1p");
+  });
+
+  it("opens Export's All (.zip) with its kept sweeps, and adds a file as a kept sweep unless it is one already", async () => {
+    const dialog = (): HTMLElement | null => document.querySelector<HTMLElement>("[role=alertdialog]");
+    const button = (label: string): HTMLButtonElement => [...dialog()!.querySelectorAll("button")].find((b) => b.textContent === label)!;
+    // The latest sweep, and two kept sweeps with their dips moved down.
+    const moved = (mhz: number): string => S1P.replace(/^([\d.]+) ([-\d.]+) 0$/gm, (_, f: string) => {
+      const swr = Math.min(10, 1.2 + ((+f - mhz) / 1.5) ** 2), g = (swr - 1) / (swr + 1);
+      return `${f} ${g.toFixed(6)} 0`;
+    });
+    const enc = new TextEncoder();
+    const set = zip([
+      { name: "dipole.s1p", data: enc.encode(S1P) },
+      { name: "dipole-kept1.s1p", data: enc.encode(moved(13.8)) },
+      { name: "dipole-kept2.s1p", data: enc.encode(moved(13.4)) },
+    ]);
+    openFile(new File([set], "dipole-sweeps.zip", { type: "application/zip" }));
+    await until(() => document.querySelectorAll("#vnaKeep .kp").length === 2);
+    expect($("#fileName").textContent).toBe("dipole.s1p");
+    const pills = (): string[] => [...document.querySelectorAll("#showRow button")].map((b) => b.textContent!);
+    expect(pills()).toEqual(["Latest · 14.205 · 1.20", "113.800 · 1.20", "213.395 · 1.20", "Dip path"]);
+
+    const addKept = (file: File): void => {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      const input = $<HTMLInputElement>("#keepFile");
+      input.files = dt.files;
+      fireEvent.change(input);
+    };
+    // Kept sweep 2's own file is on the chart already.
+    addKept(new File([moved(13.4)], "again.s1p", { type: "text/plain" }));
+    await until(() => dialog() !== null);
+    expect($("#modalTitle").textContent).toBe("That sweep is on the chart already.");
+    expect(dialog()!.textContent).toContain("kept sweep 2");
+    button("Close").click();
+    await until(() => dialog() === null);
+    // A new one becomes ①.
+    addKept(new File([moved(14.6)], "trimmed.s1p", { type: "text/plain" }));
+    await until(() => document.querySelectorAll("#vnaKeep .kp").length === 3);
+    expect(pills()[1]).toBe("114.610 · 1.20");
+
+    // They come back after a refresh, with the file.
+    await saved((s) => s.kept?.length === 3);
+    await mount();
+    await until(() => document.querySelectorAll("#vnaKeep .kp").length === 3);
+    expect($("#fileName").textContent).toBe("dipole.s1p");
+
+    // Replacing the sweep keeps the kept sweeps.
+    openFile(new File([moved(14.4)], "retuned.s1p", { type: "text/plain" }));
+    await until(() => $("#fileName").textContent === "retuned.s1p");
+    expect(document.querySelectorAll("#vnaKeep .kp").length).toBe(3);
+    expect(pills()[0]).toBe("Latest · 14.340 · 1.20");
   });
 
   it("starts over on Clear", async () => {

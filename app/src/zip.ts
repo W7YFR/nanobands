@@ -1,9 +1,12 @@
-/* A .zip of a few small text files, for the exports.
+/* A .zip of a few small text files: the exports write one, and opening one
+ * reads it back.
  *
- * Each file is stored as it is, not compressed: the files are a few tens of
- * kB, and any unzip tool opens a stored file. The format is PKWARE's
- * APPNOTE: a local header and the data for each file, then a central
- * directory that lists them, then its end record. Names are UTF-8.
+ * Each file is written as it is, not compressed: the files are a few tens of
+ * kB, and any unzip tool opens a stored file. Reading takes a stored file,
+ * or one deflated by another tool, through the browser's own decompressor.
+ * The format is PKWARE's APPNOTE: a local header and the data for each
+ * file, then a central directory that lists them, then its end record.
+ * Names are UTF-8.
  */
 
 export interface ZipFile {
@@ -79,4 +82,33 @@ export function zip(files: readonly ZipFile[], at = new Date()): Blob {
   end.setUint32(12, dirSize, true);
   end.setUint32(16, offset, true);
   return new Blob([...parts, ...central, new Uint8Array(end.buffer)] as BlobPart[], { type: "application/zip" });
+}
+
+/** The files in a .zip, read from its central directory. Folders are left
+ *  out. Throws on a file that is not a .zip, or one packed some other way
+ *  than stored or deflated. */
+export async function unzip(blob: Blob): Promise<ZipFile[]> {
+  const buf = new Uint8Array(await blob.arrayBuffer()), v = new DataView(buf.buffer);
+  // The end record: 22 bytes, after a comment of up to 64 kB.
+  let end = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 0xffff); i--) {
+    if (v.getUint32(i, true) === 0x06054b50) { end = i; break; }
+  }
+  if (end < 0) throw new Error("Not a .zip file.");
+  const dec = new TextDecoder(), count = v.getUint16(end + 10, true), out: ZipFile[] = [];
+  let at = v.getUint32(end + 16, true);
+  for (let n = 0; n < count; n++) {
+    if (v.getUint32(at, true) !== 0x02014b50) throw new Error("The .zip's directory is damaged.");
+    const method = v.getUint16(at + 10, true), packed = v.getUint32(at + 20, true);
+    const nameLen = v.getUint16(at + 28, true), extra = v.getUint16(at + 30, true), note = v.getUint16(at + 32, true);
+    const local = v.getUint32(at + 42, true), name = dec.decode(buf.subarray(at + 46, at + 46 + nameLen));
+    at += 46 + nameLen + extra + note;
+    if (name.endsWith("/")) continue;
+    const start = local + 30 + v.getUint16(local + 26, true) + v.getUint16(local + 28, true);
+    const raw = buf.slice(start, start + packed);
+    if (method === 0) out.push({ name, data: raw });
+    else if (method === 8) out.push({ name, data: new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer()) });
+    else throw new Error(`${name} is packed in a way NanoBands can't read.`);
+  }
+  return out;
 }

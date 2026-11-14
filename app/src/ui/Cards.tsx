@@ -84,7 +84,8 @@ export interface Keeper {
   kept: readonly Kept[];
   /** False while the sweep on the chart is kept already. */
   canKeep: boolean;
-  onKeep(): void;
+  /** Keep the sweep on the chart. Without it, as for an opened file, there is no + Keep. */
+  onKeep?: (() => void) | undefined;
   /** Drop a kept sweep, by its index, oldest first. */
   onDrop(i: number): void;
   onClear(): void;
@@ -96,7 +97,7 @@ function sweptAt(ms: number): string {
   return d.toDateString() === new Date().toDateString() ? `Today, ${time}` : `${d.toLocaleDateString([], { month: "short", day: "numeric" })}, ${time}`;
 }
 
-export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onClearFine, choices = [], suggest = null, onFine, onFineAll, keeper, origin = null }: {
+export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onClearFine, choices = [], suggest = null, onFine, onFineAll, keeper, origin = null, onAddKept }: {
   source: Doc["source"];
   fileName: string | null;
   over: boolean;
@@ -118,6 +119,8 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
   keeper?: Keeper | undefined;
   /** Where the NanoVNA sweep came from, for the panel without the NanoVNA. */
   origin?: Origin | null;
+  /** Open a Touchstone file as a kept sweep. With it, Open another file has a ▾ that offers it. */
+  onAddKept?: (() => void) | undefined;
 }): React.ReactElement {
   const d = vna.device;
   // A NanoVNA sweep with the NanoVNA gone, as after a reload or an unplug:
@@ -140,6 +143,26 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
   const status = p ? (vna.live ? `Sweeping all live · ${on(p.band)}` : `Sweeping ${on(p.band)} · ${p.at} of ${p.of}`)
     : vna.live ? (focus === "all" ? "Sweeping all live" : focus ? `Sweeping ${focus.band} live` : "Sweeping live") : vna.connecting ? "Connecting…" : "Connected";
 
+  // The Keep row: a pill per kept sweep, newest first, to drop it, and + Keep for the NanoVNA.
+  const keepRow = keeper && (
+    <div className="row keep">
+      <label>Keep</label>
+      {/* Newest first, as the chart's pills are; + Keep under them. */}
+      <span id="vnaKeep" role="group" aria-label="Kept sweeps">
+        {keeper.kept.map((_, i) => ({ i, n: keptNumber(keeper.kept, i) })).reverse().map(({ i, n }) => (
+          <button key={n} type="button" className={`kp k${n}`} aria-label={`Drop kept sweep ${n}`} title={`Drop kept sweep ${n}`} onClick={() => keeper.onDrop(i)}>
+            <span className="n">{n}</span><span className="x" aria-hidden="true">×</span>
+          </button>
+        ))}
+        {keeper.onKeep && <button id="keepBtn" type="button" className="add" disabled={off || !keeper.canKeep} onClick={keeper.onKeep}
+          title={off ? "Reconnect the NanoVNA to keep a sweep" : !keeper.canKeep ? "This sweep is kept. Sweep again to keep the next one"
+            : keeper.kept.length >= MAX_KEPT ? `Keeps this sweep, and drops kept sweep ${MAX_KEPT}` : undefined}>+ Keep</button>}
+      </span>
+      <button id="keptClear" className="quiet" title="Drops every kept sweep" aria-label="Drop every kept sweep"
+        style={keeper.kept.length ? undefined : { visibility: "hidden" }} onClick={keeper.onClear}>×</button>
+      <Help text="Keeps the sweep on the chart, to compare the next sweeps with, up to three." />
+    </div>
+  );
   const board = d ? d.info : origin;
   const range = d ? vna.range : origin && { start: origin.start, stop: origin.stop, points: origin.points };
   const device = d || off ? (
@@ -237,25 +260,7 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
           <Help text="Sweeps one band with all the NanoVNA's points, for more detail than the whole range gives." />
         </div>
       )}
-      {keeper && (
-        <div className="row keep">
-          <label>Keep</label>
-          {/* Newest first, as the chart's pills are; + Keep under them. */}
-          <span id="vnaKeep" role="group" aria-label="Kept sweeps">
-            {keeper.kept.map((_, i) => ({ i, n: keptNumber(keeper.kept, i) })).reverse().map(({ i, n }) => (
-              <button key={n} type="button" className={`kp k${n}`} aria-label={`Drop kept sweep ${n}`} title={`Drop kept sweep ${n}`} onClick={() => keeper.onDrop(i)}>
-                <span className="n">{n}</span><span className="x" aria-hidden="true">×</span>
-              </button>
-            ))}
-            <button id="keepBtn" type="button" className="add" disabled={off || !keeper.canKeep} onClick={keeper.onKeep}
-              title={off ? "Reconnect the NanoVNA to keep a sweep" : !keeper.canKeep ? "This sweep is kept. Sweep again to keep the next one"
-                : keeper.kept.length >= MAX_KEPT ? `Keeps this sweep, and drops kept sweep ${MAX_KEPT}` : undefined}>+ Keep</button>
-          </span>
-          <button id="keptClear" className="quiet" title="Drops every kept sweep" aria-label="Drop every kept sweep"
-            style={keeper.kept.length ? undefined : { visibility: "hidden" }} onClick={keeper.onClear}>×</button>
-          <Help text="Keeps the sweep on the chart, to compare the next sweeps with, up to three." />
-        </div>
-      )}
+      {keeper && keepRow}
       {off ? (
         <div className="panel-actions one">
           <button id="reconnectBtn" className="primary" disabled={!!vna.unsupported || vna.connecting} onClick={() => void vna.connect()}>
@@ -288,7 +293,17 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
     </h2>
   );
 
-  const openAnother = <div className="row"><button id="openAnother" className="wide" onClick={onBrowse}>Open another file</button></div>;
+  // With a Touchstone sweep on the chart, ▾ adds a file as a kept sweep instead of opening it in its place.
+  const openAnother = (
+    <div className="row">
+      {onAddKept ? (
+        <Split id="openAnother" className="wide" label="Open another file" moreLabel="Choose how to open the file" onMain={onBrowse} items={[
+          { key: "replace", label: "Replace the sweep", onPick: onBrowse },
+          { key: "keep", label: "Add as a kept sweep", onPick: onAddKept },
+        ]} />
+      ) : <button id="openAnother" className="wide" onClick={onBrowse}>Open another file</button>}
+    </div>
+  );
 
   // With the NanoVNA connected, or a file open, the step is done. A connected
   // NanoVNA keeps its panel in view, file or not; Change holds only the ways
@@ -299,7 +314,7 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
       <div className="card" id="loadCard">
         {header(true)}
         {device}
-        {changing && <div className="change">{drop}</div>}
+        {changing && <div className="change">{onAddKept ? openAnother : drop}</div>}
         {shell.window}
       </div>
     );
@@ -309,13 +324,15 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
       <div className="card" id="loadCard">
         {header(true)}
         {opened && <p className="loaded" id="fileName">{opened}</p>}
+        {/* An opened file has no panel: its kept sweeps sit under its name. */}
+        {opened && !d && keeper && keeper.kept.length > 0 && <div className="file-keep">{keepRow}</div>}
         {d && device}
         {d && note}
         {changing && (
           <div className="change">
             {d ? disconnect : openAnother}
             <div className="or">or</div>
-            {d ? (opened ? openAnother : drop) : <>{device}{note}</>}
+            {d ? (opened || onAddKept ? openAnother : drop) : <>{device}{note}</>}
           </div>
         )}
         {shell.window}
@@ -571,13 +588,15 @@ export type ExportPick = "latest" | number | "all";
 /** A kept sweep Export can save, by its number. `s1p`: it has Touchstone data. */
 export interface ExportKept { n: number; s1p: boolean }
 
-/** An export button. With sweeps kept, a ▾ at its end opens a menu of what
- *  else it can save; the button itself saves the sweep. The menu opens
- *  downward, or upward where the window has no room below. It sits on the
- *  window, not in the sidebar, which would cut it off, so a scroll or a
- *  resize closes it. */
-function SplitExport({ id, label, onSave, kept, s1p = false }: {
-  id: string; label: string; onSave: (pick: ExportPick) => void; kept: readonly ExportKept[]; s1p?: boolean;
+/** A row of a split button's menu: a mark in a slot of its own, so the names line up, and a note at the right. */
+export interface SplitItem { key: string; label: string; mark?: React.ReactNode; note?: string; disabled?: boolean; onPick(): void }
+
+/** A button with a ▾ at its end. The button does the usual thing; ▾ opens a
+ *  menu of the others. The menu opens downward, or upward where the window
+ *  has no room below. It sits on the window, not in the sidebar, which would
+ *  cut it off, so a scroll or a resize closes it. */
+function Split({ id, label, moreLabel, onMain, items, className }: {
+  id: string; label: string; moreLabel: string; onMain(): void; items: readonly SplitItem[]; className?: string;
 }): React.ReactElement {
   const [open, setOpen] = useState(false);
   const [place, setPlace] = useState<React.CSSProperties | null>(null);
@@ -603,28 +622,40 @@ function SplitExport({ id, label, onSave, kept, s1p = false }: {
     const down = r.bottom + gap + h <= window.innerHeight - edge || r.top - gap - h < edge;
     setPlace({ left: r.left, width: r.width, ...(down ? { top: r.bottom + gap } : { bottom: window.innerHeight - r.top + gap }) });
   }, [open]);
-  const pick = (p: ExportPick): void => { setOpen(false); onSave(p); };
-  if (!kept.length) return <button id={id} onClick={() => onSave("latest")}>{label}</button>;
   return (
-    <span className="split" ref={box}>
-      <button id={id} className="main" onClick={() => onSave("latest")}>{label}</button>
-      <button type="button" className="more" aria-haspopup="menu" aria-expanded={open} aria-label={`Choose which ${label} to save`} onClick={() => setOpen(!open)}>▾</button>
+    <span className={"split" + (className ? " " + className : "")} ref={box}>
+      <button id={id} type="button" className="main" onClick={onMain}>{label}</button>
+      <button type="button" className="more" aria-haspopup="menu" aria-expanded={open} aria-label={moreLabel} onClick={() => setOpen(!open)}>▾</button>
       {open && (
         <div className="split-menu" role="menu" aria-label={label} ref={menu} style={place ?? { visibility: "hidden" }}>
-          {/* Each row has a mark in the same slot, so the names line up. */}
-          <button type="button" role="menuitem" onClick={() => pick("latest")}><span><i className="mk latest" />Latest</span></button>
-          {kept.map((k) => (
-            <button key={k.n} type="button" role="menuitem" disabled={s1p && !k.s1p} onClick={() => pick(k.n)}>
-              <span><i className={`mk n k${k.n}`}>{k.n}</i>Kept sweep {k.n}</span>{s1p && !k.s1p && <small>no Touchstone data</small>}
+          {items.map((it) => (
+            <button key={it.key} type="button" role="menuitem" disabled={it.disabled} onClick={() => { setOpen(false); it.onPick(); }}>
+              <span>{it.mark}{it.label}</span>{it.note && <small>{it.note}</small>}
             </button>
           ))}
-          <button type="button" role="menuitem" onClick={() => pick("all")}>
-            <span><i className="mk all"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="4.5" y="1.5" width="9" height="9" rx="2" /><rect x="1.5" y="4.5" width="9" height="9" rx="2" /></svg></i>All (.zip)</span>
-          </button>
         </div>
       )}
     </span>
   );
+}
+
+/** An export button. With sweeps kept, its menu saves the latest sweep, one kept sweep, or all of them. */
+function SplitExport({ id, label, onSave, kept, s1p = false }: {
+  id: string; label: string; onSave: (pick: ExportPick) => void; kept: readonly ExportKept[]; s1p?: boolean;
+}): React.ReactElement {
+  if (!kept.length) return <button id={id} onClick={() => onSave("latest")}>{label}</button>;
+  const items: SplitItem[] = [
+    { key: "latest", label: "Latest", mark: <i className="mk latest" />, onPick: () => onSave("latest") },
+    ...kept.map((k): SplitItem => ({
+      key: `kept${k.n}`, label: `Kept sweep ${k.n}`, mark: <i className={`mk n k${k.n}`}>{k.n}</i>,
+      ...(s1p && !k.s1p ? { disabled: true, note: "no Touchstone data" } : {}), onPick: () => onSave(k.n),
+    })),
+    {
+      key: "all", label: "All (.zip)", onPick: () => onSave("all"),
+      mark: <i className="mk all"><svg viewBox="0 0 15 15" aria-hidden="true"><rect x="4.5" y="1.5" width="9" height="9" rx="2" /><rect x="1.5" y="4.5" width="9" height="9" rx="2" /></svg></i>,
+    },
+  ];
+  return <Split id={id} label={label} moreLabel={`Choose which ${label} to save`} onMain={() => onSave("latest")} items={items} />;
 }
 
 export function ExportCard({ onPhoto, onChart, onCsv, onS1p, kept = [] }: {

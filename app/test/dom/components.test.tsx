@@ -206,6 +206,30 @@ describe("ExportCard", () => {
   });
 });
 
+describe("an opened file's kept sweeps", () => {
+  const kept = [0, 1].map(() => ({ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: true }));
+  const keeper: Keeper = { kept, canKeep: false, onDrop: vi.fn(), onClear: vi.fn() };
+
+  it("sit under the file's name, with no + Keep", () => {
+    const { container } = render(<LoadCard source="s1p" fileName="dipole.s1p" over={false} onBrowse={() => {}} vna={vnaStub()} keeper={keeper} onAddKept={vi.fn()} />);
+    expect(container.querySelector(".file-keep #vnaKeep")).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: /^Drop kept sweep/ })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "+ Keep" })).toBeNull();
+  });
+
+  it("can come from a file, through Open another file's menu", () => {
+    const onBrowse = vi.fn(), onAddKept = vi.fn();
+    render(<LoadCard source="s1p" fileName="dipole.s1p" over={false} onBrowse={onBrowse} vna={vnaStub()} keeper={keeper} onAddKept={onAddKept} />);
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open another file" }));
+    expect(onBrowse).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Choose how to open the file" }));
+    expect(screen.getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Replace the sweep", "Add as a kept sweep"]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add as a kept sweep" }));
+    expect(onAddKept).toHaveBeenCalledOnce();
+  });
+});
+
 describe("the NanoVNA panel without the NanoVNA", () => {
   const origin = { board: "NanoVNA-H 4", version: "1.2.44", slot: "3–55 MHz · 401 points", start: 3e6, stop: 55e6, points: 401, at: Date.now() };
   const keeper: Keeper = { kept: [{ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: true }], canKeep: true, onKeep: vi.fn(), onDrop: vi.fn(), onClear: vi.fn() };

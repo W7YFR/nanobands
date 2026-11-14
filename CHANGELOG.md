@@ -7,6 +7,12 @@ them.
 
 ## Unreleased
 
+### Added
+
+- **Open another file** has a **▾** that adds a Touchstone file as a kept sweep. A file already on the chart is not added again.
+- Opening an **All (.zip)** from Export brings back its latest sweep and kept sweeps.
+- An opened Touchstone file can have kept sweeps too, and opening another in its place keeps them. Its **Keep** row sits under its name.
+
 ## v1.17.0 — 2026-11-14
 
 ### Added

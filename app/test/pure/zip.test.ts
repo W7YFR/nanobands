@@ -1,7 +1,8 @@
-/* The .zip the exports save: its checksums, and a layout any unzip tool reads. */
+/* The .zip the exports save, and reading one back: its checksums, a layout
+ * any unzip tool reads, and a deflated file from another tool. */
 
 import { describe, expect, it } from "vitest";
-import { crc32, zip } from "@/zip";
+import { crc32, unzip, zip } from "@/zip";
 
 const enc = new TextEncoder(), dec = new TextDecoder();
 
@@ -35,5 +36,26 @@ describe("zip", () => {
       at += 46 + nameLen;
     }
     expect(read).toEqual(files.map((f) => ({ name: f.name, text: dec.decode(f.data) })));
+  });
+});
+
+describe("unzip", () => {
+  it("reads back what zip writes", async () => {
+    const files = [{ name: "a.s1p", data: enc.encode("first") }, { name: "dir/b-kept1.s1p", data: enc.encode("second") }];
+    expect((await unzip(zip(files))).map((f) => ({ name: f.name, text: dec.decode(f.data) }))).toEqual([
+      { name: "a.s1p", text: "first" }, { name: "dir/b-kept1.s1p", text: "second" },
+    ]);
+  });
+
+  it("inflates a file another tool deflated", async () => {
+    // `zip -9 -X deflated.zip sweep.s1p`, from Info-ZIP on macOS.
+    const b64 = "UEsDBBQAAgAIAJZpbl3LaTPQNgAAAHYAAAAJAAAAc3dlZXAuczFwU1RISU3LSSxJVchNxc7kUlbwqFIIVgjyVAhSMDXgMjQxAAMFAz1DIDYCChiiCxihCxijCgAAUEsBAh4DFAACAAgAlmluXctpM9A2AAAAdgAAAAkAAAAAAAAAAQAAAKSBAAAAAHN3ZWVwLnMxcFBLBQYAAAAAAQABADcAAABdAAAAAAA=";
+    const [f] = await unzip(new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))]));
+    expect(f!.name).toBe("sweep.s1p");
+    expect(dec.decode(f!.data)).toBe("! deflate me deflate me deflate me\n# Hz S RI R 50\n14000000 0.1 0.2\n14100000 0.1 0.2\n14200000 0.1 0.2\n14300000 0.1 0.2\n");
+  });
+
+  it("refuses a file that is not a .zip", async () => {
+    await expect(unzip(new Blob(["just text"]))).rejects.toThrow("Not a .zip file.");
   });
 });

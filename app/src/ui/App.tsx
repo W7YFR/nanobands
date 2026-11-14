@@ -17,10 +17,11 @@ import { DIVISIONS, type SwrScale } from "@/scale-text";
 import { openStore } from "@/store";
 import { looksLikeScreen } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
+import { sweepSet, type SweepSet } from "@/sweep-set";
 import { traceBest } from "@/trace";
 import { toTouchstone, type DeviceInfo, type Scan } from "@/vna";
 import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type ExportPick, type FineChoice, type Keeper, type Mode } from "./Cards";
-import { zip } from "@/zip";
+import { unzip, zip } from "@/zip";
 import { AskNumber } from "./AskNumber";
 import { Busy } from "./Busy";
 import { ChartCard, type Showing } from "./ChartCard";
@@ -33,8 +34,8 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 import { Landing } from "./Landing";
 import {
-  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, isHeif, isKept, keep, keptNumber, loadImage, photoFrom, pickBand, rectOf, sameView, settingsOf, swrOn, viewAround, viewOf,
-  type Doc, type Fields, type FineSpan, type Origin, type Photo, type Picked, type Prefs, type Trace,
+  DEFAULT_FIELDS, DEFAULT_PREFS, EMPTY_DOC, analysisOf, bandView, checkAt, curveOf, defaultCorners, isHeif, isKept, keep, keptNumber, loadImage, MAX_KEPT, photoFrom, pickBand, rectOf, sameView, settingsOf, swrOn, viewAround, viewOf,
+  type Curve, type Doc, type Fields, type FineSpan, type Kept, type Origin, type Photo, type Picked, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
 import { applySnapshot, snapshotOf, type Snapshot } from "./session";
@@ -51,10 +52,14 @@ const CLS_KEY = "nanobands-license";
 const CLASSES: readonly string[] = ["E", "A", "G", "T"];
 
 /** A file that did not open, as the dialog says it. */
-interface Problem { title: string; text: string }
+/** A file that did not open. `keep`: it was to be a kept sweep, so the dialog offers another for that. */
+interface Problem { title: string; text: string; keep?: boolean }
 const NO_S11: Problem = { title: "Couldn't find S11 data in that file.", text: "NanoBands reads the S11 sweep from a Touchstone .s1p or .s2p file." };
 const NO_IMAGE: Problem = { title: "Couldn't read that image.", text: "The file is damaged, or in a format this browser can't open." };
 /** Only Safari opens a HEIC photo. */
+const NO_SET = (why: string): Problem => ({ title: "Couldn't find the sweeps in that .zip.", text: `${why} NanoBands opens the All (.zip) that Export saves.` });
+const NO_ZIP: Problem = { title: "Couldn't read that .zip.", text: "The file is damaged, or not a .zip." };
+const SAME = (which: string): Problem => ({ title: "That sweep is on the chart already.", text: `Its readings match ${which}.`, keep: true });
 const NO_HEIC: Problem = { title: "This browser can't open HEIC photos.", text: "Open the page in Safari or on the iPhone, or save the photo as a JPEG." };
 
 
@@ -111,6 +116,12 @@ function withScale(d: Doc, sc: SwrScale | null, per: number | null): Doc {
   return d;
 }
 
+/** A Touchstone file's readings as a curve, or null when it has none. */
+function touchstoneCurve(text: string): Curve | null {
+  const { f, s } = parseTouchstone(text);
+  return f.length < 2 ? null : { N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) };
+}
+
 /** The sweep solved from the frequency references, when there are two. */
 function withRefs(d: Doc, refs: Doc["refs"]): Doc {
   const r = solveRefs(refs);
@@ -137,7 +148,7 @@ export function App(): React.ReactElement {
   const docRef = useRef(doc), bootingRef = useRef(booting);
   useLayoutEffect(() => { docRef.current = doc; bootingRef.current = booting; });
   const ocrJob = useRef(0), sensTimer = useRef<ReturnType<typeof setTimeout>>(undefined), kRef = useRef(1);
-  const chartRef = useRef<HTMLCanvasElement>(null), fileIn = useRef<HTMLInputElement>(null);
+  const chartRef = useRef<HTMLCanvasElement>(null), fileIn = useRef<HTMLInputElement>(null), keepIn = useRef<HTMLInputElement>(null);
   const heroRef = useRef<HTMLDivElement>(null), nameRef = useRef<HTMLSpanElement>(null), subRef = useRef<HTMLSpanElement>(null);
 
   /* ---------------- What the page shows ---------------- */
@@ -182,8 +193,8 @@ export function App(): React.ReactElement {
     if (f.length < 2) { setProblem(NO_S11); return false; }
     setDoc((d) => ({
       ...(repeat ? d : EMPTY_DOC),
-      // Kept sweeps stay from one NanoVNA sweep to the next.
-      kept: source === "vna" ? d.kept : [],
+      // Kept sweeps stay when a Touchstone sweep replaces another.
+      kept: d.source === "vna" || d.source === "s1p" ? d.kept : [],
       origin: source === "vna" ? origin ?? d.origin : null,
       source, fileName: name, s1p: { text, name }, fine, photo: null, corners: null, straight: false, refs: [], grid: null, ocr: null,
       trace: { kind: "data", N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) },
@@ -225,11 +236,33 @@ export function App(): React.ReactElement {
     void readSweep(photo, job, g);
   }, [readSweep]);
 
+  /** Open Export's All (.zip): the latest sweep, as an opened file, and each kept sweep in its place. */
+  const openZip = useCallback(async (file: Blob): Promise<void> => {
+    let set: SweepSet | string;
+    try {
+      const dec = new TextDecoder();
+      set = sweepSet((await unzip(file)).map((f) => ({ name: f.name, text: dec.decode(f.data) })), MAX_KEPT);
+    } catch {
+      setProblem(NO_ZIP);
+      return;
+    }
+    if (typeof set === "string") { setProblem(NO_SET(set)); return; }
+    const { latest, kept } = set;
+    if (!showTouchstone(latest.text, latest.name, "s1p", false)) return;
+    saveFile(new Blob([latest.text], { type: "text/plain" }), latest.name);
+    const back = kept.flatMap((k): Kept[] => {
+      const c = touchstoneCurve(k.text);
+      return c ? [{ f: c.f, s: c.s, on: true, s1p: { text: k.text, name: k.name.replace(/-kept\d+(\.[^.]+)$/i, "$1") } }] : [];
+    });
+    setDoc((d) => ({ ...d, kept: back }));
+  }, [showTouchstone, saveFile]);
+
   const handleFile = useCallback((file: File): void => {
     const name = file.name || "pasted image";
+    if (/\.zip$/i.test(name)) { void openZip(file); return; }
     // A new file starts a new session: keep the file, forget what was done to
-    // the last one. A file that does not open is not kept, so a refresh
-    // brings back the last one.
+    // the last one, all but its kept sweeps. A file that does not open is not
+    // kept, so a refresh brings back the last one.
     if (isTouchstone(name)) { void file.text().then((t) => { if (showTouchstone(t, name, "s1p", false)) saveFile(file, name); }); return; }
     // Decode it first, so a photo the browser cannot open goes straight to
     // the dialog. Then the work holds the page for a moment: show the page
@@ -241,7 +274,7 @@ export function App(): React.ReactElement {
         try { await openPhoto(im, name); saveFile(file, name); } finally { setOpening(null); }
       })
       .catch(async () => setProblem(await isHeif(file) ? NO_HEIC : NO_IMAGE));
-  }, [saveFile, showTouchstone, openPhoto]);
+  }, [saveFile, showTouchstone, openPhoto, openZip]);
 
   const over = useFileDrop(handleFile);
 
@@ -279,21 +312,34 @@ export function App(): React.ReactElement {
     void vna.setFine(null);
   };
   /** The Keep row in the NanoVNA panel: Keep, and dropping kept sweeps. */
-  const keeper: Keeper | undefined = doc.source === "vna" ? {
+  /** Whether the chart shows a Touchstone sweep, the NanoVNA's or a file's: one that can have kept sweeps. */
+  const touchstone = doc.source === "vna" || doc.source === "s1p";
+  const keeper: Keeper | undefined = touchstone ? {
     kept: doc.kept, canKeep: !!curve && !isKept(doc.kept, curve),
-    onKeep: () => { if (curve && !isKept(docRef.current.kept, curve)) setDoc((d) => ({ ...d, kept: keep(d.kept, curve, d.s1p) })); },
+    onKeep: doc.source === "vna" ? () => { if (curve && !isKept(docRef.current.kept, curve)) setDoc((d) => ({ ...d, kept: keep(d.kept, curve, d.s1p) })); } : undefined,
     onDrop: (i) => setDoc((d) => ({ ...d, kept: d.kept.filter((_, j) => j !== i) })),
     onClear: () => setDoc((d) => ({ ...d, kept: [] })),
   } : undefined;
   /** Whether the chart shows the sweep itself. A pill hides it while sweeps are kept; with none kept, it shows. */
   const [curveOn, setCurveOn] = useState(true);
-  const showing: Showing | null = doc.source === "vna" && doc.kept.length ? {
+  const showing: Showing | null = touchstone && doc.kept.length ? {
     kept: doc.kept, curveName: vna.live ? "Live" : "Latest", curveOn, dipPath: prefs.dipPath,
     onCurve: setCurveOn,
     onToggle: (i) => setDoc((d) => ({ ...d, kept: d.kept.map((k, j) => (j === i ? { ...k, on: !k.on } : k)) })),
     onDipPath: (on) => setPrefs((p) => ({ ...p, dipPath: on })),
   } : null;
   useEffect(() => { if (!doc.kept.length) setCurveOn(true); }, [doc.kept.length]);
+  /** Add a Touchstone file as a kept sweep, unless its readings match the sweep or a kept one. */
+  const addKept = (file: File): void => {
+    void file.text().then((text) => {
+      const c = touchstoneCurve(text), d = docRef.current, now = curveOf(d.trace, settings);
+      if (!c) { setProblem({ ...NO_S11, keep: true }); return; }
+      if (now && isKept([{ f: now.f, s: now.s, on: true }], c)) { setProblem(SAME("the latest sweep")); return; }
+      const i = d.kept.findIndex((k) => isKept([k], c));
+      if (i >= 0) { setProblem(SAME(`kept sweep ${keptNumber(d.kept, i)}`)); return; }
+      setDoc((x) => ({ ...x, kept: keep(x.kept, c, { text, name: file.name }) }));
+    });
+  };
 
   /* ---------------- The saved session ---------------- */
 
@@ -580,8 +626,10 @@ export function App(): React.ReactElement {
   // input while the question is open.
   return (
     <>
-      <input type="file" id="file" ref={fileIn} accept="image/*,.heic,.heif,.s1p,.s2p,.txt" className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+      <input type="file" id="file" ref={fileIn} accept="image/*,.heic,.heif,.s1p,.s2p,.txt,.zip" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+      <input type="file" id="keepFile" ref={keepIn} accept=".s1p,.s2p,.txt" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) addKept(f); e.target.value = ""; }} />
       {refAt !== null && (
         <AskNumber title="Frequency at this point" label="Frequency" unit="MHz" action="Add"
           onAnswer={(f) => { setDoc((d) => withRefs(d, [...d.refs, { u: refAt, f }])); setRefAt(null); }}
@@ -596,7 +644,7 @@ export function App(): React.ReactElement {
       )}
       {problem && (
         <Confirm title={problem.title} action="Choose another file" cancel="Close"
-          onConfirm={() => { setProblem(null); fileIn.current?.click(); }}
+          onConfirm={() => { setProblem(null); (problem.keep ? keepIn : fileIn).current?.click(); }}
           onCancel={() => setProblem(null)}>
           <p>{problem.text}</p>
         </Confirm>
@@ -613,7 +661,8 @@ export function App(): React.ReactElement {
               <aside>
                 <LoadCard source={doc.source} fileName={doc.fileName} over={over} onBrowse={() => fileIn.current?.click()} vna={vna} fine={doc.fine} onClearFine={clearFine}
                   choices={fineChoices} suggest={fineSuggest} onFine={doc.source === "vna" ? onFine : undefined}
-                  onFineAll={doc.source === "vna" ? onFineAll : undefined} keeper={keeper} origin={doc.origin} />
+                  onFineAll={doc.source === "vna" ? onFineAll : undefined} keeper={keeper} origin={doc.origin}
+                  onAddKept={touchstone ? () => keepIn.current?.click() : undefined} />
                 {doc.source === "image" && (
                   <>
                     <CalibrateCard fields={doc.fields} onField={onField} grid={doc.grid} ocr={doc.ocr} straight={doc.straight} onStraight={onStraight}
@@ -626,7 +675,7 @@ export function App(): React.ReactElement {
                 )}
                 <AnalyzeCard prefs={prefs} onPref={onPref} onPin={onPinFreq} onView={onViewFreq} check={check} sweep={sweep} thr={settings.thr} top={settings.top} />
                 <ExportCard onPhoto={photoScene ? exportPhoto : null} onChart={an ? exportChart : null} onCsv={an ? exportCsv : null} onS1p={exportS1p}
-                  kept={doc.source === "vna" ? keptByNumber.map(({ k, n }) => ({ n, s1p: !!k.s1p })) : []} />            </aside>
+                  kept={touchstone ? keptByNumber.map(({ k, n }) => ({ n, s1p: !!k.s1p })) : []} />            </aside>
               <main>
                 {opening ? (
                   <div className="card" id="opening">
