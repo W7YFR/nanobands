@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.20.0 — 2026-11-15
+
 ### Added
 
 - **×** beside **Terms** closes the warning at the top once you agree to the terms. The warning comes back when the terms change.
