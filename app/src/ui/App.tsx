@@ -27,7 +27,7 @@ import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, TraceCard, type Expor
 import { unzip, zip } from "@/zip";
 import { AskNumber } from "./AskNumber";
 import { Busy } from "./Busy";
-import { ChartCard, type Showing } from "./ChartCard";
+import { ChartCard, drawnKept, type Showing } from "./ChartCard";
 import { Confirm } from "./Confirm";
 import { drawChart } from "./draw-chart";
 import { Disclaimer } from "./Disclaimer";
@@ -330,7 +330,7 @@ export function App(): React.ReactElement {
   /** Whether the chart shows the sweep itself. A pill hides it while sweeps are kept; with none kept, it shows. */
   const [curveOn, setCurveOn] = useState(true);
   const showing: Showing | null = touchstone && doc.kept.length ? {
-    kept: doc.kept, curveName: vna.live ? "Live" : "Latest", curveOn, dipPath: prefs.dipPath,
+    kept: doc.kept, same: curve ? doc.kept.findIndex((k) => isKept([k], curve)) : -1, curveName: vna.live ? "Live" : "Latest", curveOn, dipPath: prefs.dipPath,
     onCurve: setCurveOn,
     onToggle: (i) => setDoc((d) => ({ ...d, kept: d.kept.map((k, j) => (j === i ? { ...k, on: !k.on } : k)) })),
     onDipPath: (on) => setPrefs((p) => ({ ...p, dipPath: on })),
@@ -556,7 +556,7 @@ export function App(): React.ReactElement {
     c.width = W * 2;
     c.height = H * 2;
     drawChart(c.getContext("2d")!, W, H, 2, { settings, an, curve, range: an ? doc.view ?? [an.fmin, an.fmax] : null, manual: doc.manual, hoverF: null, drag: null, fine: doc.fine, readings: doc.source === "image" ? null : prefs.readings,
-      kept: showing?.kept ?? [], dipPath: !!showing?.dipPath, hideCurve: !!showing && !showing.curveOn, curveName: showing?.curveName ?? "Latest" });
+      kept: drawnKept(showing), dipPath: !!showing?.dipPath, hideCurve: !!showing && !showing.curveOn, curveName: showing?.curveName ?? "Latest" });
     download("swr-chart.png", c.toDataURL("image/png"));
   };
   /** The kept sweeps, newest first, with their numbers. */

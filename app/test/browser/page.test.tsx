@@ -1362,11 +1362,16 @@ describe("a connected NanoVNA", () => {
     await until(() => $("#bandTable").textContent!.includes("2m"));
     expect(has("#fileName")).toBe(false);
     expect($("#resNote").textContent).toContain("from the NanoVNA");
-    // The panel waits without the NanoVNA. Reconnecting sweeps afresh, and the card still names no file.
+    // The panel waits without the NanoVNA, and keeps the sweep, to compare the next one with.
     expect($("#vnaPanel .status").textContent).toBe("Not connected");
+    const kept = document.querySelectorAll("#vnaKeep .kp").length;
+    $("#keepBtn").click();
+    await until(() => document.querySelectorAll("#vnaKeep .kp").length === kept + 1);
+    // Reconnecting sweeps afresh, and the card still names no file. The kept sweep stays.
     $("#reconnectBtn").click();
     await until(() => $("#vnaPanel .status").textContent === "Connected");
     expect(has("#fileName")).toBe(false);
+    expect(document.querySelectorAll("#vnaKeep .kp").length).toBe(kept + 1);
   });
 
   it("notices at once when the NanoVNA is unplugged or turned off, with no command running", async () => {
