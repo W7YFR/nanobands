@@ -865,7 +865,7 @@ describe("an opened .s1p file", () => {
     await until(() => document.querySelectorAll("#vnaKeep .kp").length === 2);
     expect($("#fileName").textContent).toBe("dipole.s1p");
     const pills = (): string[] => [...document.querySelectorAll("#showRow button")].map((b) => b.textContent!);
-    expect(pills()).toEqual(["Latest · 14.205 · 1.20", "113.800 · 1.20", "213.395 · 1.20", "Dip path"]);
+    expect(pills()).toEqual(["LLatest · 14.205 · 1.20", "113.800 · 1.20", "213.395 · 1.20", "Dip path"]);
 
     const addKept = (file: File): void => {
       const dt = new DataTransfer();
@@ -896,7 +896,7 @@ describe("an opened .s1p file", () => {
     openFile(new File([moved(14.4)], "retuned.s1p", { type: "text/plain" }));
     await until(() => $("#fileName").textContent === "retuned.s1p");
     expect(document.querySelectorAll("#vnaKeep .kp").length).toBe(3);
-    expect(pills()[0]).toBe("Latest · 14.340 · 1.20");
+    expect(pills()[0]).toBe("LLatest · 14.340 · 1.20");
   });
 
   it("starts over on Clear", async () => {

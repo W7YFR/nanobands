@@ -82,6 +82,8 @@ function FineMenu({ choices, onPick, onAll }: {
 /** The Keep row's sweeps, and what it does with them. */
 export interface Keeper {
   kept: readonly Kept[];
+  /** The index of the kept sweep the sweep on the chart is, oldest first, or -1. Its pill wears an L. */
+  same: number;
   /** False while the sweep on the chart is kept already. */
   canKeep: boolean;
   /** Keep the sweep on the chart. Without it, as for an opened file, there is no + Keep. */
@@ -151,7 +153,7 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
       <span id="vnaKeep" role="group" aria-label="Kept sweeps">
         {keeper.kept.map((_, i) => ({ i, n: keptNumber(keeper.kept, i) })).reverse().map(({ i, n }) => (
           <button key={n} type="button" className={`kp k${n}`} aria-label={`Drop kept sweep ${n}`} title={`Drop kept sweep ${n}`} onClick={() => keeper.onDrop(i)}>
-            <span className="n">{n}</span><span className="x" aria-hidden="true">×</span>
+            {i === keeper.same && <span className="n latest">L</span>}<span className="n">{n}</span><span className="x" aria-hidden="true">×</span>
           </button>
         ))}
         {keeper.onKeep && <button id="keepBtn" type="button" className="add" disabled={!keeper.canKeep} onClick={keeper.onKeep}
