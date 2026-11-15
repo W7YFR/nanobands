@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.20.1 — 2026-11-15
+
 ### Changed
 
 - While the latest sweep is kept, the chart's **Latest** pill wears its kept number. The kept sweep gets a pill of its own once the next sweep comes in.
