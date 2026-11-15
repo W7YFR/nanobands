@@ -154,8 +154,8 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
             <span className="n">{n}</span><span className="x" aria-hidden="true">×</span>
           </button>
         ))}
-        {keeper.onKeep && <button id="keepBtn" type="button" className="add" disabled={off || !keeper.canKeep} onClick={keeper.onKeep}
-          title={off ? "Reconnect the NanoVNA to keep a sweep" : !keeper.canKeep ? "This sweep is kept. Sweep again to keep the next one"
+        {keeper.onKeep && <button id="keepBtn" type="button" className="add" disabled={!keeper.canKeep} onClick={keeper.onKeep}
+          title={!keeper.canKeep ? "This sweep is kept. Sweep again to keep the next one"
             : keeper.kept.length >= MAX_KEPT ? `Keeps this sweep, and drops kept sweep ${MAX_KEPT}` : undefined}>+ Keep</button>}
       </span>
       <button id="keptClear" className="quiet" title="Drops every kept sweep" aria-label="Drop every kept sweep"

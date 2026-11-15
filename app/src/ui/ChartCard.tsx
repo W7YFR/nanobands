@@ -16,6 +16,9 @@
  * With sweeps kept, a row of pills under the chips shows or hides each line:
  * the sweep itself (Latest, or Live while Live sweeps), the kept sweeps
  * newest first, and the dip path. Each pill names its line's dip in view.
+ * While the sweep is a kept sweep, as before the next sweep comes in, the
+ * two are one line: the sweep's pill wears the kept sweep's number, and the
+ * kept sweep has no pill of its own.
  * Over a pill, or with it focused from the keyboard, a tooltip names its
  * line and gives the line's range. Keeping and dropping sweeps is the
  * NanoVNA panel's work, not the chart's.
@@ -53,6 +56,8 @@ function Chips({ an, view, onView, fine }: {
 /** The lines the pills show or hide, and the switches for them. */
 export interface Showing {
   kept: readonly Kept[];
+  /** The index of the kept sweep the sweep is, oldest first, or -1. */
+  same: number;
   /** The sweep's name: Latest, or Live while Live sweeps. */
   curveName: "Latest" | "Live";
   curveOn: boolean;
@@ -62,6 +67,10 @@ export interface Showing {
   onToggle(i: number): void;
   onDipPath(on: boolean): void;
 }
+
+/** The kept sweeps as the chart draws them: the one the sweep is draws as the sweep, so not again. */
+export const drawnKept = (s: Showing | null): readonly Kept[] =>
+  (s ? s.kept.map((k, i) => (i === s.same && k.on ? { ...k, on: false } : k)) : []);
 
 /** A frequency in MHz with no trailing zeros, as the NanoVNA panel gives a range. */
 const mhz = (f: number): number => +f.toFixed(6);
@@ -102,15 +111,16 @@ export function ShowRow({ showing: k, curve, range, top, zoomed }: {
   const live = k.curveName === "Live";
   const [tip, setTip] = useState<{ tip: TipText; at: DOMRect } | null>(null);
   // A pill that goes takes its tooltip with it.
-  useEffect(() => setTip(null), [k.kept.length]);
+  useEffect(() => setTip(null), [k.kept.length, k.same]);
+  const same = k.same >= 0 ? keptNumber(k.kept, k.same) : null;
   return (
     <div className="kept" id="showRow">
       <span className="keptChips">
         <Pill cls={"now" + (live ? " live" : "")} on={k.curveOn} onTip={setTip} onClick={() => k.onCurve(!k.curveOn)}
-          tip={{ name: k.curveName, text: curve ? rangeOf(curve.f) : "No sweep" }}>
-          {live ? <i className="pulse" /> : <span className="sw" />}{k.curveName} · {curve ? dip(curve.f, curve.s) : "—"}
+          tip={{ name: k.curveName, text: (same ? `Kept ${same} · ` : "") + (curve ? rangeOf(curve.f) : "No sweep") }}>
+          {live ? <i className="pulse" /> : <span className="sw" />}{same && <span className={`n k${same}`}>{same}</span>}{k.curveName} · {curve ? dip(curve.f, curve.s) : "—"}
         </Pill>
-        {k.kept.map((x, i) => ({ x, i, n: keptNumber(k.kept, i) })).reverse().map(({ x, i, n }) => (
+        {k.kept.map((x, i) => ({ x, i, n: keptNumber(k.kept, i) })).reverse().filter(({ i }) => i !== k.same).map(({ x, i, n }) => (
           <Pill key={n} cls={`k${n}`} on={x.on} onTip={setTip} onClick={() => k.onToggle(i)} tip={{ name: `Kept ${n}`, text: rangeOf(x.f) }}>
             <span className="n">{n}</span>{dip(x.f, x.s)}
           </Pill>
@@ -162,6 +172,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   /** A press on the chart. `pan` holds the view it started from. */
   const drag = useRef<{ x0: number; y0: number; x1: number; zoom: boolean; finger: boolean; t0: number; showing: boolean; pan?: [number, number] } | null>(null);
   const range: [number, number] | null = an ? view ?? [an.fmin, an.fmax] : null;
+  const drawn = drawnKept(showing);
   /** The key point the hover snapped to, and the band under the pointer. */
   const [snap, setSnap] = useState<KeyKind | null>(null);
   const [tip, setTip] = useState<{ band: Band; cx: number; cy: number } | null>(null);
@@ -199,7 +210,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
     fitCanvas(c, ctx, Math.round(W * dpr), Math.round(H * dpr));
     geom.current = drawChart(ctx, W, H, dpr, {
       settings, an, curve, range, manual, probe, hoverF, drag: drag.current?.zoom ? drag.current : null, fine, readings,
-      kept: showing?.kept ?? [], dipPath: !!showing?.dipPath, hideCurve: !!showing && !showing.curveOn, curveName: showing?.curveName ?? "Latest",
+      kept: drawnKept(showing), dipPath: !!showing?.dipPath, hideCurve: !!showing && !showing.curveOn, curveName: showing?.curveName ?? "Latest",
       snap, hoverNote: snap === "pin" ? (touch ? "tap to unpin" : "click to unpin") : snap === "probe" ? (touch ? "tap to pin" : "click to pin") : undefined,
     });
   };
@@ -385,11 +396,11 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         <span><i style={{ background: "var(--all)" }}></i>All modes / 60 m channel</span>
         {readings && readings !== "line" && <span><i className="dot"></i>Reading</span>}
         {readings && readings !== "line" && curve && curve.s.some((w) => w > settings.top) && <span><i className="tri"></i>Reading over the scale</span>}
-        {showing?.kept.some((k) => k.on) && (
-          <span id="keptKey">{showing.kept.map((x, i) => ({ x, n: keptNumber(showing.kept, i) })).reverse().filter(({ x }) => x.on)
+        {drawn.some((k) => k.on) && (
+          <span id="keptKey">{drawn.map((x, i) => ({ x, n: keptNumber(drawn, i) })).reverse().filter(({ x }) => x.on)
             .map(({ n }) => <i key={n} className={`dash k${n}`}></i>)}Kept sweep</span>
         )}
-        {showing?.dipPath && view && showing.kept.some((k) => k.on) && <span id="dipKey"><i className="path"></i>Dip path</span>}
+        {showing?.dipPath && view && drawn.some((k) => k.on) && <span id="dipKey"><i className="path"></i>Dip path</span>}
         {fine.length > 0 && <span id="fineKey"><i style={{ background: "var(--accent)" }}></i>Fine sweep, calibration filled in</span>}
       </div>
     </div>
