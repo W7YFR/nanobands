@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.21.0 — 2026-11-15
+
 ### Added
 
 - **Band segments** has a **Dip** column. It lists the dip in each band for the latest sweep and each kept sweep, with its frequency and SWR.
