@@ -118,7 +118,7 @@ export function ShowRow({ showing: k, curve, range, top, zoomed }: {
       <span className="keptChips">
         <Pill cls={"now" + (live ? " live" : "")} on={k.curveOn} onTip={setTip} onClick={() => k.onCurve(!k.curveOn)}
           tip={{ name: k.curveName, text: (same ? `Kept ${same} · ` : "") + (curve ? rangeOf(curve.f) : "No sweep") }}>
-          {live ? <i className="pulse" /> : <span className="sw" />}{same && <span className={`n k${same}`}>{same}</span>}{k.curveName} · {curve ? dip(curve.f, curve.s) : "—"}
+          {live ? <i className="pulse" /> : <span className="n latest" aria-hidden="true">L</span>}{same && <span className={`n k${same}`}>{same}</span>}{k.curveName} · {curve ? dip(curve.f, curve.s) : "—"}
         </Pill>
         {k.kept.map((x, i) => ({ x, i, n: keptNumber(k.kept, i) })).reverse().filter(({ i }) => i !== k.same).map(({ x, i, n }) => (
           <Pill key={n} cls={`k${n}`} on={x.on} onTip={setTip} onClick={() => k.onToggle(i)} tip={{ name: `Kept ${n}`, text: rangeOf(x.f) }}>

@@ -43,7 +43,7 @@ import {
 import { PhotoCard } from "./PhotoCard";
 import { applySnapshot, snapshotOf, type Snapshot } from "./session";
 import { Switch } from "./Switch";
-import { BandTable, PointsTable } from "./Tables";
+import { BandTable, PointsTable, dipLines } from "./Tables";
 import { useFileDrop } from "./useFileDrop";
 import { useVna } from "./useVna";
 
@@ -322,7 +322,7 @@ export function App(): React.ReactElement {
   /** Whether the chart shows a Touchstone sweep, the NanoVNA's or a file's: one that can have kept sweeps. */
   const touchstone = doc.source === "vna" || doc.source === "s1p";
   const keeper: Keeper | undefined = touchstone ? {
-    kept: doc.kept, canKeep: !!curve && !isKept(doc.kept, curve),
+    kept: doc.kept, same: curve ? doc.kept.findIndex((k) => isKept([k], curve)) : -1, canKeep: !!curve && !isKept(doc.kept, curve),
     onKeep: doc.source === "vna" ? () => { if (curve && !isKept(docRef.current.kept, curve)) setDoc((d) => ({ ...d, kept: keep(d.kept, curve, d.s1p) })); } : undefined,
     onDrop: (i) => setDoc((d) => ({ ...d, kept: d.kept.filter((_, j) => j !== i) })),
     onClear: () => setDoc((d) => ({ ...d, kept: [] })),
@@ -713,7 +713,7 @@ export function App(): React.ReactElement {
                     <Switch id="bandsShown" label="Bands shown" value={prefs.bands} onChange={(v) => onPref("bands", v)}
                       options={[{ value: "all", label: "All" }, { value: "usable", label: "Usable" }]} />
                   </h2>
-                  <div id="bandTable"><BandTable an={an} settings={settings} shown={prefs.bands} view={doc.view} onPick={onPickBand} /></div>
+                  <div id="bandTable"><BandTable an={an} settings={settings} shown={prefs.bands} view={doc.view} lines={dipLines(curve, showing)} onPick={onPickBand} /></div>
                   <p className="hint">US privileges per 47 CFR §97.301/305, checked against the ARRL frequency-allocations chart. 60 m is four 2.8 kHz channels plus the 5351.5–5366.5 kHz segment (USB/CW/data). Power limits and new rule changes aren't modeled, so check the current ARRL chart before you transmit.</p>
                 </div>
                 <div className={"card" + (prefs.points ? "" : " collapsed")} id="ptCard">

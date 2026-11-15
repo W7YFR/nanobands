@@ -7,6 +7,17 @@ them.
 
 ## Unreleased
 
+## v1.21.0 — 2026-11-15
+
+### Added
+
+- **Band segments** has a **Dip** column. It lists the dip in each band for the latest sweep and each kept sweep, with its frequency and SWR.
+
+### Changed
+
+- **Band segments** shows one bar for each band, with a stripe over it for each segment's mode. A pin marks each dip, and the tooltip over it gives the dip's frequency and SWR.
+- The latest sweep wears a green L on the chart's **Latest** pill, in place of its line. While the latest sweep is kept, the L sits beside the kept number, and the **Keep** row shows it too.
+
 ## v1.20.1 — 2026-11-15
 
 ### Changed

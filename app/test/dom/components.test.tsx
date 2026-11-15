@@ -9,7 +9,7 @@ import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, type Keeper } from "@
 import { Landing } from "@/ui/Landing";
 import { BANDS } from "@/bands";
 import { DEFAULT_FIELDS, DEFAULT_PREFS, bandView, checkAt, settingsOf } from "@/ui/model";
-import { BandTable, PointsTable } from "@/ui/Tables";
+import { BandTable, PointsTable, dipLines } from "@/ui/Tables";
 import { MATCH, OK } from "@/ui/colors";
 import type { Vna } from "@/ui/useVna";
 import type { NanoVNA } from "@/vna";
@@ -121,7 +121,7 @@ describe("ShowRow", () => {
 
   it("puts the kept sweep the sweep is in the sweep's pill, with its number", () => {
     render(<ShowRow showing={showing({ same: 1 })} curve={curve} range={[14, 14.2]} top={5} zoomed />);
-    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["1Latest · 14.100 · 1.20", "214.100 · 1.60", "Dip path"]);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["L1Latest · 14.100 · 1.20", "214.100 · 1.60", "Dip path"]);
     fireEvent.pointerEnter(screen.getByRole("button", { name: /Latest/ }), { pointerType: "mouse" });
     expect(document.querySelector("#pillTip")?.textContent).toBe("Latest · Kept 1 · 14–14.2 MHz");
   });
@@ -133,7 +133,7 @@ describe("ShowRow", () => {
 
   it("lists the sweep, the kept sweeps newest first, then the dip path, each with its dip", () => {
     render(<ShowRow showing={showing()} curve={curve} range={[14, 14.2]} top={5} zoomed />);
-    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Latest · 14.100 · 1.20", "114.100 · 1.50", "214.100 · 1.60", "Dip path"]);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["LLatest · 14.100 · 1.20", "114.100 · 1.50", "214.100 · 1.60", "Dip path"]);
     expect(screen.getByRole("button", { name: /^2/ }).getAttribute("aria-pressed")).toBe("false");
   });
 
@@ -189,7 +189,12 @@ describe("the Keep row", () => {
   const device = { info: { board: "NanoVNA-H 4", version: "1.2.44", slots: 7 } } as unknown as NanoVNA;
   const range = { start: 3e6, stop: 55e6, points: 401 };
   const kept = [0, 1, 2].map(() => ({ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: true }));
-  const keeper = (over: Partial<Keeper> = {}): Keeper => ({ kept, canKeep: true, onKeep: vi.fn(), onDrop: vi.fn(), onClear: vi.fn(), ...over });
+  const keeper = (over: Partial<Keeper> = {}): Keeper => ({ kept, same: -1, canKeep: true, onKeep: vi.fn(), onDrop: vi.fn(), onClear: vi.fn(), ...over });
+
+  it("puts an L beside the kept sweep the sweep on the chart is", () => {
+    render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vnaStub({ device, range })} keeper={keeper({ same: 2 })} />);
+    expect(screen.getAllByRole("button", { name: /^Drop kept sweep/ }).map((b) => b.querySelector(".n")?.parentElement?.textContent?.replace("×", ""))).toEqual(["L1", "2", "3"]);
+  });
 
   it("keeps, drops one or drops them all, newest first", () => {
     const k = keeper();
@@ -238,7 +243,7 @@ describe("ExportCard", () => {
 
 describe("an opened file's kept sweeps", () => {
   const kept = [0, 1].map(() => ({ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: true }));
-  const keeper: Keeper = { kept, canKeep: false, onDrop: vi.fn(), onClear: vi.fn() };
+  const keeper: Keeper = { kept, same: -1, canKeep: false, onDrop: vi.fn(), onClear: vi.fn() };
 
   it("sit under the file's name, with no + Keep", () => {
     const { container } = render(<LoadCard source="s1p" fileName="dipole.s1p" over={false} onBrowse={() => {}} vna={vnaStub()} keeper={keeper} onAddKept={vi.fn()} />);
@@ -262,7 +267,7 @@ describe("an opened file's kept sweeps", () => {
 
 describe("the NanoVNA panel without the NanoVNA", () => {
   const origin = { board: "NanoVNA-H 4", version: "1.2.44", slot: "3–55 MHz · 401 points", start: 3e6, stop: 55e6, points: 401, at: Date.now() };
-  const keeper: Keeper = { kept: [{ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: true }], canKeep: true, onKeep: vi.fn(), onDrop: vi.fn(), onClear: vi.fn() };
+  const keeper: Keeper = { kept: [{ f: Float64Array.from([14, 14.1]), s: Float64Array.from([1.5, 1.2]), on: true }], same: -1, canKeep: true, onKeep: vi.fn(), onDrop: vi.fn(), onClear: vi.fn() };
 
   it("says where the sweep came from, and offers Reconnect", () => {
     const vna = vnaStub();
@@ -651,14 +656,71 @@ describe("the tables", () => {
     // phone segment, 14.225–14.35 MHz, is green then red.
     const tight = (() => { const { f, s } = vSweep(); return analyze(f, s, { thr: 1.15, prom: 0.2, top: 5 })!; })();
     render(<BandTable an={tight} settings={{ ...settings, thr: 1.15 }} />);
-    const bar = [...document.querySelectorAll('tbody[data-band="20m"] tr')].find((r) => r.textContent?.includes("14.225–14.350"))!.querySelector(".bar")!;
-    bar.getBoundingClientRect = () => ({ left: 0, width: 125, top: 0, height: 10, right: 125, bottom: 10, x: 0, y: 0, toJSON: () => ({}) });
-    fireEvent.pointerMove(bar, { pointerType: "mouse", clientX: 10, clientY: 5 });
+    // The bar runs the whole band, 14.000–14.350 MHz, across 350 pixels: 1 kHz per pixel.
+    const wrap = document.querySelector('tbody[data-band="20m"] .barWrap')!;
+    wrap.querySelector(".bar")!.getBoundingClientRect = () => ({ left: 0, width: 350, top: 0, height: 10, right: 350, bottom: 10, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerMove(wrap, { pointerType: "mouse", clientX: 230, clientY: 5 });
     expect(document.querySelector(".barTip")).toHaveTextContent(/^14\.225–14\.2\d\d · Usable$/);
-    fireEvent.pointerMove(bar, { pointerType: "mouse", clientX: 110, clientY: 5 });
+    fireEvent.pointerMove(wrap, { pointerType: "mouse", clientX: 340, clientY: 5 });
     expect(document.querySelector(".barTip")).toHaveTextContent(/^14\.2\d\d–14\.350 · SWR too high$/);
-    fireEvent.pointerLeave(bar, { pointerType: "mouse" });
+    fireEvent.pointerMove(wrap, { pointerType: "mouse", clientX: 190, clientY: 5 });
+    expect(document.querySelector(".barTip")).toHaveTextContent("14.150–14.225 · You may not transmit here");
+    fireEvent.pointerLeave(wrap, { pointerType: "mouse" });
     expect(document.querySelector(".barTip")).toBeNull();
+  });
+
+  it("list each band's dips, mark them on its bar, and name them in the tooltip", () => {
+    // The sweep dips at 13.95 MHz, below 20 m. A kept sweep dips at 14.1 MHz.
+    const sweep = (at: number): { N: number; f: Float64Array; s: Float64Array } => {
+      const { f } = vSweep();
+      return { N: f.length, f: Float64Array.from(f), s: Float64Array.from(f, (x) => 1.1 + 0.6 * Math.abs(x - at)) };
+    };
+    const curve = sweep(13.95), old = sweep(14.1);
+    const showing: Showing = {
+      kept: [{ f: old.f, s: old.s, on: true }], same: -1, curveName: "Latest", curveOn: true, dipPath: false,
+      onCurve: () => undefined, onToggle: () => undefined, onDipPath: () => undefined,
+    };
+    render(<BandTable an={an} settings={settings} lines={dipLines(curve, showing)} />);
+    const band = document.querySelector('tbody[data-band="20m"]')!;
+    // The Dip column: the sweep first with its L, grayed off the band, then kept 1 with its number.
+    const rows = [...band.querySelectorAll("td.dips div")];
+    expect(rows.map((d) => [d.querySelector(".n")?.textContent, d.lastChild?.textContent, d.className])).toEqual([["L", "13.950 · 1.10", "dipRow off"], ["1", "14.100 · 1.10", "dipRow"]]);
+    // The kept dip sits 100 kHz into the band. The sweep's points off the low end.
+    const wrap = band.querySelector(".barWrap")!;
+    expect(parseFloat((wrap.querySelector("i.dip.k1") as HTMLElement).style.left)).toBeCloseTo(28.57, 1);
+    expect(wrap.querySelector("i.dip.now.out.lo")).not.toBeNull();
+    wrap.querySelector(".bar")!.getBoundingClientRect = () => ({ left: 0, width: 350, top: 0, height: 10, right: 350, bottom: 10, x: 0, y: 0, toJSON: () => ({}) });
+    // Near the pin, not on it, still names the dip and lights its pin.
+    fireEvent.pointerMove(wrap, { pointerType: "mouse", clientX: 107, clientY: 5 });
+    expect(document.querySelector(".barTip")).toHaveTextContent("Kept dip · 14.100 · 1.10");
+    expect(wrap.querySelector("i.dip.k1.hot")).not.toBeNull();
+    fireEvent.pointerMove(wrap, { pointerType: "mouse", clientX: 200, clientY: 5 });
+    expect(document.querySelector(".barTip")).not.toHaveTextContent("dip");
+    expect(wrap.querySelector("i.dip.hot")).toBeNull();
+  });
+
+  it("give the sweep its L beside the number of the kept sweep it is", () => {
+    const { f, s } = vSweep();
+    const curve = { N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) };
+    const showing: Showing = {
+      kept: [{ f: curve.f, s: curve.s, on: true }], same: 0, curveName: "Latest", curveOn: true, dipPath: false,
+      onCurve: () => undefined, onToggle: () => undefined, onDipPath: () => undefined,
+    };
+    render(<BandTable an={an} settings={settings} lines={dipLines(curve, showing)} />);
+    const badges = [...document.querySelectorAll('tbody[data-band="20m"] td.dips .n')];
+    expect(badges.map((n) => [n.textContent, n.className])).toEqual([["L", "n latest"], ["1", "n k1"]]);
+  });
+
+  it("mark only the lines the chart shows", () => {
+    const { f, s } = vSweep();
+    const curve = { N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) };
+    const k = { f: curve.f, s: curve.s, on: true };
+    const base: Showing = { kept: [k, { ...k, on: false }], same: 0, curveName: "Live", curveOn: true, dipPath: false,
+      onCurve: () => undefined, onToggle: () => undefined, onDipPath: () => undefined };
+    // The sweep is kept 2, so kept 2 has no mark of its own. Kept 1 is hidden.
+    expect(dipLines(curve, base).map((l) => [l.name, l.n])).toEqual([["Live", 2]]);
+    expect(dipLines(curve, { ...base, curveOn: false })).toEqual([]);
+    expect(dipLines(curve, null).map((l) => l.name)).toEqual(["Latest"]);
   });
 
   it("say you may not transmit between 60 m's channels", () => {

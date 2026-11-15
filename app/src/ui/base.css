@@ -251,7 +251,7 @@ button.on{background:#1c2a40;border-color:var(--accent);color:var(--accent)}
 /* The whole pill drops its kept sweep. It shows its number; under the
    pointer or the keyboard, an × takes the number's place, in the warning
    yellow: a click drops the sweep. */
-.kp{display:flex;justify-content:center;align-items:center;min-height:22px;padding:0 6px;border:1px solid var(--line);border-radius:12px;background:none;font-size:12px;color:var(--text)}
+.kp{display:flex;justify-content:center;align-items:center;gap:3px;min-height:22px;padding:0 6px;border:1px solid var(--line);border-radius:12px;background:none;font-size:12px;color:var(--text)}
 .kp .x{display:none;place-items:center;width:15px;height:15px;font-size:14px;line-height:1}
 .kp:hover,.kp:focus-visible{border-color:var(--warn);background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn);outline:none}
 .kp:hover .n,.kp:focus-visible .n{display:none}
@@ -302,7 +302,7 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 .keptChip{display:inline-flex;align-items:center;flex:none;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
 .keptChip button{display:inline-flex;align-items:center;gap:6px;border:none;background:none;font-size:12px;padding:3px 9px 3px 8px;border-radius:12px;white-space:nowrap}
 /* As the chart draws a kept dip's number. */
-.keptChip .n,.kp .n,.split-menu .n{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;border-radius:50%;border:1px solid var(--k);color:var(--k);font:600 10px/1 -apple-system,Segoe UI,sans-serif}
+.keptChip .n,.kp .n,.split-menu .n,.dipRow .n{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;border-radius:50%;border:1px solid var(--k);color:var(--k);font:600 10px/1 -apple-system,Segoe UI,sans-serif}
 .keptChip .none{color:var(--muted)}
 /* The sweep's mark is its solid green line; Live's, the pulsing dot. The dip path's is dotted white. */
 .keptChip .sw{width:14px;height:0;border-top:2px solid var(--ok)}
@@ -350,8 +350,8 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 /* On a wide screen a band's name and pill sit in its own column. */
 .bands td.band .pill{margin-top:4px}
 .bands td.none{color:var(--muted)}
-/* On a phone, each band stacks: its name and pill, then for each segment
-   the mode and range on one line, the bar, and what is usable under it. */
+/* On a phone, each band stacks: its name and pill, its bar, its dips, then
+   for each segment the mode and range on one line and what is usable under it. */
 @media (max-width:600px){
   .bands,.bands tbody{display:block}
   .bands thead{display:none}
@@ -359,10 +359,11 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
   .bands tr.seg.first{border-top:1px solid var(--line);padding-top:10px}
   .bands tbody:first-of-type tr.seg.first{border-top:none}
   .bands tr.seg td{display:block;padding:0;border:none}
-  .bands td.band{grid-column:1 / -1;display:flex!important;align-items:center;gap:8px;margin-bottom:2px}
+  .bands td.band{grid-column:1 / -1;order:-3;display:flex!important;align-items:center;gap:8px;margin-bottom:2px}
   .bands td.band .pill{margin-top:0}
   .bands td.none{grid-column:1 / -1}
-  .bands td.barcell{grid-column:1 / -1;order:1}
+  .bands td.barcell{grid-column:1 / -1;order:-2;margin-bottom:2px}
+  .bands td.dips{grid-column:1 / -1;order:-1;display:flex!important;flex-wrap:wrap;gap:0 14px;margin-bottom:4px}
   .bands td.usable{grid-column:1 / -1;order:2;color:var(--muted);white-space:normal}
   .bands td.usable::before{content:"Usable at SWR ≤ " var(--thr) ": "}
   /* Nothing usable: the all-red bar says so. */
@@ -377,6 +378,39 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .bar{position:relative;height:10px;border-radius:3px;background:rgba(248,81,73,.55);min-width:120px;overflow:hidden}
 .bar span{position:absolute;top:0;bottom:0;background:var(--ok)}
 .bar.na{background:#3a404a}
+/* A band's bar: each segment's mode as a stripe over it, its pieces, each
+   line's dip as a pin, and the band's ends under it. */
+.barWrap{position:relative;padding-top:9px;margin:0 9px}
+.barWrap .modeBar{position:absolute;top:0;height:3px;border-radius:2px}
+.barWrap .bar span.ok{background:var(--ok)}
+.barWrap .bar span.bad{background:rgba(248,81,73,.55)}
+.barWrap .bar span.na{background:repeating-linear-gradient(135deg,#5b6270 0 3px,#3a404a 3px 6px)}
+.barWrap .bar span.off{background:#3a404a}
+.barWrap .ends{display:flex;justify-content:space-between;margin-top:2px;font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums}
+.barWrap i.dip{position:absolute;top:4px;height:17px;width:2px;margin-left:-1px;background:var(--k);box-shadow:0 0 0 1px var(--bg);pointer-events:none}
+.barWrap i.dip::before{content:"";position:absolute;top:-1px;left:-3px;width:8px;height:5px;background:var(--k);clip-path:polygon(0 0,100% 0,50% 100%)}
+/* The dip the tooltip names: a box behind its pin. */
+.barWrap i.dip.hot::after{content:"";position:absolute;top:-4px;bottom:-4px;left:-8px;width:18px;border-radius:4px;background:rgba(255,255,255,.12)}
+/* A dip off the band: an arrow past the bar's nearer end, pointing off it. */
+.barWrap i.dip.out{top:8px;height:12px;width:6px;margin-left:-8px;box-shadow:none;clip-path:polygon(0 50%,100% 0,100% 100%)}
+.barWrap i.dip.out.hi{margin-left:2px;clip-path:polygon(100% 50%,0 0,0 100%)}
+.barWrap i.dip.out::before,.barWrap i.dip.out::after{content:none}
+.barWrap i.dip.out.hot{filter:drop-shadow(0 0 3px var(--k))}
+.dip.now{--k:var(--text)}
+/* The Dip column and the tooltip: each dip's mark, as the bar draws it, its number, then its text. */
+.bands td.dips{font-size:12px}
+.dipRow{display:flex;align-items:center;gap:6px;min-height:22px;white-space:nowrap}
+.dipRow.off,.bands td.dips .nil{color:var(--muted)}
+.dipRow i.glyph{position:relative;flex:none;width:8px;height:14px;margin:0;border-radius:0;background:none}
+.dipRow i.glyph::before{content:"";position:absolute;top:0;left:0;width:8px;height:5px;background:var(--k);clip-path:polygon(0 0,100% 0,50% 100%)}
+.dipRow i.glyph::after{content:"";position:absolute;top:3px;bottom:0;left:3px;width:2px;background:var(--k)}
+.dipRow i.glyph.out{height:12px;background:var(--k);clip-path:polygon(0 50%,100% 0,100% 100%)}
+.dipRow i.glyph.out.hi{clip-path:polygon(100% 50%,0 0,0 100%)}
+.dipRow i.glyph.out::before,.dipRow i.glyph.out::after{content:none}
+.dipRow .n{margin:0}
+/* The latest sweep's L. An L has its weight low and left: nudge it to look centered. */
+.n.latest{--k:var(--ok);padding:0 0 1px 2px}
+.barTip .dipRow{margin-top:4px}
 .pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;font-weight:600}
 .pill.ok{background:rgba(63,185,80,.18);color:var(--ok)}.pill.part{background:rgba(242,204,96,.16);color:var(--warn)}.pill.no{background:rgba(248,81,73,.16);color:var(--bad)}
 .empty{color:var(--muted);padding:30px;text-align:center}
