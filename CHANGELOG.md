@@ -13,7 +13,7 @@ them.
 
 ### Changed
 
-- **Band segments** shows one bar for each band. A stripe over the bar marks each segment's mode, and a pin marks each dip.
+- **Band segments** shows one bar for each band, with a stripe over it for each segment's mode. A pin marks each dip, and the tooltip over it gives the dip's frequency and SWR.
 - The latest sweep wears a green L on the chart's **Latest** pill, in place of its line. While the latest sweep is kept, the L sits beside the kept number, and the **Keep** row shows it too.
 
 ## v1.20.1 — 2026-11-15
