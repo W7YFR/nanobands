@@ -441,6 +441,10 @@ header h1{position:relative;z-index:5}
 .disclaimer .lines{flex:1;min-width:0;margin:0}
 .disclaimer .terms{flex:none;color:var(--text);font-weight:600;text-decoration:underline;text-underline-offset:2px}
 .disclaimer .terms:hover,.disclaimer .terms:focus-visible{color:var(--accent)}
+/* × beside Terms: the round × of a cleared field. */
+.disclaimer .close{flex:none;display:inline-grid;place-items:center;width:18px;height:18px;padding:0;border-radius:50%;background:none;border:1px solid var(--line);color:var(--muted)}
+.disclaimer .close svg{display:block;stroke:currentColor;stroke-width:1.4;stroke-linecap:round}
+.disclaimer .close:hover,.disclaimer .close:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
 /* The NanoVNA panel's warning, between its rows. */
 .disclaimer.vna-warn{margin:8px 0}
 /* The Shell window: the whole page, a log above a prompt, and the commands
@@ -485,6 +489,7 @@ html.shell-open{overflow:hidden}
 .modal{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.4)}
 .modal h2{margin:0 0 8px;font-size:15px}
 .modal p{margin:0 0 8px;color:var(--muted);font-size:13px}
+.modal p a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .modal-field{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .modal-field input{flex:1;width:auto}
