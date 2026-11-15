@@ -7,6 +7,14 @@ them.
 
 ## Unreleased
 
+### Added
+
+- **×** beside **Terms** closes the warning at the top once you agree to the terms. The warning comes back when the terms change.
+
+### Development
+
+- `make test` fails when `app/public/terms.html` changes without a raise of `TERMS_VERSION` in `app/src/terms.ts`.
+
 ## v1.19.0 — 2026-11-14
 
 ### Added

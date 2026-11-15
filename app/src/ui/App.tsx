@@ -4,7 +4,8 @@
  * Nothing loaded and no NanoVNA connected shows the landing. Anything else
  * shows the page: the steps down the side, the photo, the chart and the
  * tables. The last file and the work done on it are saved, so a refresh
- * picks up where it left off.
+ * picks up where it left off. The warning at the top stays until you agree
+ * to the terms.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +16,8 @@ import { detectGrid, type GridResult } from "@/grid";
 import { readScreen } from "@/read-screen";
 import { DIVISIONS, type SwrScale } from "@/scale-text";
 import { openStore } from "@/store";
+import { APP_VERSION } from "@/build-info";
+import { agree, agreed } from "@/terms";
 import { looksLikeScreen } from "@/sweep-text";
 import { isTouchstone, parseTouchstone } from "@/touchstone";
 import { sweepSet, type SweepSet } from "@/sweep-set";
@@ -131,6 +134,10 @@ function withRefs(d: Doc, refs: Doc["refs"]): Doc {
 export function App(): React.ReactElement {
   const [doc, setDoc] = useState<Doc>(EMPTY_DOC);
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
+  /** Whether this browser agreed to the current terms, which closes the warning at the top. */
+  const [termsOk, setTermsOk] = useState(agreed);
+  /** True while × on the warning asks you to agree to the terms. */
+  const [askTerms, setAskTerms] = useState(false);
   const [mode, setMode] = useState<Mode>("idle");
   /** A point clicked for a frequency reference, waiting for its frequency. */
   const [refAt, setRefAt] = useState<number | null>(null);
@@ -649,11 +656,18 @@ export function App(): React.ReactElement {
           <p>{problem.text}</p>
         </Confirm>
       )}
+      {askTerms && (
+        <Confirm title="Agree to the terms?" action="I agree"
+          onConfirm={() => { agree(APP_VERSION); setTermsOk(true); setAskTerms(false); }}
+          onCancel={() => setAskTerms(false)}>
+          <p>To close this warning, agree to the NanoBands <a href="terms.html" target="_blank" rel="noreferrer">terms of use</a>. You check each result before you transmit, at your own risk.</p>
+        </Confirm>
+      )}
       {waiting && <Busy text={waiting} detail={vna.progress && !vna.live ? `${vna.progress.band ?? "Full"} · ${vna.progress.at} of ${vna.progress.of}` : null} />}
-      <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")} inert={foreign || !!problem || !!waiting}>
+      <div className={"app" + (booting ? " booting" : "") + (landing ? " no-data" : "")} inert={foreign || !!problem || !!waiting || askTerms}>
         <Flight landing={landing} hero={heroRef} name={nameRef} sub={subRef}>
           <Header nameRef={nameRef} subRef={subRef} onClear={doc.source ? clear : null} />
-          {!landing && doc.source && <div className="page-top"><Disclaimer source={doc.source} id="disclaimer" /></div>}
+          {!landing && doc.source && !termsOk && <div className="page-top"><Disclaimer source={doc.source} id="disclaimer" onClose={() => setAskTerms(true)} /></div>}
           {landing ? (
             <Landing heroRef={heroRef} onConnect={() => void vna.connect()} connecting={vna.connecting} unsupported={vna.unsupported} note={vna.note} onOpen={() => fileIn.current?.click()} />
           ) : (

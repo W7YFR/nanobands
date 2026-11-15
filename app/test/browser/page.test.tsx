@@ -1377,6 +1377,38 @@ describe("a connected NanoVNA", () => {
   });
 });
 
+describe("the terms", () => {
+  afterAll(() => localStorage.removeItem("nanobands-terms"));
+  const dialog = (): HTMLElement | null => document.querySelector<HTMLElement>("[role=alertdialog]");
+  const button = (label: string): HTMLButtonElement => [...dialog()!.querySelectorAll("button")].find((b) => b.textContent === label)!;
+
+  it("closes the warning only when you agree to the terms, and keeps it closed", async () => {
+    await mount();
+    await until(() => has("#disclaimer"));
+    $("#termsClose").click();
+    await until(() => dialog() !== null);
+    expect($("#modalTitle").textContent).toBe("Agree to the terms?");
+    expect($("#modalText a").getAttribute("href")).toBe("terms.html");
+    expect($(".app").inert).toBe(true);
+    button("Cancel").click();
+    await until(() => dialog() === null);
+    expect(has("#disclaimer")).toBe(true);
+
+    $("#termsClose").click();
+    await until(() => dialog() !== null);
+    button("I agree").click();
+    await until(() => !has("#disclaimer"));
+    await mount();
+    expect(has("#disclaimer")).toBe(false);
+  });
+
+  it("brings the warning back when the terms are newer than the agreement", async () => {
+    localStorage.setItem("nanobands-terms", JSON.stringify({ terms: 0, app: "1.0.0" }));
+    await mount();
+    await until(() => has("#disclaimer"));
+  });
+});
+
 describe("the License list", () => {
   afterAll(() => localStorage.setItem("nanobands-license", "G"));
 
