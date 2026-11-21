@@ -491,7 +491,7 @@ describe("LoadCard", () => {
     render(<LoadCard source="vna" fileName={null} over={false} onBrowse={() => {}} vna={vna} />);
     fireEvent.click(screen.getByRole("button", { name: "Read" }));
     const ask = screen.getByRole("alertdialog", { name: "Read the slots?" });
-    expect(ask).toHaveTextContent("will cause the device to lose the current calibration");
+    expect(ask).toHaveTextContent("Read will lose it");
     expect(screen.getByRole("button", { name: "Read slots" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();

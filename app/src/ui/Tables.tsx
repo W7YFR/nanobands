@@ -298,9 +298,9 @@ export const BandTable = memo(function BandTable({ an, settings, shown = "all", 
             <th>Segment<Help align="start" text="The segments your license class may use in this mode." /></th>
             <th>Range (MHz)<Help align="start" text="Where the segment starts and ends." /></th>
             <th>SWR ≤ {settings.thr}<Help text="The parts of the segment at or under Max SWR." /></th>
-            {med && <th>Median SWR<Help text="The sweep's median SWR on the segment. ↓ or ↑: lower or higher than the newest kept sweep's." /></th>}
-            <th>Dip<Help text="The sweep's lowest SWR in the band. A triangle means it is past the band's edge." /></th>
-            <th style={{ width: "24%" }}><Help text="Green is usable and red is over Max SWR. A mark is a sweep's dip." /></th>
+            {med && <th>Median SWR<Help text="The latest sweep's median SWR in this segment. ↓ means lower than the newest kept sweep, and ↑ means higher." /></th>}
+            <th>Dip<Help text="The latest sweep's lowest SWR in this band. A triangle means the lowest point is outside the band." /></th>
+            <th style={{ width: "24%" }}><Help text="Green is usable, and red is over Max SWR. Each mark is the dip of one sweep." /></th>
           </tr>
         </thead>
         {!bands.length && <tbody><tr><td colSpan={med ? 7 : 6} className="empty">{all.length ? "No usable band segments in this sweep." : "No amateur bands inside this sweep."}</td></tr></tbody>}

@@ -162,7 +162,7 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
       </span>
       <button id="keptClear" className="quiet" title="Drops every kept sweep" aria-label="Drop every kept sweep"
         style={keeper.kept.length ? undefined : { visibility: "hidden" }} onClick={keeper.onClear}>×</button>
-      <Help text="Keeps the sweep on the chart, to compare the next sweeps with, up to three." />
+      <Help text="Keeps this sweep on the chart, so you can compare new sweeps with it. You can keep up to three." />
     </div>
   );
   const board = d ? d.info : origin;
@@ -208,9 +208,9 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
       )}
       {asking && (
         <Confirm title="Read the slots?" action="Read slots" onConfirm={read} onCancel={cancelAsk}>
-          <p>Reading loads each calibration slot on the NanoVNA in turn, then returns to the one it started on.</p>
-          <p>The NanoVNA's current calibration does not match a known reading. If it is not saved on the device, reading the slots will cause the device to lose the current calibration.</p>
-          <p>If it is already saved, you can ignore this message.</p>
+          <p>Read loads each calibration slot on the NanoVNA in turn, then goes back to the slot it started on.</p>
+          <p>The calibration the NanoVNA is using now doesn't match any slot. If you haven't saved this calibration on the NanoVNA, Read will lose it.</p>
+          <p>If you have saved it, you can ignore this message.</p>
         </Confirm>
       )}
       {range && (
@@ -227,7 +227,7 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
             <span className="fine-menu"><button type="button" className="add" disabled>+ Band</button></span>
           </span>
           <button className="quiet" disabled aria-label="Sweep the whole range">×</button>
-          <Help text="Sweeps one band with all the NanoVNA's points, for more detail than the whole range gives." />
+          <Help text="Sweeps one band using all of the NanoVNA's points. That band gets more detail than a sweep of the whole range gives." />
         </div>
       )}
       {d && vna.range && onFine && (
@@ -259,7 +259,7 @@ export function LoadCard({ source, fileName, over, onBrowse, vna, fine = [], onC
           {/* Hidden, not gone, with no fine sweep: the ? keeps its column. */}
           <button id="fineClear" className="quiet" title="Drops the fine sweeps and sweeps the whole range again" aria-label="Sweep the whole range"
             style={fine.length ? undefined : { visibility: "hidden" }} onClick={() => (onClearFine ? onClearFine() : void vna.setFine(null))}>×</button>
-          <Help text="Sweeps one band with all the NanoVNA's points, for more detail than the whole range gives." />
+          <Help text="Sweeps one band using all of the NanoVNA's points. That band gets more detail than a sweep of the whole range gives." />
         </div>
       )}
       {keeper && keepRow}
@@ -437,7 +437,7 @@ export function CalibrateCard({ fields, onField, grid, ocr, straight, onStraight
           <button id="gridBtn" className="span" onClick={onDetectGrid}>Detect grid</button>
           <Help text="Finds the grid again and squares the photo up on it." />
           <button id="refBtn" className={"span" + (mode === "ref" ? " on" : "")} onClick={onRefMode}>+ Frequency reference</button>
-          <Help text="Click two points of known frequency on the photo to work out start and stop." />
+          <Help text="Click two points on the photo where you know the frequency. NanoBands works out the start and stop frequencies from them." />
         </div>
         {refs.length > 0 && (
           <div className="refs" id="refs">
@@ -492,7 +492,7 @@ export function TraceCard({ trace, mode, onAutoTrace, onPen, onErase, sens, onSe
           <Help text="Removes the trace, to draw it from scratch with the pen." />
           <label htmlFor="sens">Sensitivity</label>
           <input type="range" id="sens" min="20" max="140" value={sens} onChange={(e) => onSens(e.target.value)} />
-          <Help text="Left picks up a fainter curve. Right ignores more of the background." />
+          <Help text="Slide left to pick up a fainter curve. Slide right to ignore more of the background." />
         </div>
       </div>
     </div>
@@ -575,7 +575,7 @@ export const AnalyzeCard = memo(function AnalyzeCard({ prefs, onPref, onPin, onV
             <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden="true"><path d="M1 1L7 7M7 1L1 7" /></svg>
           </button>}
         </span>
-        <Help text="Marks this frequency in MHz on the chart and says whether you may transmit there; Enter, or a click on its mark, pins it." />
+        <Help text="Type a frequency in MHz to mark it on the chart and see whether you may transmit there. Press Enter, or click the mark, to pin the frequency." />
       </div>
       {check && <CheckResult c={check} sweep={sweep} thr={thr} top={top} onView={onView} />}
     </div>

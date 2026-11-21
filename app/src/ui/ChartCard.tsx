@@ -317,11 +317,11 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         {smith && onChart && <Switch id="chartKind" label="Chart" value={chart} options={CHARTS} onChange={onChart} />}
         <span className="title">{isSmith ? "Smith chart" : "SWR vs. frequency"}</span> <Help align="start" text={isSmith
         ? (touch
-          ? "Drag along a line to read its impedance; tap to clear the reading. Tap a line to pin a marker; tap it again to remove it. Pinch to zoom. The band chips pick the frequencies shown."
-          : "Point at a line to read its impedance. Click to pin a marker, click a pin to remove it. Scroll to zoom, drag to pan, double-click to reset. The band chips pick the frequencies shown.")
+          ? "Drag along a line to read the impedance there. Tap to clear the reading. Tap a line to add a pin, and tap a pin to remove the pin. Pinch to zoom. The band chips pick the frequencies shown."
+          : "Point at a line to read the impedance there. Click a line to add a pin. Click a pin to remove the pin. Scroll to zoom, drag to pan, double-click to reset. The band chips pick the frequencies shown.")
         : touch
-          ? "Drag along the chart to read the SWR; tap to clear the reading. Tap to pin your own marker; tap it again to remove it. Zoom, then drag across a range, to zoom in."
-          : "Click to pin a marker, click a pin to remove it. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} />
+          ? "Drag along the chart to read the SWR. Tap to clear the reading. Tap the chart to add a pin, and tap a pin to remove the pin. To zoom in, tap Zoom, then drag across a range."
+          : "Click to add a pin. Click a pin to remove the pin. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} />
         {/* What Live sweeps, first: the rest of the chart holds still while it sweeps one band. */}
         {live !== null && <span id="liveNote"><i />{live ? `Live: ${live} only` : "Live"}</span>}
         {/* The ✦ before the count marks the fine-swept chips below too, so the note is their key. */}

@@ -16,6 +16,10 @@ them.
 - The scroll wheel or a pinch zooms the Smith chart. A drag pans it, and a double-click zooms back out.
 - **Chart (.png)** saves the Smith chart as it shows, zoom included.
 
+### Changed
+
+- The help tips, the Read warning and two error messages use plainer words. The chart's tips call a marker a pin, as the rest of the page does.
+
 ### Development
 
 - The dom test tier has a stand-in `ResizeObserver`, so it can render the chart card.

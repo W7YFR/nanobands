@@ -64,7 +64,7 @@ const NO_IMAGE: Problem = { title: "Couldn't read that image.", text: "The file 
 /** Only Safari opens a HEIC photo. */
 const NO_SET = (why: string): Problem => ({ title: "Couldn't find the sweeps in that .zip.", text: `${why} NanoBands opens the All (.zip) that Export saves.` });
 const NO_ZIP: Problem = { title: "Couldn't read that .zip.", text: "The file is damaged, or not a .zip." };
-const SAME = (which: string): Problem => ({ title: "That sweep is on the chart already.", text: `Its readings match ${which}.`, keep: true });
+const SAME = (which: string): Problem => ({ title: "That sweep is on the chart already.", text: `The readings in this file match ${which}.`, keep: true });
 const NO_HEIC: Problem = { title: "This browser can't open HEIC photos.", text: "Open the page in Safari or on the iPhone, or save the photo as a JPEG." };
 
 
