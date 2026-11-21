@@ -4,9 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 import { clampZoom, drawSmith, nearestF, type SmithGeom, type SmithScene } from "@/ui/draw-smith";
+import { dipIn } from "@/ui/model";
 import { HIGH, OK } from "@/ui/colors";
 import type { Settings } from "@/ui/model";
-import type { S11 } from "@/touchstone";
+import { swrFromGamma, type S11 } from "@/touchstone";
 
 const S = 500;
 const settings: Settings = { start: 14, stop: 14.35, top: 5, bot: 1, thr: 3, cls: "G", mode: "any", prom: 0.2, sens: 0, clip: false };
@@ -57,24 +58,69 @@ describe("drawSmith", () => {
     expect(colorNear(ctx, l.x[j]!, l.y[j]!, HIGH)).toBe(true);
   });
 
-  it("runs from the first frequency in view to the last", () => {
+  it("runs across the whole view, through every reading in it, and marks which points are readings", () => {
     const { g } = draw({ range: [14.1, 14.3] });
-    const l = g.lines[0]!;
-    expect(l.f[0]).toBe(14.1);
-    expect(l.f[l.f.length - 1]).toBe(14.3);
+    const l = g.lines[0]!, f = resonant().f.filter((x) => x >= 14.1 && x <= 14.3);
+    expect(l.f).toEqual([14.1, ...f, 14.3]);
+    expect(l.real).toEqual([false, ...f.map(() => true), false]);
+  });
+
+  it("draws the line and a pin in a view between two readings, with no dip, and reads no made-up frequency", () => {
+    // Two readings per MHz: 14 and 14.5 MHz. The view, 14.1–14.4 MHz, holds none.
+    const f = [13.5, 14, 14.5, 15], g: S11 = { f, re: [0.5, 0.2, -0.1, -0.3], im: [-0.4, -0.1, 0.2, 0.4], z0: 50 };
+    const { g: geom } = draw({ latest: g, range: [14.1, 14.4], manual: [14.25] });
+    const l = geom.lines[0]!;
+    expect(l.f).toEqual([14.1, 14.4]);
+    expect(l.real).toEqual([false, false]);
+    expect(geom.points.map((p) => p.kind)).toEqual(["pin"]);
+    // Anywhere on that line, the pointer reads nothing rather than a made-up frequency.
+    const mid = [(l.x[0]! + l.x[1]!) / 2, (l.y[0]! + l.y[1]!) / 2] as const;
+    expect([nearestF(geom, l.x[0]!, l.y[0]!, 24), nearestF(geom, ...mid, 24), nearestF(geom, l.x[1]!, l.y[1]!, 24)]).toEqual([null, null, null]);
+    // One reading in view: the pointer near either end reads it.
+    const one = draw({ latest: g, range: [13.9, 14.4] }).g;
+    const m = one.lines[0]!;
+    expect(m.real).toEqual([false, true, false]);
+    expect(nearestF(one, m.x[0]!, m.y[0]!, 24)).toBe(14);
+    expect(nearestF(one, m.x[2]!, m.y[2]!, 24)).toBe(14);
+  });
+
+  it("marks no dip at the end of the view, as the SWR chart marks none there", () => {
+    // Over 14.21–14.3 MHz the SWR only rises, so the lowest reading in view is the first.
+    const { g } = draw({ range: [14.21, 14.3] });
+    const s = Float64Array.from(resonant().f.map((_, i) => swrFromGamma(Math.hypot(resonant().re[i]!, resonant().im[i]!))));
+    expect(dipIn(Float64Array.from(resonant().f), s, 14.21, 14.3)).toBeNull();
+    expect(g.points.find((p) => p.kind === "dip")).toBeUndefined();
+  });
+
+  it("labels a pin with the SWR the SWR chart gives, not one from the S11 line", () => {
+    const c = document.createElement("canvas");
+    c.width = S; c.height = S;
+    const ctx = c.getContext("2d")!, said: string[] = [], fill = ctx.fillText.bind(ctx);
+    ctx.fillText = (t: string, x: number, y: number) => { said.push(t); fill(t, x, y); };
+    drawSmith(ctx, S, S, 1, { settings, range: [14, 14.35], latest: resonant(), kept: [], manual: [14.25], probe: 14.3, hoverF: null, swr: () => 9.87 });
+    expect(said).toContain("14.250 · 9.87");
+    expect(said).toContain("14.300 · 9.87");
   });
 
   it("puts a pin where the pointer reads its frequency back", () => {
     const { g } = draw({ manual: [14.25] });
-    const p = g.pins[0]!;
+    const p = g.points.find((q) => q.kind === "pin")!;
     expect(p.f).toBe(14.25);
-    expect(nearestF(g, p.x, p.y, 4)).toBeCloseTo(14.25, 3);
+    // 14.25 MHz falls between readings: the pointer there reads the nearer one.
+    const f = nearestF(g, p.x, p.y, 4)!;
+    expect(resonant().f).toContain(f);
+    expect(Math.abs(f - 14.25)).toBeLessThan(0.00175);
+  });
+
+  it("gives the dip, the typed frequency and the pins to snap to, pins last, and not the made-up ends", () => {
+    const { g } = draw({ manual: [14.25], probe: 14.3 });
+    expect(g.points.map((p) => [p.kind, +p.f.toFixed(2)])).toEqual([["dip", 14.2], ["probe", 14.3], ["pin", 14.25]]);
   });
 
   it("draws a kept sweep but no line for a hidden sweep", () => {
     const { g } = draw({ latest: null, kept: [{ g: resonant(), n: 1 }] });
     expect(g.lines).toHaveLength(1);
-    expect(g.pins).toEqual([]);
+    expect(g.points).toEqual([]);
   });
 
   it("shows the readings as dots in Points, and reads only them", () => {

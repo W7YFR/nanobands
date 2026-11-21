@@ -1,18 +1,21 @@
 /* The chart card's Smith chart, and its readout beside it.
  *
  * The readout gives one frequency: the one under the pointer, or else the
- * sweep's dip in view. Each line shown gets a row there, the sweep first and
+ * pin added last, or else the sweep's dip in view. Each line shown gets a row there, the sweep first and
  * then the kept sweeps newest first, with its impedance and SWR at that
  * frequency. Under them, the sweep's reactance as a part, its S11 and its
  * return loss.
  *
- * The pointer reads the line nearest it. A click pins the frequency, or
- * unpins a pin. On a touch screen a drag reads, the reading stays when the
- * finger lifts, and the next tap clears it.
+ * The pointer reads the nearest reading on the line nearest it, as only
+ * readings are measured. It snaps to a pin, the dip or the typed frequency
+ * when close, as on the SWR chart. A click pins the
+ * frequency, or unpins a pin. On a touch screen a drag reads, the reading
+ * stays when the finger lifts, and the next tap clears it.
  *
  * The wheel zooms about the pointer, a drag pans while zoomed in, and a
  * double-click zooms back out. On a touch screen two fingers pinch to zoom
- * and pan, and a pinch all the way out zooms back out. A new range of
+ * and pan, and a pinch all the way out zooms back out. While zoomed in,
+ * Zoom out shows on the chart, for a touch screen above all. A new range of
  * frequencies zooms back out too. The zoom is App's, so Chart (.png) saves
  * the chart as it shows.
  */
@@ -20,12 +23,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { swrAt } from "@/analysis";
 import { fmtF } from "@/format";
-import { impedance, reactancePart, returnLoss, s11At } from "@/smith";
+import { impedance, isEstimate, reactancePart, returnLoss, s11At } from "@/smith";
 import type { S11 } from "@/touchstone";
 import { drawnKept, type Showing } from "./ChartCard";
 import { fitCanvas } from "./draw-photo";
 import type { Readings } from "./draw-chart";
-import { drawSmith, nearestF, zoomAbout, type SmithGeom, type SmithScene, type Zoom } from "./draw-smith";
+import { drawSmith, nearestF, zoomAbout, type SmithGeom, type SmithPoint, type SmithScene, type Zoom } from "./draw-smith";
 import { Help } from "./Help";
 import { dipIn, keptNumber, swrOn, type Curve, type Kept, type Settings } from "./model";
 import { useNoSwipe } from "./useNoSwipe";
@@ -36,6 +39,8 @@ export interface SmithData { latest: S11; kept: readonly (S11 | null)[] }
 
 /** How far from a line, in CSS pixels, the pointer still reads it. A finger gets more room. */
 const REACH = 24, FINGER_REACH = 40;
+/** How far from a point, in CSS pixels, the pointer snaps to it, as on the SWR chart. */
+const SNAP = 14, FINGER_SNAP = 24;
 
 /** The kept sweeps the Smith chart shows, newest first, with their numbers. */
 function keptLines(data: SmithData, showing: Showing | null): { g: S11; n: number; k: Kept }[] {
@@ -43,39 +48,55 @@ function keptLines(data: SmithData, showing: Showing | null): { g: S11; n: numbe
   return drawn.flatMap((k, i) => (k.on && data.kept[i] ? [{ g: data.kept[i]!, n: keptNumber(drawn, i), k }] : [])).sort((a, b) => a.n - b.n);
 }
 
-export function smithScene(data: SmithData, showing: Showing | null, settings: Settings, range: [number, number],
+export function smithScene(data: SmithData, curve: Curve | null, showing: Showing | null, settings: Settings, range: [number, number],
   manual: readonly number[], probe: number | null, hoverF: number | null, readings: Readings | null, zoom: Zoom | null = null): SmithScene {
   return {
     settings, range, manual, probe, hoverF, readings, zoom,
+    // One SWR for a frequency between readings: the SWR chart's.
+    swr: curve ? (f: number) => swrOn(curve, f) : null,
     latest: !showing || showing.curveOn ? data.latest : null,
     kept: keptLines(data, showing).map(({ g, n }) => ({ g, n })),
   };
 }
 
+/** `n` as the readout rounds it, with no −0.0: a noisy reading just past
+ *  the rim gives a resistance a hair under 0. */
+const ohms = (n: number): string => (Math.abs(n) >= 1000 ? Math.round(n).toString() : Math.abs(n) < 0.05 ? "0.0" : n.toFixed(1));
+/** The sign before j for reactance x, + when it rounds to 0. */
+const jSign = (x: number): string => (x < 0 && ohms(x) !== "0.0" ? "−" : "+");
+
 /** R ± jX in ohms. */
 function fmtZ([r, x]: [number, number]): string {
   if (!Number.isFinite(r)) return "open";
-  const v = (n: number): string => (Math.abs(n) >= 1000 ? Math.round(n).toString() : n.toFixed(1));
-  return `${v(r)} ${x < 0 ? "−" : "+"} j${v(Math.abs(x))} Ω`;
+  return `${ohms(r)} ${jSign(x)} j${ohms(Math.abs(x))} Ω`;
 }
 
-/** A reactance as the part that has it, such as `46 nH` or `120 pF`. */
+/** Under this reactance in ohms, the readout calls the load close to resonant. */
+const NEAR_RESONANT = 5;
+
+/** A reactance as the part that has it, such as `46 nH (inductive)`. Close
+ *  to j0 the part is large and says little, so the readout gives the ohms. */
 function fmtPart(x: number, f: number): string {
+  if (Math.abs(x) < NEAR_RESONANT) return `Close to resonant (${jSign(x)}j${ohms(Math.abs(x))} Ω)`;
   const { kind, value } = reactancePart(x, f);
   const [big, small] = kind === "L" ? ["µH", "nH"] : ["nF", "pF"];
   const v = value >= 1000 ? value / 1000 : value, u = value >= 1000 ? big : small;
   return `${v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v)} ${u} (${kind === "L" ? "inductive" : "capacitive"})`;
 }
 
-/** What each thing in the readout means. */
-const READOUT_HELP = (
+/** A reference impedance as the help gives it, such as `50`. */
+const fmtZ0 = (z0: number): string => String(+z0.toFixed(1));
+
+/** What each thing in the readout means, at reference impedance z0. */
+const readoutHelp = (z0: number): React.ReactElement => (
   <dl className="readHelp">
     <dt><span className="n latest">L</span> <span className="n k1">1</span></dt><dd>One row per sweep: L is the latest sweep, and the numbers are kept sweeps. Every row is read at the same frequency.</dd>
-    <dt>Impedance</dt><dd>Resistance ± reactance, in ohms. A perfect match is 50 + j0. A + sign means inductive, a − sign means capacitive, and j0 means resonant.</dd>
+    <dt>Impedance</dt><dd>Resistance ± reactance, in ohms. A perfect match is {fmtZ0(z0)} + j0. A + sign means inductive, a − sign means capacitive, and j0 means resonant.</dd>
     <dt>SWR</dt><dd>1.00 is a perfect match. A higher number means more power reflects back to the radio.</dd>
-    <dt>Reactance</dt><dd>The latest sweep's reactance as a part: a coil in nH or a capacitor in pF, at this frequency.</dd>
-    <dt>S11</dt><dd>For the latest sweep: how much of the signal reflects back, from 0 (none) to 1 (all), and the angle of the reflection.</dd>
+    <dt>Reactance</dt><dd>The latest sweep's reactance as a part: a coil in nH or a capacitor in pF, at this frequency. When the reactance is under {NEAR_RESONANT} Ω, the readout says close to resonant and gives the reactance in ohms instead.</dd>
+    <dt>S11</dt><dd>For the latest sweep: the size of the reflected signal compared with the signal sent, from 0 (none) to 1 (all), and the angle of the reflection. S11 compares voltages, not power: 0.5 means a quarter of the power reflects back.</dd>
     <dt>Return loss</dt><dd>For the latest sweep: how much weaker the reflected signal is than the signal sent, in dB. Higher is better. 10 dB is SWR 1.92, and 20 dB is SWR 1.22.</dd>
+    <dt>≈</dt><dd>The frequency falls between two readings that are far apart on the chart, so the value is an estimate.</dd>
   </dl>
 );
 
@@ -104,10 +125,10 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
   /** The fingers down, and a pinch: where its fingers began and the zoom then. */
   const fingers = useRef(new Map<number, [number, number]>());
   const pinch = useRef<{ d: number; mid: [number, number]; z: Zoom | null } | null>(null);
-  const [onPin, setOnPin] = useState(false);
+  const [snap, setSnap] = useState<SmithPoint["kind"] | null>(null);
   const [panning, setPanning] = useState(false);
   useEffect(() => onZoom(null), [range[0], range[1]]);
-  const scene = smithScene(data, showing, settings, range, manual, probe, hoverF, readings, zoom);
+  const scene = smithScene(data, curve, showing, settings, range, manual, probe, hoverF, readings, zoom);
 
   const draw = (): void => {
     const c = ref.current, ctx = c?.getContext("2d");
@@ -162,38 +183,56 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
     const r = e.currentTarget.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top];
   };
-  const pinAt = (x: number, y: number, finger: boolean): number | null =>
-    geom.current?.pins.find((p) => Math.hypot(p.x - x, p.y - y) <= (finger ? 18 : 10))?.f ?? null;
+  /** The point nearest (x, y), if one is close enough to snap to. Pins come last, so a pin wins a tie. */
+  const snapAt = (x: number, y: number, finger: boolean): SmithPoint | null => {
+    let best: SmithPoint | null = null, bd = finger ? FINGER_SNAP : SNAP;
+    for (const p of geom.current?.points ?? []) {
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (d <= bd) { bd = d; best = p; }
+    }
+    return best;
+  };
+  /** The frequency at (x, y): a point snapped to, or the nearest line. */
+  const freqAt = (x: number, y: number, finger: boolean, p: SmithPoint | null): number | null =>
+    p?.f ?? (geom.current ? nearestF(geom.current, x, y, finger ? FINGER_REACH : REACH) : null);
   const read = (x: number, y: number, finger: boolean): void => {
-    const g = geom.current;
-    const pin = pinAt(x, y, finger);
-    setOnPin(pin !== null);
-    const f = pin ?? (g ? nearestF(g, x, y, finger ? FINGER_REACH : REACH) : null);
+    const p = snapAt(x, y, finger);
+    setSnap(p?.kind ?? null);
+    const f = freqAt(x, y, finger, p);
     if (f !== hoverF) onHover(f);
   };
   const pinHere = (x: number, y: number, finger: boolean): void => {
-    const pin = pinAt(x, y, finger);
-    if (pin !== null) { onTogglePin(pin, 1e-9); return; }
-    const f = geom.current ? nearestF(geom.current, x, y, finger ? FINGER_REACH : REACH) : null;
+    const p = snapAt(x, y, finger);
+    if (p?.kind === "pin") { onTogglePin(p.f, 1e-9); return; }
+    const f = freqAt(x, y, finger, p);
     if (f !== null) onTogglePin(f, 0);
   };
 
-  // The readout's frequency: the one under the pointer, or the sweep's dip in view.
+  // The readout's frequency: the one under the pointer, or the pin added
+  // last, or the sweep's dip in view.
   const latestOn = scene.latest !== null;
+  const inView = (m: number): boolean => m >= range[0] && m <= range[1];
   const dip = latestOn && curve ? dipIn(curve.f, curve.s, range[0], range[1]) : null;
-  const f = hoverF !== null && hoverF >= range[0] && hoverF <= range[1] ? hoverF : dip?.f ?? null;
-  const what = f === null ? "" : f === hoverF ? (manual.includes(f) ? "Pin" : "") : "Dip";
+  const lastPin = latestOn ? [...manual].reverse().find((m) => inView(m) && s11At(data.latest, m)) : undefined;
+  const f = hoverF !== null && inView(hoverF) ? hoverF : lastPin ?? dip?.f ?? null;
+  const what = f === null ? "" : manual.includes(f) ? "Pin" : f === dip?.f ? "Dip" : "";
+  // Over a pin or the typed frequency, what a click does, as the SWR chart says it.
+  const act = f !== hoverF ? "" : snap === "pin" ? (touch ? "tap to unpin" : "click to unpin") : snap === "probe" ? (touch ? "tap to pin" : "click to pin") : "";
   const kept = keptLines(data, showing);
   const g = f !== null && latestOn ? s11At(data.latest, f) : null;
   const z = g ? impedance(g[0], g[1], data.latest.z0) : null;
   const mag = g ? Math.hypot(g[0], g[1]) : 0;
+  // A pin or the typed frequency can fall between readings: mark an estimate.
+  const est = f !== null && latestOn && isEstimate(data.latest, f) ? "≈ " : "";
+  // Return loss from the SWR the readout gives, so the two agree.
+  const w = f !== null ? swrOn(curve, f) : NaN, rl = Number.isNaN(w) ? mag : (w - 1) / (w + 1);
   const name = showing?.curveName ?? "Latest";
   // The kept sweep the sweep is, as its pill marks it.
   const same = showing && showing.same >= 0 ? keptNumber(showing.kept, showing.same) : null;
 
   return (
     <div className="smith">
-      <canvas id="smith" ref={ref} style={panning ? { cursor: "grabbing" } : onPin ? { cursor: "pointer" } : undefined}
+      <canvas id="smith" ref={ref} style={panning ? { cursor: "grabbing" } : snap === "pin" || snap === "probe" ? { cursor: "pointer" } : undefined}
         onDoubleClick={() => onZoom(null)}
         onPointerDown={(e) => {
           const [x, y] = at(e), finger = e.pointerType !== "mouse";
@@ -236,34 +275,35 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
           if (p.finger) onHover(null);
         }}
         onPointerCancel={(e) => { lift(e); press.current = null; setPanning(false); }}
-        onPointerLeave={(e) => { if (e.pointerType === "mouse" && !press.current) { setOnPin(false); onHover(null); } }}
+        onPointerLeave={(e) => { if (e.pointerType === "mouse" && !press.current) { setSnap(null); onHover(null); } }}
       />
+      {zoom && <button type="button" id="smithZoomOut" className="small" onClick={() => onZoom(null)}>Zoom out</button>}
       <div className="smithRead" id="smithRead">
         {f === null ? (
           <p className="hint">{touch ? "Touch a line to read it." : "Point at a line to read it."}</p>
         ) : (
           <>
-            <div className="at">{fmtF(f)} MHz{what && <span> · {what}</span>}<Help align="start" label="What the readout shows" text={READOUT_HELP} /></div>
+            <div className="at">{fmtF(f)} MHz{(what || act) && <span>{[what, act].filter(Boolean).map((t) => ` · ${t}`).join("")}</span>}<Help align="start" label="What the readout shows" text={readoutHelp(data.latest.z0)} /></div>
             <table>
               <thead><tr><th></th><th>Impedance</th><th>SWR</th></tr></thead>
               <tbody>
                 {latestOn && (
-                  <tr><td><span className="n latest" title={name}>L</span>{same && <span className={`n k${same}`} title={`Kept ${same}`}>{same}</span>}</td><td className="num">{z ? fmtZ(z) : "—"}</td><td className="num">{fmtSwr(swrOn(curve, f))}</td></tr>
+                  <tr><td><span className="n latest" title={name}>L</span>{same && <span className={`n k${same}`} title={`Kept ${same}`}>{same}</span>}</td><td className="num">{z ? est + fmtZ(z) : "—"}</td><td className="num">{fmtSwr(w)}</td></tr>
                 )}
                 {kept.map(({ g: kg, n, k }) => {
-                  const kz = s11At(kg, f);
+                  const kz = s11At(kg, f), kest = isEstimate(kg, f) ? "≈ " : "";
                   return (
                     <tr key={n} className={`k${n}`}><td><span className="n" title={`Kept ${n}`}>{n}</span></td>
-                      <td className="num">{kz ? fmtZ(impedance(kz[0], kz[1], kg.z0)) : "—"}</td><td className="num">{fmtSwr(swrAt(k.f, k.s, f))}</td></tr>
+                      <td className="num">{kz ? kest + fmtZ(impedance(kz[0], kz[1], kg.z0)) : "—"}</td><td className="num">{fmtSwr(swrAt(k.f, k.s, f))}</td></tr>
                   );
                 })}
               </tbody>
             </table>
             {z && g && (
               <dl>
-                <dt>Reactance</dt><dd>{fmtPart(z[1], f)}</dd>
-                <dt>S11</dt><dd>{mag.toFixed(3)} ∠ {Math.round((Math.atan2(g[1], g[0]) * 180) / Math.PI)}°</dd>
-                <dt>Return loss</dt><dd>{mag > 0.001 ? `${returnLoss(mag).toFixed(1)} dB` : "> 60 dB"}</dd>
+                <dt>Reactance</dt><dd>{est + fmtPart(z[1], f)}</dd>
+                <dt>S11</dt><dd>{est}{mag.toFixed(3)} ∠ {Math.round((Math.atan2(g[1], g[0]) * 180) / Math.PI)}°</dd>
+                <dt>Return loss</dt><dd>{rl > 0.001 ? `${returnLoss(rl).toFixed(1)} dB` : "> 60 dB"}</dd>
               </dl>
             )}
           </>

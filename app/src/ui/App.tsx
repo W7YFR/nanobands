@@ -19,6 +19,7 @@ import { openStore } from "@/store";
 import { APP_VERSION } from "@/build-info";
 import { agree, agreed } from "@/terms";
 import { looksLikeScreen } from "@/sweep-text";
+import { renormalize } from "@/smith";
 import { isTouchstone, parseS11, parseTouchstone } from "@/touchstone";
 import { sweepSet, type SweepSet } from "@/sweep-set";
 import { traceBest } from "@/trace";
@@ -343,7 +344,9 @@ export function App(): React.ReactElement {
   const keptTexts = doc.kept.map((k) => k.s1p?.text ?? "").join("\0");
   // Parsed again only when a kept sweep comes or goes, not when its pill shows or hides it.
   const keptS11 = useMemo(() => doc.kept.map((k) => (k.s1p ? parseS11(k.s1p.text) : null)), [keptTexts]);
-  const smith: SmithData | null = latestS11 && latestS11.f.length >= 2 ? { latest: latestS11, kept: keptS11 } : null;
+  // A kept sweep measured against another reference impedance is drawn on the latest sweep's grid.
+  const smith: SmithData | null = latestS11 && latestS11.f.length >= 2
+    ? { latest: latestS11, kept: keptS11.map((k) => (k ? renormalize(k, latestS11.z0) : null)) } : null;
   const isSmith = !!smith && prefs.chart === "smith" && !!an;
   /** How far the Smith chart is zoomed in, here so Chart (.png) saves it as it shows. */
   const [smithZoom, setSmithZoom] = useState<Zoom | null>(null);
@@ -565,7 +568,7 @@ export function App(): React.ReactElement {
       const S = 600, c = document.createElement("canvas");
       c.width = S * 2;
       c.height = S * 2;
-      drawSmith(c.getContext("2d")!, S, S, 2, smithScene(smith, showing, settings, doc.view ?? [an.fmin, an.fmax], doc.manual, null, null, doc.source === "image" ? null : prefs.readings, smithZoom));
+      drawSmith(c.getContext("2d")!, S, S, 2, smithScene(smith, curve, showing, settings, doc.view ?? [an.fmin, an.fmax], doc.manual, null, null, doc.source === "image" ? null : prefs.readings, smithZoom));
       download("smith-chart.png", c.toDataURL("image/png"));
       return;
     }

@@ -10,19 +10,27 @@ them.
 ### Added
 
 - **SWR | Smith** on the chart shows a NanoVNA sweep or a Touchstone file as a Smith chart, with Max SWR as a circle. The band chips pick the frequencies shown, and the pills show and hide the kept sweeps.
-- Beside the Smith chart, a readout gives each line's impedance and SWR at the frequency under the pointer, or at the dip. It also gives the latest sweep's reactance as a part, its S11 and its return loss.
-- A **?** beside the readout says what each value in it means.
+- Beside the Smith chart, a readout gives each line's impedance and SWR at the reading under the pointer, the pin added last, or the dip. It also gives the latest sweep's reactance as a part, its S11 and its return loss.
+- The readout marks a value with **≈** where a pin falls between two readings far apart on the chart.
+- A **?** beside the readout says what each value in it means. The Smith chart's own **?** says how to read the chart.
+- Near resonance, the readout says **Close to resonant** and gives the reactance in ohms instead of a part.
 - On the Smith chart, **Line**, **Points** and **Both** show the sweep as on the SWR chart. The chart names its inductive and capacitive halves, and an arrow marks the sweep's high end.
-- The scroll wheel or a pinch zooms the Smith chart. A drag pans it, and a double-click zooms back out.
+- On the Smith chart, the pointer snaps to the pins, the dip and the typed frequency, as on the SWR chart.
+- The scroll wheel or a pinch zooms the Smith chart. A drag pans it, and a double-click or **Zoom out** zooms back out.
 - **Chart (.png)** saves the Smith chart as it shows, zoom included.
 
 ### Changed
 
 - The help tips, the Read warning and two error messages use plainer words. The chart's tips call a marker a pin, as the rest of the page does.
 
+### Fixed
+
+- A Touchstone file with its readings out of frequency order no longer draws a zigzag.
+
 ### Development
 
 - The dom test tier has a stand-in `ResizeObserver`, so it can render the chart card.
+- The fake NanoVNA at `?fake` gives S11 a phase like a wire's, so its sweep draws a real loop on the Smith chart.
 
 ## v1.22.0 — 2026-11-21
 

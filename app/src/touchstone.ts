@@ -60,7 +60,10 @@ export function parseS11(text: string): S11 {
     out.im.push(fmt === "RI" ? b : mag * Math.sin(rad));
   }
   out.z0 = z0;
-  return out;
+  // In frequency order, as a file can list them out of order. The sort is
+  // stable, so readings at the same frequency keep their order.
+  const order = out.f.map((_, i) => i).sort((a, b) => out.f[a]! - out.f[b]!);
+  return { f: order.map((i) => out.f[i]!), re: order.map((i) => out.re[i]!), im: order.map((i) => out.im[i]!), z0 };
 }
 
 export function parseTouchstone(text: string): Sweep {

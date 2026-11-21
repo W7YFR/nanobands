@@ -199,6 +199,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   const touch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
   const [full, setFull] = useState(false);
   const isSmith = !!smith && chart === "smith" && !!range;
+  /** The Smith chart's reference impedance, for its help: usually 50 ohms. */
+  const z0 = +(smith?.latest.z0 ?? 50).toFixed(1);
 
   // Full screen: the page behind does not scroll, and Back or Escape leave.
   // Back on a phone is an edge swipe a page cannot stop, so full screen keeps
@@ -317,8 +319,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         {smith && onChart && <Switch id="chartKind" label="Chart" value={chart} options={CHARTS} onChange={onChart} />}
         <span className="title">{isSmith ? "Smith chart" : "SWR vs. frequency"}</span> <Help align="start" text={isSmith
         ? (touch
-          ? "Drag along a line to read the impedance there. Tap to clear the reading. Tap a line to add a pin, and tap a pin to remove the pin. Pinch to zoom. The band chips pick the frequencies shown."
-          : "Point at a line to read the impedance there. Click a line to add a pin. Click a pin to remove the pin. Scroll to zoom, drag to pan, double-click to reset. The band chips pick the frequencies shown.")
+          ? `The middle is a perfect ${z0} Ω match. The farther a line is from the middle, the higher the SWR. The top half is inductive, and the bottom half is capacitive. Drag along a line to read the impedance there. Tap to clear the reading. Tap a line to add a pin, and tap a pin to remove the pin. Pinch to zoom. The band chips pick the frequencies shown.`
+          : `The middle is a perfect ${z0} Ω match. The farther a line is from the middle, the higher the SWR. The top half is inductive, and the bottom half is capacitive. Point at a line to read the impedance there. Click a line to add a pin. Click a pin to remove the pin. Scroll to zoom, drag to pan, double-click to reset. The band chips pick the frequencies shown.`)
         : touch
           ? "Drag along the chart to read the SWR. Tap to clear the reading. Tap the chart to add a pin, and tap a pin to remove the pin. To zoom in, tap Zoom, then drag across a range."
           : "Click to add a pin. Click a pin to remove the pin. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} />

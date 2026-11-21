@@ -22,6 +22,14 @@ describe("swrFromGamma", () => {
 });
 
 describe("parseS11", () => {
+  it("puts readings listed out of order in frequency order, each with its own S11", () => {
+    const g = parseS11("# MHz S RI R 50\n14.2 0.3 0.1\n14.0 0.1 0.2\n14.1 0.2 0.3\n");
+    expect(g.f).toEqual([14, 14.1, 14.2]);
+    expect(g.re).toEqual([0.1, 0.2, 0.3]);
+    expect(g.im).toEqual([0.2, 0.3, 0.1]);
+    expect(parseTouchstone("# MHz S RI R 50\n14.2 0 0\n14.0 0.5 0\n").f).toEqual([14, 14.2]);
+  });
+
   it("reads the same S11 written as RI, MA and DB", () => {
     // 0.3 + j0.4: magnitude 0.5 at 53.13°, -6.0206 dB.
     for (const text of ["# MHz S RI R 50\n14.2 0.3 0.4\n", "# MHz S MA R 50\n14.2 0.5 53.1301\n", "# MHz S DB R 50\n14.2 -6.0206 53.1301\n"]) {

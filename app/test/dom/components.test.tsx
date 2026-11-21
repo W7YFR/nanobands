@@ -255,7 +255,7 @@ describe("the Smith chart", () => {
     card();
     const help = document.querySelector("#smithRead .at .help")!;
     expect(help.getAttribute("aria-label")).toBe("What the readout shows");
-    expect([...help.querySelectorAll(".readHelp dt")].map((d) => d.textContent)).toEqual(["L 1", "Impedance", "SWR", "Reactance", "S11", "Return loss"]);
+    expect([...help.querySelectorAll(".readHelp dt")].map((d) => d.textContent)).toEqual(["L 1", "Impedance", "SWR", "Reactance", "S11", "Return loss", "≈"]);
   });
 
   it("zooms with a pinch, and reads nothing with two fingers down", () => {
@@ -276,6 +276,63 @@ describe("the Smith chart", () => {
     touch("pointermove", 1, 120);
     touch("pointerup", 1, 120);
     expect(onHover).not.toHaveBeenCalled();
+  });
+
+  it("says close to resonant instead of a part near j0, and gives the part away from it", () => {
+    card();
+    const reactance = (): string | null | undefined => [...document.querySelectorAll("#smithRead > dl dt")].find((d) => d.textContent === "Reactance")?.nextElementSibling?.textContent;
+    // 50 + j0 at the dip.
+    expect(reactance()).toBe("Close to resonant (+j0.0 Ω)");
+    cleanup();
+    // Halfway to 14.2 MHz, S11 is 0.15 − j0.15: 50 ohms of reactance or more.
+    card({ hoverF: 14.15 });
+    expect(reactance()).toMatch(/ pF \(capacitive\)$/);
+  });
+
+  it("shows Zoom out only while zoomed in", () => {
+    const onZoom = vi.fn();
+    card({ onSmithZoom: onZoom });
+    expect(document.querySelector("#smithZoomOut")).toBeNull();
+    cleanup();
+    card({ smithZoom: { k: 3, c: [0, 0] }, onSmithZoom: onZoom });
+    onZoom.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+    expect(onZoom).toHaveBeenCalledWith(null);
+  });
+
+  it("reads the pin added last when the pointer is off the chart, and the dip with no pin in view", () => {
+    card({ manual: [14.05, 14.15] });
+    expect(atText()).toBe("14.150 MHz · Pin");
+    cleanup();
+    // A pin outside the frequencies shown does not count.
+    card({ manual: [14.05, 15] });
+    expect(atText()).toBe("14.050 MHz · Pin");
+    cleanup();
+    card({ manual: [15] });
+    expect(atText()).toBe("14.100 MHz · Dip");
+    cleanup();
+    // The pointer wins over a pin.
+    card({ manual: [14.05], hoverF: 14.12 });
+    expect(atText()).toBe("14.120 MHz");
+  });
+
+  it("marks an impedance between two readings far apart on the chart as an estimate, and a reading as exact", () => {
+    // 14.05 MHz falls between 0.3 + j0.3 and 0: far apart, so the straight line between them is a rough guess.
+    card({ manual: [14.05] });
+    const cells = (): string[] => [...document.querySelectorAll("#smithRead tbody tr:first-child td.num, #smithRead > dl dd")].map((c) => c.textContent ?? "");
+    const [zl, , reactance, s11] = cells();
+    expect([zl!.startsWith("≈ "), reactance!.startsWith("≈ "), s11!.startsWith("≈ ")]).toEqual([true, true, true]);
+    cleanup();
+    card({ hoverF: 14.1 });
+    expect(cells().some((c) => c.includes("≈"))).toBe(false);
+  });
+
+  it("shows no −0.0 for a noisy reading just past the rim, and uses the file's reference impedance in the help", () => {
+    const rim: S11 = { f: [14, 14.1], re: [-1.00004, 0], im: [0.003, 0], z0: 75 };
+    card({ smith: { latest: rim, kept: [] }, hoverF: 14 });
+    expect(document.querySelector("#smithRead tbody td.num")?.textContent).toMatch(/^0\.0 [+−] j/);
+    expect(document.querySelector("#smithRead .readHelp")?.textContent).toContain("A perfect match is 75 + j0.");
+    expect(document.querySelector("#chartCard h2 .help")?.textContent).toContain("The middle is a perfect 75 Ω match.");
   });
 
   it("reads the frequency under the pointer", () => {

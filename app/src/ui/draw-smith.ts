@@ -5,8 +5,9 @@
  * reactance, labeled in ohms at the sweep's reference impedance. The dashed
  * red circle is Max SWR: inside it, the SWR is at or under Max SWR. The sweep
  * takes the line chart's colors, and each kept sweep its color and dash. A
- * line runs from the first frequency in view to the last, and both ends are
- * labeled. The sweep's dip, the pins and the typed frequency are marked on
+ * line runs across the whole view, as the SWR chart's does: past the first
+ * and last reading in view, it runs straight to the view's edges. Both ends
+ * are labeled. The pointer reads only readings, never those made-up ends. The sweep's dip, the pins and the typed frequency are marked on
  * the sweep, and an arrow at its high end points the way the frequency rises. The top
  * half is inductive and the bottom half capacitive, and the chart says so.
  *
@@ -40,6 +41,9 @@ export interface SmithScene {
   hoverF: number | null;
   /** How the sweep shows; null or absent shows the line. */
   readings?: Readings | null;
+  /** The sweep's SWR at f as the SWR chart and the readout give it, for a
+   *  pin or the typed frequency between readings. Absent: from the S11 line. */
+  swr?: ((f: number) => number) | null;
   zoom?: Zoom | null;
 }
 
@@ -49,14 +53,20 @@ export const MAX_ZOOM = 40;
 
 interface Box { l: number; r: number; t: number; b: number }
 
-/** A drawn line, point by point, in CSS pixels. `dots`: only its points
- *  show, and the pointer reads them, not the line between. */
-interface Drawn { f: number[]; x: number[]; y: number[]; dots?: boolean }
+/** A drawn line, point by point, in CSS pixels. `real` says which points
+ *  are readings, not ends made up at the view's edges. `dots`: only its
+ *  points show, and the pointer reads them, not the line between. */
+interface Drawn { f: number[]; x: number[]; y: number[]; real?: boolean[]; dots?: boolean }
+
+/** A point the pointer snaps to: the sweep's dip, the typed frequency, or a
+ *  pin. The ends of the line are not: they are made up at the view's edges. */
+export interface SmithPoint { kind: "dip" | "probe" | "pin"; f: number; x: number; y: number }
 
 export interface SmithGeom {
   /** The sweep's line first, when it shows, then the kept sweeps'. */
   lines: Drawn[];
-  pins: { f: number; x: number; y: number }[];
+  /** What the pointer snaps to, pins last so a pin wins over a point under it. */
+  points: SmithPoint[];
 }
 
 const FONT = "11px -apple-system,Segoe UI,sans-serif", BOLD = "600 11px -apple-system,Segoe UI,sans-serif";
@@ -92,15 +102,19 @@ export function clampZoom(z: Zoom): Zoom | null {
 /** The SWR for S11 `re` + j`im`. */
 const swrOf = (re: number, im: number): number => swrFromGamma(Math.hypot(re, im));
 
-/** The points of `g` from lo to hi, with S11 at lo and hi added as the ends. */
-function inRange(g: S11, lo: number, hi: number): { f: number[]; re: number[]; im: number[] } {
-  const out = { f: [] as number[], re: [] as number[], im: [] as number[] };
-  const add = (f: number, p: [number, number] | null): void => { if (p) { out.f.push(f); out.re.push(p[0]); out.im.push(p[1]); } };
+interface InRange { f: number[]; re: number[]; im: number[]; real: boolean[] }
+
+/** The points of `g` from lo to hi: the readings, with S11 at lo and hi
+ *  made up as the ends where no reading falls there. `real` marks readings. */
+function inRange(g: S11, lo: number, hi: number): InRange {
+  const out: InRange = { f: [], re: [], im: [], real: [] };
+  const add = (f: number, re: number, im: number, real: boolean): void => { out.f.push(f); out.re.push(re); out.im.push(im); out.real.push(real); };
   const a = Math.max(lo, g.f[0]!), b = Math.min(hi, g.f[g.f.length - 1]!);
   if (!(a < b)) return out;
-  add(a, s11At(g, a));
-  for (let i = 0; i < g.f.length; i++) if (g.f[i]! > a && g.f[i]! < b) add(g.f[i]!, [g.re[i]!, g.im[i]!]);
-  add(b, s11At(g, b));
+  const end = (f: number): void => { const at = s11At(g, f)!; add(f, at[0], at[1], false); };
+  if (!g.f.includes(a)) end(a);
+  for (let i = 0; i < g.f.length; i++) if (g.f[i]! >= a && g.f[i]! <= b) add(g.f[i]!, g.re[i]!, g.im[i]!, true);
+  if (!g.f.includes(b)) end(b);
   return out;
 }
 
@@ -202,7 +216,7 @@ export function drawSmith(ctx: CanvasRenderingContext2D, W: number, H: number, d
   };
 
   const lines: Drawn[] = [];
-  const keep = (p: { f: number[]; re: number[]; im: number[] }): void => { lines.push({ f: p.f, x: p.re.map(X), y: p.im.map(Y) }); };
+  const keep = (p: InRange): void => { lines.push({ f: p.f, x: p.re.map(X), y: p.im.map(Y), real: p.real }); };
 
   // The kept sweeps, under the sweep.
   ctx.save(); unit(); ctx.clip();
@@ -218,6 +232,8 @@ export function drawSmith(ctx: CanvasRenderingContext2D, W: number, H: number, d
   const mode = sc.readings ?? "line";
   const p = sc.latest ? inRange(sc.latest, lo, hi) : null;
   const w = p ? p.re.map((re, i) => swrOf(re, p.im[i]!)) : [];
+  /** The sweep's SWR at f, from the same source as the SWR chart's. */
+  const swrAtF = (f: number, at: [number, number]): number => sc.swr?.(f) ?? swrOf(at[0], at[1]);
   if (p && mode !== "points") {
     ctx.lineWidth = 2;
     for (let i = 1; i < p.f.length; i++) {
@@ -252,13 +268,16 @@ export function drawSmith(ctx: CanvasRenderingContext2D, W: number, H: number, d
   }
   for (const k of kept) if (k.p.f.length >= 2) keep(k.p);
 
-  // The sweep's dip and its ends.
-  const pins: SmithGeom["pins"] = [];
+  // The sweep's dip and its ends. The dip is over the readings in view only,
+  // as on the SWR chart, never a made-up end.
+  const points: SmithPoint[] = [];
   if (p && p.f.length >= 2) {
-    const d = dipIn(Float64Array.from(p.f), Float64Array.from(w), lo, hi);
+    const ri = p.f.flatMap((_, i) => (p.real[i] ? [i] : []));
+    const d = dipIn(Float64Array.from(ri, (i) => p.f[i]!), Float64Array.from(ri, (i) => w[i]!), lo, hi);
     if (d) {
       const at = s11At(sc.latest!, d.f)!, col = curveColor(d.s, d.f, s);
       dot(at[0], at[1], col);
+      points.push({ kind: "dip", f: d.f, x: X(at[0]), y: Y(at[1]) });
       tag(`${fmtF(d.f)} · ${d.s.toFixed(2)}`, X(at[0]), Y(at[1]), col);
     }
     // The low end a dot, the high end an arrowhead.
@@ -266,19 +285,23 @@ export function drawSmith(ctx: CanvasRenderingContext2D, W: number, H: number, d
     dot(p.re[0]!, p.im[0]!, "#8b949e", 3);
     arrow(p.re.map(X), p.im.map(Y), "#8b949e");
     for (const i of [0, n]) tag(fmtF(p.f[i]!), X(p.re[i]!), Y(p.im[i]!), "#8b949e");
-    // Pins: white dots, labeled in the sweep's color there.
+  }
+  // Pins: white dots, labeled in the sweep's color there. They and the typed
+  // frequency show with any number of readings in view.
+  if (sc.latest) {
     for (const m of sc.manual) {
       const at = m >= lo && m <= hi ? s11At(sc.latest!, m) : null;
       if (!at) continue;
-      const v = swrOf(at[0], at[1]);
+      const v = swrAtF(m, at);
       dot(at[0], at[1], "#fff", 4);
-      pins.push({ f: m, x: X(at[0]), y: Y(at[1]) });
+      points.push({ kind: "pin", f: m, x: X(at[0]), y: Y(at[1]) });
       tag(`${fmtF(m)} · ${v.toFixed(2)}`, X(at[0]), Y(at[1]), curveColor(v, m, s));
     }
     const pr = sc.probe != null && sc.probe >= lo && sc.probe <= hi ? s11At(sc.latest!, sc.probe) : null;
     if (pr) {
       ctx.strokeStyle = PROBE; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(X(pr[0]), Y(pr[1]), 5, 0, 2 * Math.PI); ctx.stroke();
-      tag(`${fmtF(sc.probe!)} · ${swrOf(pr[0], pr[1]).toFixed(2)}`, X(pr[0]), Y(pr[1]), PROBE);
+      points.push({ kind: "probe", f: sc.probe!, x: X(pr[0]), y: Y(pr[1]) });
+      tag(`${fmtF(sc.probe!)} · ${swrAtF(sc.probe!, pr).toFixed(2)}`, X(pr[0]), Y(pr[1]), PROBE);
     }
   }
 
@@ -291,26 +314,40 @@ export function drawSmith(ctx: CanvasRenderingContext2D, W: number, H: number, d
     }
     const at = sc.latest ? s11At(sc.latest, f) : null;
     if (at) {
-      ctx.fillStyle = curveColor(swrOf(at[0], at[1]), f, s); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+      ctx.fillStyle = curveColor(swrAtF(f, at), f, s); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(X(at[0]), Y(at[1]), 5.5, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
     }
   }
-  return { lines, pins };
+  // Pins last, so a pin wins a tie.
+  points.sort((a, b) => +(a.kind === "pin") - +(b.kind === "pin"));
+  return { lines, points };
 }
 
-/** The frequency on a drawn line nearest (x, y), when one is within `max` px. */
+/** The reading nearest (x, y) on a drawn line within `max` px of it: of
+ *  the piece of line nearest the pointer, the end nearer the pointer that is
+ *  a reading. Only readings are measured, so the pointer reads only them, as
+ *  the NanoVNA does. A piece with no reading at either end, as when the view
+ *  falls between two readings, is passed over. */
 export function nearestF(g: SmithGeom, x: number, y: number, max: number): number | null {
   let best: number | null = null, bd = max;
   for (const l of g.lines) {
-    if (l.dots) {
-      l.f.forEach((f, i) => { const d = Math.hypot(l.x[i]! - x, l.y[i]! - y); if (d < bd) { bd = d; best = f; } });
+    const real = (i: number): boolean => l.real?.[i] ?? true;
+    if (l.dots || l.f.length === 1) {
+      l.f.forEach((f, i) => { const d = Math.hypot(l.x[i]! - x, l.y[i]! - y); if (real(i) && d < bd) { bd = d; best = f; } });
       continue;
     }
     for (let i = 1; i < l.f.length; i++) {
       const ax = l.x[i - 1]!, ay = l.y[i - 1]!, dx = l.x[i]! - ax, dy = l.y[i]! - ay, len = dx * dx + dy * dy;
       const t = len > 0 ? Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / len)) : 0;
       const d = Math.hypot(ax + t * dx - x, ay + t * dy - y);
-      if (d < bd) { bd = d; best = l.f[i - 1]! + t * (l.f[i]! - l.f[i - 1]!); }
+      if (d >= bd) continue;
+      const nearA = Math.hypot(ax - x, ay - y) <= Math.hypot(l.x[i]! - x, l.y[i]! - y);
+      const [first, second] = nearA ? [i - 1, i] : [i, i - 1];
+      const f = real(first) ? l.f[first]! : real(second) ? l.f[second]! : null;
+      // A piece with no reading does not count, so a line a little farther
+      // away, with a reading, still reads.
+      if (f === null) continue;
+      bd = d; best = f;
     }
   }
   return best;

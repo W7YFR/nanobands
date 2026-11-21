@@ -290,7 +290,9 @@ button.quiet:hover{color:var(--text);border-color:var(--line)}
 #chartCard.full #chart{flex:1;min-height:0;height:auto}
 /* The Smith chart: square, with its readout beside it, or under it where
    the card is too narrow. Full screen gives the chart the card's height. */
-.smith{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 20px}
+.smith{position:relative;display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 20px}
+/* Over the chart's top left corner, where the canvas always starts. */
+#smithZoomOut{position:absolute;top:8px;left:8px}
 #smith{display:block;flex:none;width:min(460px,100%);height:auto;aspect-ratio:1;touch-action:none;cursor:crosshair}
 .smithRead{flex:1 1 260px;min-width:0;font-size:13px;padding-top:4px}
 .smithRead .at{font-weight:600;margin:0 0 6px}
