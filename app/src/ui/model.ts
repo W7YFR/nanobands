@@ -126,6 +126,36 @@ export function dipIn(f: Float64Array, s: Float64Array, lo: number, hi: number):
   return at < 0 || at === first || at === last ? null : { f: f[at]!, s: s[at]! };
 }
 
+/** The median SWR of the readings in the segments, NaN with none. A segment
+ *  with no reading in it, as a 60 m channel can be, counts the SWR at its
+ *  center. */
+export function medianIn(f: Float64Array, s: Float64Array, segs: readonly Segment[]): number {
+  const v: number[] = [];
+  for (const [lo, hi] of segs) {
+    const n = v.length;
+    for (let i = 0; i < f.length; i++) if (f[i]! >= lo && f[i]! <= hi && !Number.isNaN(s[i]!)) v.push(s[i]!);
+    if (v.length === n) { const c = swrAt(f, s, (lo + hi) / 2); if (!Number.isNaN(c)) v.push(c); }
+  }
+  if (!v.length) return NaN;
+  v.sort((a, b) => a - b);
+  const m = v.length >> 1;
+  return v.length % 2 ? v[m]! : (v[m - 1]! + v[m]!) / 2;
+}
+
+/** How one median SWR compares with another: lower, higher, the same, or
+ *  both over Max SWR, where neither is usable. */
+export type Compare = "lower" | "higher" | "same" | "over";
+
+/** Two medians this close count as the same: 0.1, or 5% of the first where that is more. */
+const SAME_SWR = 0.1, SAME_SHARE = 0.05;
+
+/** How median SWR `a` compares with `b`, at Max SWR `thr`. */
+export function compareSwr(a: number, b: number, thr: number): Compare {
+  if (a > thr && b > thr) return "over";
+  const near = Math.max(SAME_SWR, SAME_SHARE * a);
+  return a < b - near ? "lower" : a > b + near ? "higher" : "same";
+}
+
 /** Everything about the loaded file. Clear resets it to EMPTY_DOC. */
 export interface Doc {
   source: "image" | "s1p" | "vna" | null;

@@ -364,6 +364,9 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
   .bands td.none{grid-column:1 / -1}
   .bands td.barcell{grid-column:1 / -1;order:-2;margin-bottom:2px}
   .bands td.dips{grid-column:1 / -1;order:-1;display:flex!important;flex-wrap:wrap;gap:0 14px;margin-bottom:4px}
+  .bands td.dips:empty{display:none!important}
+  .bands td.med{grid-column:1 / -1;order:3;color:var(--muted)}
+  .bands td.med::before{content:"Median SWR "}
   .bands td.usable{grid-column:1 / -1;order:2;color:var(--muted);white-space:normal}
   .bands td.usable::before{content:"Usable at SWR ≤ " var(--thr) ": "}
   /* Nothing usable: the all-red bar says so. */
@@ -408,8 +411,8 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .dipRow i.glyph.out.hi{clip-path:polygon(100% 50%,0 0,0 100%)}
 .dipRow i.glyph.out::before,.dipRow i.glyph.out::after{content:none}
 .dipRow .n{margin:0}
-/* The latest sweep's L. An L has its weight low and left: nudge it to look centered. */
-.n.latest{--k:var(--ok);padding:0 0 1px 2px}
+/* The latest sweep's L. */
+.n.latest{--k:var(--ok)}
 .barTip .dipRow{margin-top:4px}
 .pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:10px;font-weight:600}
 .pill.ok{background:rgba(63,185,80,.18);color:var(--ok)}.pill.part{background:rgba(242,204,96,.16);color:var(--warn)}.pill.no{background:rgba(248,81,73,.16);color:var(--bad)}
@@ -462,7 +465,34 @@ header h1{position:relative;z-index:5}
 .bands tbody.band.on td{background:#1c2a40}
 .bands tbody.band.on td.band b{color:var(--accent)}
 /* A bar's tooltip: the piece of the bar under the pointer. */
-.barTip{max-width:none;white-space:nowrap;font-variant-numeric:tabular-nums}
+.barTip,.cellTip{max-width:none;width:max-content;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* A ? in a column's heading. */
+.bands th{white-space:nowrap}
+.bands th .help{margin-left:5px;vertical-align:middle}
+.bands th .help .tip{white-space:normal}
+/* A mode keeps its square beside its name. 60 m's longer row wraps. */
+.bands td.band .pill,.bands td.mode{white-space:nowrap}
+.bands td.mode.chan{white-space:normal}
+/* The Median SWR column: the sweep's median, and an arrow where it is lower
+   or higher than the newest kept sweep's. Gray where every sweep is over Max SWR. */
+.bands td.med .arr{margin-left:4px;color:var(--muted)}
+.bands td.med.nil{color:var(--muted)}
+/* The Median SWR tooltip: each sweep's median, and how the sweep compares with it. */
+.cellTip .say{display:inline-flex;align-items:center;gap:4px;margin-left:10px;font-weight:600}
+.cellTip .say.lower{color:var(--ok)}
+.cellTip .say.higher{color:var(--bad)}
+.cellTip .say.same{color:var(--muted);font-weight:400}
+.cellTip .say .n{width:14px;height:14px;font-size:9px}
+/* A tooltip's title: what it is about, small and gray, with a rule under it. */
+.tipTitle{display:block;padding-bottom:2px;margin-bottom:4px;border-bottom:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.04em}
+/* The "⋯" that opens a cell's tooltip with a tap. Only where there is no
+   mouse: a mouse opens the tooltip by hovering the cell. */
+.help.tap{width:22px;height:22px;margin-left:6px;vertical-align:middle;font-size:12px}
+.help.tap .glyph{letter-spacing:-1px}
+.help.tap .tip{width:max-content;font-variant-numeric:tabular-nums}
+.help.tap .cellTip{display:block}
+.help.tap .dipRow{margin-top:2px}
+@media (hover:hover){.help.tap{display:none}}
 .barTip i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 /* The warning to check a photo's reading: quiet text with a yellow edge,
    across the top of the page over both columns, with the side gutters of .wrap. */
