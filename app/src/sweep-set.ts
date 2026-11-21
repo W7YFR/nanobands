@@ -26,7 +26,7 @@ export function sweepSet(files: readonly SweepFile[], max: number): SweepSet | s
   const latest = sweeps.filter((f) => keptNumberOf(f.name) === null);
   if (latest.length !== 1) {
     return latest.length
-      ? "The .zip holds more than one sweep without -kept in its name, so NanoBands can't tell which is the latest."
+      ? "The .zip has more than one sweep without -kept in the file name, so NanoBands can't tell which sweep is the latest."
       : "The .zip holds no Touchstone file for the latest sweep.";
   }
   const kept = sweeps

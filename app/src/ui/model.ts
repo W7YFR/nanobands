@@ -66,12 +66,16 @@ export interface Prefs {
   scaleTop: ScaleTop;
   /** Whether the chart joins the kept sweeps' dips to the sweep's dip. */
   dipPath: boolean;
+  /** The chart for NanoVNA and file data: SWR against frequency, or the Smith chart. A photo's is always SWR. */
+  chart: ChartKind;
 }
+
+export type ChartKind = "swr" | "smith";
 
 /** The tops the SWR scale offers for NanoVNA and file data. */
 export type ScaleTop = "3" | "5" | "10";
 
-export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "T", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both", scaleTop: "5", dipPath: true };
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "T", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both", scaleTop: "5", dipPath: true, chart: "swr" };
 
 /** A fine sweep's band in the data: its name, and its span in MHz. */
 export interface FineSpan { band: string; lo: number; hi: number }

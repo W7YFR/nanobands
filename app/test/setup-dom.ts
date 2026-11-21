@@ -31,4 +31,9 @@ if (!window.PointerEvent) {
   window.PointerEvent = PointerEvent as typeof window.PointerEvent;
 }
 
+// jsdom has no layout, so nothing ever resizes: a ResizeObserver that never calls back.
+if (!window.ResizeObserver) {
+  window.ResizeObserver = class { observe(): void {} unobserve(): void {} disconnect(): void {} } as unknown as typeof window.ResizeObserver;
+}
+
 afterEach(() => cleanup());

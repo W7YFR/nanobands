@@ -275,6 +275,7 @@ button.quiet:hover{color:var(--text);border-color:var(--line)}
 #photoWrap.wide #photo{max-width:none}
 #photo{display:block;border-radius:8px;touch-action:none;cursor:crosshair;max-width:100%}
 #chart{display:block;width:100%;height:460px;touch-action:none;cursor:crosshair}
+#chart[hidden]{display:none}
 /* A band's tooltip, by the pointer. */
 .chartTip{position:fixed;z-index:50;pointer-events:none;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;color:var(--text);box-shadow:0 4px 14px rgba(0,0,0,.4);max-width:240px}
 .chartTip div{margin-top:4px}
@@ -287,6 +288,36 @@ button.quiet:hover{color:var(--text);border-color:var(--line)}
    takes the room its header, chips and legend leave. */
 #chartCard.full{position:fixed;inset:0;z-index:40;margin:0;border:none;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
 #chartCard.full #chart{flex:1;min-height:0;height:auto}
+/* The Smith chart: square, with its readout beside it, or under it where
+   the card is too narrow. Full screen gives the chart the card's height. */
+.smith{position:relative;display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 20px}
+/* Over the chart's top left corner, where the canvas always starts. */
+#smithZoomOut{position:absolute;top:8px;left:8px}
+#smith{display:block;flex:none;width:min(460px,100%);height:auto;aspect-ratio:1;touch-action:none;cursor:crosshair}
+.smithRead{flex:1 1 260px;min-width:0;font-size:13px;padding-top:4px}
+.smithRead .at{font-weight:600;margin:0 0 6px}
+.smithRead .at span{color:var(--muted);font-weight:400}
+.smithRead table{width:auto}
+.smithRead th,.smithRead td{padding:4px 16px 4px 0}
+.smithRead th{font-weight:400}
+.smithRead .n + .n{margin-left:4px}
+.smithRead td.num{font-family:var(--mono);font-size:12px}
+.smithRead dl{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin:12px 0 0}
+.smithRead dt{color:var(--muted)}
+.smithRead dd{margin:0;font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.smithRead .hint{margin:0}
+.smithRead .at .help{margin-left:6px;vertical-align:1px}
+.help .tip:has(.readHelp){width:320px}
+.readHelp{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;margin:0}
+.readHelp dt{font-weight:600;white-space:nowrap}
+.smithRead .readHelp dd{margin:0;color:var(--muted);font:inherit}
+.smithRead .readHelp dt{color:var(--text)}
+#chartCard.full .smith{flex:1;min-height:0;flex-wrap:nowrap}
+#chartCard.full #smith{width:auto;height:100%;max-width:calc(100% - 280px)}
+@media (max-width:600px){
+  #chartCard.full .smith{flex-direction:column;align-items:stretch}
+  #chartCard.full #smith{width:100%;height:auto;max-width:none;max-height:70%}
+}
 html.chart-full{overflow:hidden;overscroll-behavior:none}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .chips button{position:relative;padding:3px 9px;font-size:12px;border-radius:12px}
@@ -302,7 +333,7 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 .keptChip{display:inline-flex;align-items:center;flex:none;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
 .keptChip button{display:inline-flex;align-items:center;gap:6px;border:none;background:none;font-size:12px;padding:3px 9px 3px 8px;border-radius:12px;white-space:nowrap}
 /* As the chart draws a kept dip's number. */
-.keptChip .n,.kp .n,.split-menu .n,.dipRow .n{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;border-radius:50%;border:1px solid var(--k);color:var(--k);font:600 10px/1 -apple-system,Segoe UI,sans-serif}
+.keptChip .n,.kp .n,.split-menu .n,.dipRow .n,.smithRead .n,.readHelp .n{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;border-radius:50%;border:1px solid var(--k);color:var(--k);font:600 10px/1 -apple-system,Segoe UI,sans-serif}
 .keptChip .none{color:var(--muted)}
 /* The sweep's mark is its solid green line; Live's, the pulsing dot. The dip path's is dotted white. */
 .keptChip .sw{width:14px;height:0;border-top:2px solid var(--ok)}
@@ -347,6 +378,7 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 .legend i.dash:last-of-type{margin-right:5px}
 .legend i.path{height:0;border-top:2px dotted #e6edf3;border-radius:0;background:none;vertical-align:3px}
 .legend i.tri{width:0;height:0;border-radius:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid #e3c84a;vertical-align:0}
+.legend i.arrow{width:0;height:0;border-radius:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:9px solid var(--text);vertical-align:0}
 /* On a wide screen a band's name and pill sit in its own column. */
 .bands td.band .pill{margin-top:4px}
 .bands td.none{color:var(--muted)}

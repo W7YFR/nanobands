@@ -74,8 +74,13 @@ export class FakeNanoVNA {
     return Array.from({ length: n }, (_, i) => Math.round(start + ((stop - start) * i) / (n - 1)));
   }
 
+  /** S11 with fakeSwr's SWR, and a phase that moves as a wire's does: 0 at
+   *  each dip, inductive over it, through high resistance halfway to the next
+   *  dip, and capacitive under that one. On the Smith chart each band draws
+   *  one loop out to the right of the middle and back. */
   private s11(hz: number): [number, number] {
-    const s = fakeSwr(hz), g = Math.min(0.999, Math.max(0, (s - 1) / (s + 1) + this.noise * (Math.random() - 0.5))), ph = hz / 3e6;
+    const s = fakeSwr(hz), g = Math.min(0.999, Math.max(0, (s - 1) / (s + 1) + this.noise * (Math.random() - 0.5)));
+    const u = hz / 7.1e6, ph = 1.2 * Math.sin(2 * Math.PI * (u - Math.round(u)));
     return [g * Math.cos(ph), g * Math.sin(ph)];
   }
 

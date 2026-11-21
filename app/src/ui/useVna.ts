@@ -308,7 +308,7 @@ export function useVna(onSweep: (pass: Pass, info: DeviceInfo, range: Range, slo
       if (dev.current !== d) return;
       storeSlots(d.info, got.slots);
       setSlots(got.slots);
-      setNote(got.restored ? "" : `The calibration before Read matches no slot. The NanoVNA is on slot ${got.at}.`);
+      setNote(got.restored ? "" : `The calibration you had before Read wasn't in any slot. The NanoVNA is now using slot ${got.at}.`);
       await follow(d);
     } catch (e) {
       fail(e);
