@@ -9,16 +9,20 @@
  * The pointer reads the line nearest it. A click pins the frequency, or
  * unpins a pin. On a touch screen a drag reads, the reading stays when the
  * finger lifts, and the next tap clears it.
+ *
+ * The wheel zooms about the pointer, a drag pans while zoomed in, and a
+ * double-click zooms back out. A new range of frequencies zooms back out too.
  */
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { swrAt } from "@/analysis";
 import { fmtF } from "@/format";
 import { impedance, reactancePart, returnLoss, s11At } from "@/smith";
 import type { S11 } from "@/touchstone";
 import { drawnKept, type Showing } from "./ChartCard";
 import { fitCanvas } from "./draw-photo";
-import { drawSmith, nearestF, type SmithGeom, type SmithScene } from "./draw-smith";
+import type { Readings } from "./draw-chart";
+import { clampZoom, drawSmith, nearestF, smithFrame, type SmithGeom, type SmithScene, type Zoom } from "./draw-smith";
 import { dipIn, keptNumber, swrOn, type Curve, type Kept, type Settings } from "./model";
 import { useNoSwipe } from "./useNoSwipe";
 
@@ -36,9 +40,9 @@ function keptLines(data: SmithData, showing: Showing | null): { g: S11; n: numbe
 }
 
 export function smithScene(data: SmithData, showing: Showing | null, settings: Settings, range: [number, number],
-  manual: readonly number[], probe: number | null, hoverF: number | null): SmithScene {
+  manual: readonly number[], probe: number | null, hoverF: number | null, readings: Readings | null, zoom: Zoom | null = null): SmithScene {
   return {
-    settings, range, manual, probe, hoverF,
+    settings, range, manual, probe, hoverF, readings, zoom,
     latest: !showing || showing.curveOn ? data.latest : null,
     kept: keptLines(data, showing).map(({ g, n }) => ({ g, n })),
   };
@@ -61,8 +65,9 @@ function fmtPart(x: number, f: number): string {
 
 const fmtSwr = (w: number): string => (Number.isNaN(w) ? "—" : w >= 999 ? "≥999" : w.toFixed(2));
 
-export function SmithView({ data, settings, range, curve, showing, manual, probe, hoverF, onHover, onTogglePin, touch }: {
+export function SmithView({ data, settings, range, curve, showing, manual, probe, hoverF, onHover, onTogglePin, touch, readings }: {
   data: SmithData;
+  readings: Readings | null;
   settings: Settings;
   range: [number, number];
   curve: Curve | null;
@@ -76,9 +81,12 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
 }): React.ReactElement {
   const ref = useRef<HTMLCanvasElement>(null);
   const geom = useRef<SmithGeom | null>(null);
-  const press = useRef<{ x: number; y: number; t0: number; moved: boolean; finger: boolean; showing: boolean } | null>(null);
+  const press = useRef<{ x: number; y: number; t0: number; moved: boolean; finger: boolean; showing: boolean; c: [number, number] | null } | null>(null);
   const [onPin, setOnPin] = useState(false);
-  const scene = smithScene(data, showing, settings, range, manual, probe, hoverF);
+  const [zoom, setZoom] = useState<Zoom | null>(null);
+  const [panning, setPanning] = useState(false);
+  useEffect(() => setZoom(null), [range[0], range[1]]);
+  const scene = smithScene(data, showing, settings, range, manual, probe, hoverF, readings, zoom);
 
   const draw = (): void => {
     const c = ref.current, ctx = c?.getContext("2d");
@@ -95,6 +103,38 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
     return () => ro.disconnect();
   }, []);
   useNoSwipe(ref);
+
+  // Wheel: zoom about the pointer. Over the chart the wheel never scrolls the page.
+  const onWheel = (e: WheelEvent): void => {
+    const c = ref.current;
+    if (!c) return;
+    e.preventDefault();
+    const r = c.getBoundingClientRect(), { cx, cy, R } = smithFrame(c.clientWidth, c.clientHeight);
+    const k = zoom?.k ?? 1, [c0, c1] = zoom?.c ?? [0, 0];
+    const dx = e.clientX - r.left - cx, dy = e.clientY - r.top - cy;
+    // The S11 under the pointer stays under it.
+    const at: [number, number] = [c0 + dx / (R * k), c1 - dy / (R * k)];
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+    const k2 = k * Math.exp(-e.deltaY * unit * 0.002);
+    setZoom(clampZoom({ k: k2, c: [at[0] - dx / (R * k2), at[1] + dy / (R * k2)] }));
+  };
+  const wheelRef = useRef(onWheel);
+  wheelRef.current = onWheel;
+  // React's wheel listener is passive and cannot stop the page scrolling.
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const h = (e: WheelEvent): void => wheelRef.current(e);
+    c.addEventListener("wheel", h, { passive: false });
+    return () => c.removeEventListener("wheel", h);
+  }, []);
+  /** Pan by (dx, dy) CSS pixels from where the drag began. */
+  const panTo = (from: [number, number], dx: number, dy: number): void => {
+    const c = ref.current;
+    if (!c || !zoom) return;
+    const { R } = smithFrame(c.clientWidth, c.clientHeight);
+    setZoom(clampZoom({ k: zoom.k, c: [from[0] - dx / (R * zoom.k), from[1] + dy / (R * zoom.k)] }));
+  };
 
   const at = (e: React.PointerEvent): [number, number] => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -131,28 +171,32 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
 
   return (
     <div className="smith">
-      <canvas id="smith" ref={ref} style={onPin ? { cursor: "pointer" } : undefined}
+      <canvas id="smith" ref={ref} style={panning ? { cursor: "grabbing" } : onPin ? { cursor: "pointer" } : undefined}
+        onDoubleClick={() => setZoom(null)}
         onPointerDown={(e) => {
           const [x, y] = at(e), finger = e.pointerType !== "mouse";
-          press.current = { x, y, t0: e.timeStamp, moved: false, finger, showing: hoverF !== null };
+          press.current = { x, y, t0: e.timeStamp, moved: false, finger, showing: hoverF !== null, c: zoom && !finger ? zoom.c : null };
           e.currentTarget.setPointerCapture(e.pointerId);
           if (finger) read(x, y, true);
         }}
         onPointerMove={(e) => {
           const [x, y] = at(e), p = press.current;
           if (p && Math.hypot(x - p.x, y - p.y) > 6) p.moved = true;
+          // A mouse drag pans while zoomed in.
+          if (p?.c && p.moved) { setPanning(true); panTo(p.c, x - p.x, y - p.y); return; }
           if (!p || p.finger || !p.moved) read(x, y, e.pointerType !== "mouse");
         }}
         onPointerUp={(e) => {
           const p = press.current;
           press.current = null;
+          setPanning(false);
           if (!p) return;
           if (p.finger && (p.moved || e.timeStamp - p.t0 > 350)) return; // a reading: it stays
           if (p.finger && p.showing) { onHover(null); return; } // a tap clears the reading
           if (!p.moved) pinHere(p.x, p.y, p.finger);
           if (p.finger) onHover(null);
         }}
-        onPointerCancel={() => { press.current = null; }}
+        onPointerCancel={() => { press.current = null; setPanning(false); }}
         onPointerLeave={(e) => { if (e.pointerType === "mouse" && !press.current) { setOnPin(false); onHover(null); } }}
       />
       <div className="smithRead" id="smithRead">

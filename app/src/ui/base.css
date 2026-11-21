@@ -370,6 +370,7 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 .legend i.dash:last-of-type{margin-right:5px}
 .legend i.path{height:0;border-top:2px dotted #e6edf3;border-radius:0;background:none;vertical-align:3px}
 .legend i.tri{width:0;height:0;border-radius:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:9px solid #e3c84a;vertical-align:0}
+.legend i.arrow{width:0;height:0;border-radius:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:9px solid var(--text);vertical-align:0}
 /* On a wide screen a band's name and pill sit in its own column. */
 .bands td.band .pill{margin-top:4px}
 .bands td.none{color:var(--muted)}

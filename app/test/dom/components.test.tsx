@@ -223,11 +223,11 @@ describe("the Smith chart", () => {
     expect(document.querySelector("#chartKind")).toBeNull();
   });
 
-  it("drops the SWR chart's controls and the dip path pill", () => {
+  it("drops the SWR chart's controls and the dip path pill, and keeps Line, Points and Both", () => {
     card();
     expect(document.querySelector("#chartCard .title")?.textContent).toBe("Smith chart");
     expect(document.querySelector("#scaleTop")).toBeNull();
-    expect(document.querySelector("#readingsShown")).toBeNull();
+    expect(document.querySelector("#readingsShown")).not.toBeNull();
     expect(screen.queryByRole("button", { name: /Dip path/ })).toBeNull();
     expect(document.querySelector<HTMLCanvasElement>("#chart")!.hidden).toBe(true);
   });

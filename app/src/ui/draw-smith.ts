@@ -7,13 +7,23 @@
  * takes the line chart's colors, and each kept sweep its color and dash. A
  * line runs from the first frequency in view to the last, and both ends are
  * labeled. The sweep's dip, the pins and the typed frequency are marked on
- * the sweep.
+ * the sweep, and an arrow at its high end points the way the frequency rises. The top
+ * half is inductive and the bottom half capacitive, and the chart says so.
+ *
+ * The sweep shows as the line, its readings, or both, as on the line chart.
+ * A reading shows as a dot once it is READING_GAP px from the last dot; on
+ * the Smith chart readings bunch where the impedance changes slowly, so the
+ * gap is per reading, not an average.
+ *
+ * The chart zooms about a point: `zoom.k` times larger, with S11 `zoom.c` at
+ * the middle. Zoomed in, the grid adds finer circles and arcs.
  */
 
 import { fmtF } from "@/format";
 import { s11At } from "@/smith";
 import { swrFromGamma, type S11 } from "@/touchstone";
 import { KEPT, KEPT_DASH, MATCH, PROBE, BAD, curveColor } from "./colors";
+import { READING_GAP, type Readings } from "./draw-chart";
 import { dipIn, type Settings } from "./model";
 
 export interface SmithScene {
@@ -28,10 +38,20 @@ export interface SmithScene {
   /** The frequency typed in the Analyze card, marked until Enter pins it. */
   probe?: number | null;
   hoverF: number | null;
+  /** How the sweep shows; null or absent shows the line. */
+  readings?: Readings | null;
+  zoom?: Zoom | null;
 }
 
-/** A drawn line, point by point, in CSS pixels. */
-interface Drawn { f: number[]; x: number[]; y: number[] }
+/** How far the chart is zoomed in, and the S11 at its middle. */
+export interface Zoom { k: number; c: [number, number] }
+export const MAX_ZOOM = 40;
+
+interface Box { l: number; r: number; t: number; b: number }
+
+/** A drawn line, point by point, in CSS pixels. `dots`: only its points
+ *  show, and the pointer reads them, not the line between. */
+interface Drawn { f: number[]; x: number[]; y: number[]; dots?: boolean }
 
 export interface SmithGeom {
   /** The sweep's line first, when it shows, then the kept sweeps'. */
@@ -42,6 +62,23 @@ export interface SmithGeom {
 const FONT = "11px -apple-system,Segoe UI,sans-serif", BOLD = "600 11px -apple-system,Segoe UI,sans-serif";
 /** The grid's resistances and reactances, as fractions of the reference impedance. */
 const STEPS = [0.2, 0.5, 1, 2, 5];
+/** The grid zoomed in. */
+const FINE = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.2, 1.4, 1.6, 1.8, 2, 2.5, 3, 4, 5, 10];
+/** The zoom at which the grid turns fine. */
+const FINE_AT = 2.5;
+
+/** The chart's middle and its radius unzoomed, in CSS pixels, on a W × H canvas. */
+export function smithFrame(W: number, H: number): { cx: number; cy: number; R: number } {
+  return { cx: W / 2, cy: H / 2, R: Math.max(10, Math.min(W, H) / 2 - 30) };
+}
+
+/** `z` held to the unit circle and 1× to MAX_ZOOM×; at 1× the middle is the chart's. */
+export function clampZoom(z: Zoom): Zoom | null {
+  const k = Math.min(Math.max(z.k, 1), MAX_ZOOM);
+  if (k <= 1.001) return null;
+  const m = Math.hypot(z.c[0], z.c[1]);
+  return { k, c: m > 1 ? [z.c[0] / m, z.c[1] / m] : z.c };
+}
 
 /** The SWR for S11 `re` + j`im`. */
 const swrOf = (re: number, im: number): number => swrFromGamma(Math.hypot(re, im));
@@ -64,51 +101,95 @@ export function drawSmith(ctx: CanvasRenderingContext2D, W: number, H: number, d
   ctx.fillStyle = "#1a1f27"; ctx.fillRect(0, 0, W, H);
   const s = sc.settings, [lo, hi] = sc.range;
   const z0 = sc.latest?.z0 ?? sc.kept[0]?.g.z0 ?? 50;
-  const R = Math.max(10, Math.min(W, H) / 2 - 30), cx = W / 2, cy = H / 2;
-  const X = (re: number): number => cx + re * R, Y = (im: number): number => cy - im * R;
-  const unit = (): void => { ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); };
+  const { cx, cy, R: R1 } = smithFrame(W, H), zk = sc.zoom?.k ?? 1, [c0, c1] = sc.zoom?.c ?? [0, 0], R = R1 * zk;
+  const X = (re: number): number => cx + (re - c0) * R, Y = (im: number): number => cy - (im - c1) * R;
+  const unit = (): void => { ctx.beginPath(); ctx.arc(X(0), Y(0), R, 0, 2 * Math.PI); };
+  const steps = zk >= FINE_AT ? FINE : STEPS;
 
   // The grid, inside the unit circle.
   ctx.save(); unit(); ctx.clip();
   ctx.strokeStyle = "#262d37"; ctx.lineWidth = 1;
-  for (const r of STEPS) { ctx.beginPath(); ctx.arc(X(r / (1 + r)), cy, R / (1 + r), 0, 2 * Math.PI); ctx.stroke(); }
-  for (const x of STEPS) for (const sign of [1, -1]) { ctx.beginPath(); ctx.arc(X(1), Y(sign / x), R / x, 0, 2 * Math.PI); ctx.stroke(); }
-  ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.stroke();
+  for (const r of steps) { ctx.beginPath(); ctx.arc(X(r / (1 + r)), Y(0), R / (1 + r), 0, 2 * Math.PI); ctx.stroke(); }
+  for (const x of steps) for (const sign of [1, -1]) { ctx.beginPath(); ctx.arc(X(1), Y(sign / x), R / x, 0, 2 * Math.PI); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(X(-1), Y(0)); ctx.lineTo(X(1), Y(0)); ctx.stroke();
   ctx.restore();
   ctx.strokeStyle = "#4a5260"; ctx.lineWidth = 1.2; unit(); ctx.stroke();
 
-  // Resistance along the middle line, reactance around the rim.
-  ctx.fillStyle = "#8b949e"; ctx.font = FONT; ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  for (const r of [0, ...STEPS]) ctx.fillText(String(+(r * z0).toFixed(1)), X((r - 1) / (r + 1)) + (r === 0 ? 8 : 0), cy + 3);
-  ctx.textBaseline = "middle";
-  for (const x of STEPS) for (const sign of [1, -1]) {
-    const d = x * x + 1, k = 1 + 16 / R;
-    ctx.fillText(`${sign > 0 ? "+" : "−"}j${+(x * z0).toFixed(1)}`, X(((x * x - 1) / d) * k), Y(((sign * 2 * x) / d) * k));
+  // Resistance along the middle line, reactance around the rim, each label
+  // kept clear of the one before. The reference impedance says its unit.
+  // The grid's labels, centered on (x, y). The tags keep clear of them.
+  const grid: Box[] = [];
+  const label = (txt: string, x: number, y: number): void => {
+    const w = ctx.measureText(txt).width;
+    ctx.fillText(txt, x, y);
+    grid.push({ l: x - w / 2, r: x + w / 2, t: y - 7, b: y + 7 });
+  };
+  ctx.fillStyle = "#8b949e"; ctx.font = FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  let last = -Infinity;
+  for (const r of [0, ...steps]) {
+    const x = X((r - 1) / (r + 1)) + (r === 0 ? 8 : 0);
+    if (x - last < 30 || x < 0 || x > W) continue;
+    label(String(+(r * z0).toFixed(1)) + (r === 1 ? " Ω" : ""), x, Y(0) + 10);
+    last = x;
   }
+  const rim: [number, number][] = [];
+  for (const x of steps) for (const sign of [1, -1]) {
+    const d = x * x + 1, k = 1 + 16 / R, lx = X(((x * x - 1) / d) * k), ly = Y(((sign * 2 * x) / d) * k);
+    if (lx < 0 || lx > W || ly < 0 || ly > H || rim.some(([a, b]) => Math.hypot(a - lx, b - ly) < 34)) continue;
+    rim.push([lx, ly]);
+    label(`${sign > 0 ? "+" : "−"}j${+(x * z0).toFixed(1)}`, lx, ly);
+  }
+
+  // The halves: inductive over the middle line, capacitive under it, named
+  // to the left, where a sweep seldom goes. Zoomed into one half, its name
+  // sits at the edge of the view.
+  ctx.fillStyle = "#6e7681"; ctx.font = BOLD;
+  const hx = Math.min(Math.max(X(-0.55), 50), W - 50);
+  if (Y(0) > 40) label("Inductive", hx, Math.max(Y(0.68), 14));
+  if (Y(0) < H - 40) label("Capacitive", hx, Math.min(Y(-0.68), H - 14));
 
   // Max SWR: a circle about the middle.
   const gm = (s.thr - 1) / (s.thr + 1);
   ctx.strokeStyle = BAD; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
-  ctx.beginPath(); ctx.arc(cx, cy, gm * R, 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
-  ctx.fillStyle = BAD; ctx.font = BOLD; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-  ctx.fillText(`Max SWR ${s.thr}`, X(gm * Math.SQRT1_2) + 3, Y(gm * Math.SQRT1_2) - 2);
+  ctx.beginPath(); ctx.arc(X(0), Y(0), gm * R, 0, 2 * Math.PI); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = BAD; ctx.font = BOLD;
+  const mw = ctx.measureText(`Max SWR ${s.thr}`).width;
+  label(`Max SWR ${s.thr}`, Math.min(X(gm * Math.SQRT1_2) + 3 + mw / 2, W - mw / 2 - 3), Y(gm * Math.SQRT1_2) - 9);
 
-  // Labels, kept clear of each other and inside the canvas.
-  const placed: { l: number; r: number; t: number; b: number }[] = [];
+  // Tags: beside the dot, on the first side clear of the other tags and the
+  // grid's labels. With none clear of both, the first clear of the tags. A
+  // dot out of view, zoomed in, has no tag.
+  const placed: Box[] = [];
+  const hits = (b: Box, set: Box[]): boolean => set.some((p) => b.l < p.r && b.r > p.l && b.t < p.b && b.b > p.t);
   const tag = (txt: string, x: number, y: number, color: string): void => {
+    if (x < 0 || x > W || y < 0 || y > H) return;
     ctx.font = BOLD;
     const w = ctx.measureText(txt).width;
-    let l = x + 8 + w + 4 > W ? x - 8 - w : x + 8;
-    l = Math.min(Math.max(l, 3), W - w - 3);
-    const t = Math.min(Math.max(y - 8, 0), H - 16);
-    if (placed.some((p) => l - 3 < p.r && l + w + 3 > p.l && t < p.b && t + 16 > p.t)) return;
-    placed.push({ l: l - 3, r: l + w + 3, t, b: t + 16 });
+    const at = (l: number, t: number): Box => {
+      const L = Math.min(Math.max(l, 3), W - w - 3), T = Math.min(Math.max(t, 0), H - 16);
+      return { l: L - 3, r: L + w + 3, t: T, b: T + 16 };
+    };
+    const sides = [at(x + 8 + w + 4 > W ? x - 8 - w : x + 8, y - 8), at(x - 8 - w, y - 8), at(x + 6, y - 24), at(x + 6, y + 8)];
+    const b = sides.find((c) => !hits(c, placed) && !hits(c, grid)) ?? sides.find((c) => !hits(c, placed));
+    if (!b) return;
+    placed.push(b);
+    const l = b.l + 3, t = b.t;
     ctx.fillStyle = "rgba(26,31,39,.85)"; ctx.fillRect(l - 3, t, w + 6, 16);
     ctx.fillStyle = color; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(txt, l, t + 8);
   };
   const dot = (re: number, im: number, color: string, r = 3.5): void => {
     ctx.fillStyle = color; ctx.beginPath(); ctx.arc(X(re), Y(im), r, 0, 2 * Math.PI); ctx.fill();
+  };
+
+  /** An arrowhead at the end of a line, the way it last ran. */
+  const arrow = (xs: number[], ys: number[], color: string): void => {
+    const n = xs.length - 1, ax = xs[n]!, ay = ys[n]!;
+    let i = n - 1;
+    while (i > 0 && Math.hypot(ax - xs[i]!, ay - ys[i]!) < 4) i--;
+    const a = Math.atan2(ay - ys[i]!, ax - xs[i]!), c = Math.cos(a), sn = Math.sin(a);
+    const pt = (u: number, v: number): [number, number] => [ax + u * c - v * sn, ay + u * sn + v * c];
+    ctx.fillStyle = color; ctx.strokeStyle = "#1a1f27"; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(...pt(6, 0)); ctx.lineTo(...pt(-6, 5.5)); ctx.lineTo(...pt(-6, -5.5)); ctx.closePath(); ctx.fill(); ctx.stroke();
   };
 
   const lines: Drawn[] = [];
@@ -125,17 +206,41 @@ export function drawSmith(ctx: CanvasRenderingContext2D, W: number, H: number, d
     ctx.stroke(); ctx.setLineDash([]);
   }
   // The sweep, piece by piece in the line chart's colors.
+  const mode = sc.readings ?? "line";
   const p = sc.latest ? inRange(sc.latest, lo, hi) : null;
   const w = p ? p.re.map((re, i) => swrOf(re, p.im[i]!)) : [];
-  if (p) {
+  if (p && mode !== "points") {
     ctx.lineWidth = 2;
     for (let i = 1; i < p.f.length; i++) {
       ctx.strokeStyle = curveColor(w[i]!, p.f[i]!, s);
       ctx.beginPath(); ctx.moveTo(X(p.re[i - 1]!), Y(p.im[i - 1]!)); ctx.lineTo(X(p.re[i]!), Y(p.im[i]!)); ctx.stroke();
     }
   }
+  // The readings: a dot once it is far enough from the last dot. Points
+  // draws the readings closer than that small, so the sweep still shows.
+  const dots: Drawn = { f: [], x: [], y: [], dots: true };
+  if (p && sc.latest && mode !== "line") {
+    const g = sc.latest;
+    let lx = -Infinity, ly = -Infinity;
+    for (let i = 0; i < g.f.length; i++) {
+      const f = g.f[i]!;
+      if (f < lo || f > hi) continue;
+      const x = X(g.re[i]!), y = Y(g.im[i]!);
+      dots.f.push(f); dots.x.push(x); dots.y.push(y);
+      ctx.fillStyle = curveColor(swrOf(g.re[i]!, g.im[i]!), f, s);
+      if (Math.hypot(x - lx, y - ly) < READING_GAP) {
+        if (mode === "points") { ctx.beginPath(); ctx.arc(x, y, 1.1, 0, 7); ctx.fill(); }
+        continue;
+      }
+      ctx.strokeStyle = "#1a1f27"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 7); ctx.fill(); ctx.stroke();
+      lx = x; ly = y;
+    }
+  }
   ctx.restore();
-  if (p && p.f.length >= 2) keep(p);
+  if (p && p.f.length >= 2) {
+    if (mode === "points") { if (dots.f.length) lines.push(dots); } else keep(p);
+  }
   for (const k of kept) if (k.p.f.length >= 2) keep(k.p);
 
   // The sweep's dip and its ends.
@@ -147,10 +252,11 @@ export function drawSmith(ctx: CanvasRenderingContext2D, W: number, H: number, d
       dot(at[0], at[1], col);
       tag(`${fmtF(d.f)} · ${d.s.toFixed(2)}`, X(at[0]), Y(at[1]), col);
     }
-    for (const i of [0, p.f.length - 1]) {
-      dot(p.re[i]!, p.im[i]!, "#8b949e", 3);
-      tag(fmtF(p.f[i]!), X(p.re[i]!), Y(p.im[i]!), "#8b949e");
-    }
+    // The low end a dot, the high end an arrowhead.
+    const n = p.f.length - 1;
+    dot(p.re[0]!, p.im[0]!, "#8b949e", 3);
+    arrow(p.re.map(X), p.im.map(Y), "#8b949e");
+    for (const i of [0, n]) tag(fmtF(p.f[i]!), X(p.re[i]!), Y(p.im[i]!), "#8b949e");
     // Pins: white dots, labeled in the sweep's color there.
     for (const m of sc.manual) {
       const at = m >= lo && m <= hi ? s11At(sc.latest!, m) : null;
@@ -187,6 +293,10 @@ export function drawSmith(ctx: CanvasRenderingContext2D, W: number, H: number, d
 export function nearestF(g: SmithGeom, x: number, y: number, max: number): number | null {
   let best: number | null = null, bd = max;
   for (const l of g.lines) {
+    if (l.dots) {
+      l.f.forEach((f, i) => { const d = Math.hypot(l.x[i]! - x, l.y[i]! - y); if (d < bd) { bd = d; best = f; } });
+      continue;
+    }
     for (let i = 1; i < l.f.length; i++) {
       const ax = l.x[i - 1]!, ay = l.y[i - 1]!, dx = l.x[i]! - ax, dy = l.y[i]! - ay, len = dx * dx + dy * dy;
       const t = len > 0 ? Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / len)) : 0;

@@ -25,8 +25,9 @@
  *
  * NanoVNA and file data have the phase of S11 too, so for them a switch
  * turns the chart into a Smith chart. It shows the frequencies the chips
- * pick, and the pills show and hide its lines. The SWR scale, the readings
- * and the dip path are the SWR chart's, so their controls go while it shows.
+ * pick, the pills show and hide its lines, and Line, Points and Both show
+ * the sweep as on the SWR chart. The SWR scale, Zoom and the dip path are the
+ * SWR chart's, so their controls go while it shows.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
@@ -313,7 +314,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         <span className="title">{isSmith ? "Smith chart" : "SWR vs. frequency"}</span> <Help align="start" text={isSmith
         ? (touch
           ? "Drag along a line to read its impedance; tap to clear the reading. Tap a line to pin a marker; tap it again to remove it. The band chips pick the frequencies shown."
-          : "Point at a line to read its impedance. Click to pin a marker, click a pin to remove it. The band chips pick the frequencies shown.")
+          : "Point at a line to read its impedance. Click to pin a marker, click a pin to remove it. Scroll to zoom, drag to pan, double-click to reset. The band chips pick the frequencies shown.")
         : touch
           ? "Drag along the chart to read the SWR; tap to clear the reading. Tap to pin your own marker; tap it again to remove it. Zoom, then drag across a range, to zoom in."
           : "Click to pin a marker, click a pin to remove it. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} />
@@ -328,7 +329,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
               <Switch id="scaleTop" label="Top of the SWR scale" value={scaleTop} options={SCALES} onChange={onScaleTop} />
             </span>
           )}
-          {!isSmith && readings && onReadings && <Switch id="readingsShown" label="Readings shown" value={readings} options={READINGS} onChange={onReadings} />}
+          {readings && onReadings && <Switch id="readingsShown" label="Readings shown" value={readings} options={READINGS} onChange={onReadings} />}
           {!isSmith && touch && an && <button id="chartZoom" className={"small" + (zoomDrag ? " on" : "")} onClick={() => setZoomDrag(!zoomDrag)}>Zoom</button>}
           {full
             ? <button id="chartFull" className="small on" onClick={() => setFull(false)}>Done</button>
@@ -339,7 +340,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
       {showing && range && <ShowRow showing={showing} curve={curve} range={range} top={settings.top} zoomed={view !== null} path={!isSmith} />}
       {isSmith && smith && range && (
         <SmithView data={smith} settings={settings} range={range} curve={curve} showing={showing} manual={manual} probe={probe}
-          hoverF={hoverF} onHover={onHover} onTogglePin={onTogglePin} touch={touch} />
+          hoverF={hoverF} onHover={onHover} onTogglePin={onTogglePin} touch={touch} readings={readings} />
       )}
       <canvas id="chart" ref={canvasRef} hidden={isSmith}
         style={panning ? { cursor: "grabbing" } : snap === "pin" || snap === "probe" || tip ? { cursor: "pointer" } : undefined}
@@ -417,6 +418,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
           <span><i style={{ background: "var(--match)" }}></i>Under Max SWR, outside your segments</span>
           <span><i style={{ background: "#e3c84a" }}></i>Over Max SWR</span>
           <span><i className="dash" style={{ "--k": "var(--bad)" } as React.CSSProperties}></i>Max SWR</span>
+          {readings && readings !== "line" && <span><i className="dot"></i>Reading</span>}
+          <span><i className="arrow"></i>Frequency rising</span>
           {drawn.some((k, i) => k.on && smith?.kept[i]) && (
             <span id="keptKey">{drawn.map((x, i) => ({ x, i, n: keptNumber(drawn, i) })).reverse().filter(({ x, i }) => x.on && smith?.kept[i])
               .map(({ n }) => <i key={n} className={`dash k${n}`}></i>)}Kept sweep</span>

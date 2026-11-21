@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { drawSmith, nearestF, type SmithGeom, type SmithScene } from "@/ui/draw-smith";
+import { clampZoom, drawSmith, nearestF, type SmithGeom, type SmithScene } from "@/ui/draw-smith";
 import { HIGH, OK } from "@/ui/colors";
 import type { Settings } from "@/ui/model";
 import type { S11 } from "@/touchstone";
@@ -75,5 +75,28 @@ describe("drawSmith", () => {
     const { g } = draw({ latest: null, kept: [{ g: resonant(), n: 1 }] });
     expect(g.lines).toHaveLength(1);
     expect(g.pins).toEqual([]);
+  });
+
+  it("shows the readings as dots in Points, and reads only them", () => {
+    const line = draw().g, points = draw({ readings: "points" }).g;
+    expect(line.lines[0]!.dots).toBeUndefined();
+    // The readings in view, and none of the ends the line adds between them.
+    expect(points.lines[0]!.dots).toBe(true);
+    expect(points.lines[0]!.f).toEqual(resonant().f);
+    // Between two readings, the pointer reads the nearer one.
+    const l = points.lines[0]!, x = (l.x[100]! + l.x[101]!) / 2 + 0.1, y = (l.y[100]! + l.y[101]!) / 2;
+    expect([l.f[100], l.f[101]]).toContain(nearestF(points, x, y, 24));
+  });
+
+  it("zooms about a point, and holds the zoom to the chart", () => {
+    // 4× about the middle: the reading nearest the match at 14.2 MHz lands near the canvas's middle.
+    const g = draw({ zoom: { k: 4, c: [0, 0] } }).g, l = g.lines[0]!;
+    const i = l.f.reduce((b, f, j) => (Math.abs(f - 14.2) < Math.abs(l.f[b]! - 14.2) ? j : b), 0);
+    expect(Math.hypot(l.x[i]! - S / 2, l.y[i]! - S / 2)).toBeLessThan(8);
+    // With S11 0.25 in the middle, the match sits a whole unzoomed radius to its left.
+    const z = draw({ zoom: { k: 4, c: [0.25, 0] } }).g;
+    expect(z.lines[0]!.x[i]! - l.x[i]!).toBeCloseTo(-(S / 2 - 30), 0);
+    expect(clampZoom({ k: 0.5, c: [0.3, 0] })).toBeNull();
+    expect(clampZoom({ k: 100, c: [3, 4] })).toEqual({ k: 40, c: [0.6, 0.8] });
   });
 });

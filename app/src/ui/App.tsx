@@ -563,7 +563,7 @@ export function App(): React.ReactElement {
       const S = 600, c = document.createElement("canvas");
       c.width = S * 2;
       c.height = S * 2;
-      drawSmith(c.getContext("2d")!, S, S, 2, smithScene(smith, showing, settings, doc.view ?? [an.fmin, an.fmax], doc.manual, null, null));
+      drawSmith(c.getContext("2d")!, S, S, 2, smithScene(smith, showing, settings, doc.view ?? [an.fmin, an.fmax], doc.manual, null, null, doc.source === "image" ? null : prefs.readings));
       download("smith-chart.png", c.toDataURL("image/png"));
       return;
     }

@@ -11,6 +11,8 @@ them.
 
 - **SWR | Smith** on the chart shows a NanoVNA sweep or a Touchstone file as a Smith chart, with Max SWR as a circle. The band chips pick the frequencies shown, and the pills show and hide the kept sweeps.
 - Beside the Smith chart, a readout gives each line's impedance and SWR at the frequency under the pointer, or at the dip. It also gives the latest sweep's reactance as a part, its S11 and its return loss.
+- On the Smith chart, **Line**, **Points** and **Both** show the sweep as on the SWR chart. The chart names its inductive and capacitive halves, and an arrow marks the sweep's high end.
+- The scroll wheel zooms the Smith chart, a drag pans it, and a double-click zooms back out.
 - **Chart (.png)** saves the Smith chart while it shows.
 
 ### Development
