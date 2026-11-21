@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.22.0 — 2026-11-21
+
 ### Added
 
 - **Band segments** has a **Median SWR** column while a kept sweep shows on the chart. An arrow marks a segment where the latest sweep is lower or higher than the newest kept sweep, and the tooltip gives each sweep's median.
