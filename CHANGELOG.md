@@ -11,7 +11,7 @@ them.
 
 - **SWR | Smith** on the chart shows a NanoVNA sweep or a Touchstone file as a Smith chart, with Max SWR as a circle. The band chips pick the frequencies shown, and the pills show and hide the kept sweeps.
 - Beside the Smith chart, a readout gives each line's impedance and SWR at the reading under the pointer, the pin added last, or the dip. It also gives the latest sweep's reactance as a part, its S11 and its return loss.
-- The readout marks a value with **≈** where a pin falls between two readings far apart on the chart.
+- The readout marks a value with **≈** when its frequency falls between two readings far apart on the chart.
 - A **?** beside the readout says what each value in it means. The Smith chart's own **?** says how to read the chart.
 - Near resonance, the readout says **Close to resonant** and gives the reactance in ohms instead of a part.
 - On the Smith chart, **Line**, **Points** and **Both** show the sweep as on the SWR chart. The chart names its inductive and capacitive halves, and an arrow marks the sweep's high end.
