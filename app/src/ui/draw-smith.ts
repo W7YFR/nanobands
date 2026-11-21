@@ -72,6 +72,15 @@ export function smithFrame(W: number, H: number): { cx: number; cy: number; R: n
   return { cx: W / 2, cy: H / 2, R: Math.max(10, Math.min(W, H) / 2 - 30) };
 }
 
+/** The zoom `k` that puts the S11 at canvas point `from` under zoom `z` at
+ *  canvas point `to`: the wheel and a pinch zoom about a point, and a drag
+ *  pans, this way. */
+export function zoomAbout(z: Zoom | null, from: [number, number], to: [number, number], k: number, W: number, H: number): Zoom | null {
+  const { cx, cy, R } = smithFrame(W, H), k0 = z?.k ?? 1, [c0, c1] = z?.c ?? [0, 0];
+  const at = [c0 + (from[0] - cx) / (R * k0), c1 - (from[1] - cy) / (R * k0)] as const;
+  return clampZoom({ k, c: [at[0] - (to[0] - cx) / (R * k), at[1] + (to[1] - cy) / (R * k)] });
+}
+
 /** `z` held to the unit circle and 1× to MAX_ZOOM×; at 1× the middle is the chart's. */
 export function clampZoom(z: Zoom): Zoom | null {
   const k = Math.min(Math.max(z.k, 1), MAX_ZOOM);

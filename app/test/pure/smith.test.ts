@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { impedance, reactancePart, returnLoss, s11At } from "@/smith";
-import { nearestF, type SmithGeom } from "@/ui/draw-smith";
+import { nearestF, zoomAbout, type SmithGeom } from "@/ui/draw-smith";
 
 describe("impedance", () => {
   it("is the reference impedance for no reflection", () => {
@@ -73,5 +73,25 @@ describe("nearestF", () => {
   it("takes the nearer of two lines", () => {
     const two: SmithGeom = { lines: [...g.lines, { f: [7, 7.3], x: [0, 200], y: [100, 100] }], pins: [] };
     expect(nearestF(two, 100, 110, 24)).toBeCloseTo(7.15);
+  });
+});
+
+describe("zoomAbout", () => {
+  // A 500 px canvas: the middle at 250, a radius of 220 unzoomed.
+  it("keeps the point under the pointer under it", () => {
+    const z = zoomAbout(null, [360, 250], [360, 250], 2, 500, 500)!;
+    // 110 px right is S11 0.5 unzoomed. At 2x, 0.5 is still 110 px right of the middle.
+    expect(z.k).toBe(2);
+    expect(z.c[0]).toBeCloseTo(0.25);
+    expect(z.c[1]).toBeCloseTo(0);
+  });
+
+  it("pans: the point under the drag's start follows it", () => {
+    const z = zoomAbout({ k: 4, c: [0, 0] }, [250, 250], [250 + 88, 250], 4, 500, 500)!;
+    expect(z.c[0]).toBeCloseTo(-0.1);
+  });
+
+  it("zooms back out under 1x", () => {
+    expect(zoomAbout({ k: 2, c: [0.3, 0] }, [250, 250], [250, 250], 0.9, 500, 500)).toBeNull();
   });
 });

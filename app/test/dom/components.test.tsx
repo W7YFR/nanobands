@@ -212,6 +212,13 @@ describe("the Smith chart", () => {
       showing={showing} smith={smith} chart="smith" onChart={vi.fn()} {...over} />,
   );
 
+  /** The readout's frequency line, without its ?. */
+  const atText = (): string => {
+    const at = document.querySelector("#smithRead .at")!.cloneNode(true) as Element;
+    at.querySelector(".help")?.remove();
+    return at.textContent ?? "";
+  };
+
   it("is a switch on the chart for a sweep, and none for a photo", () => {
     const onChart = vi.fn();
     card({ chart: "swr", onChart });
@@ -235,7 +242,7 @@ describe("the Smith chart", () => {
   it("reads the sweep's dip, with a row for each line shown", () => {
     card();
     const read = document.querySelector("#smithRead")!;
-    expect(read.querySelector(".at")?.textContent).toBe("14.100 MHz · Dip");
+    expect(atText()).toBe("14.100 MHz · Dip");
     expect([...read.querySelectorAll("tbody tr")].map((r) => r.textContent)).toEqual(["L50.0 + j0.0 Ω1.00", "1100.0 + j0.0 Ω2.00"]);
   });
 
@@ -244,9 +251,36 @@ describe("the Smith chart", () => {
     expect([...document.querySelectorAll("#smithRead tbody tr")].map((r) => [...r.querySelectorAll(".n")].map((n) => n.textContent).join(" "))).toEqual(["L 1", "2"]);
   });
 
+  it("explains the readout under its ?", () => {
+    card();
+    const help = document.querySelector("#smithRead .at .help")!;
+    expect(help.getAttribute("aria-label")).toBe("What the readout shows");
+    expect([...help.querySelectorAll(".readHelp dt")].map((d) => d.textContent)).toEqual(["L 1", "Impedance", "SWR", "Reactance", "S11", "Return loss"]);
+  });
+
+  it("zooms with a pinch, and reads nothing with two fingers down", () => {
+    const onZoom = vi.fn(), onHover = vi.fn();
+    card({ onSmithZoom: onZoom, onHover });
+    const c = document.querySelector<HTMLCanvasElement>("#smith")!;
+    c.setPointerCapture = () => undefined;
+    const touch = (type: string, id: number, x: number): void => {
+      fireEvent(c, new PointerEvent(type, { pointerType: "touch", pointerId: id, clientX: x, clientY: 0, bubbles: true }));
+    };
+    touch("pointerdown", 1, 100);
+    touch("pointerdown", 2, 200);
+    onZoom.mockClear(); onHover.mockClear();
+    // The fingers twice as far apart: twice the zoom.
+    touch("pointermove", 2, 300);
+    expect(onZoom).toHaveBeenLastCalledWith(expect.objectContaining({ k: 2 }));
+    touch("pointerup", 2, 300);
+    touch("pointermove", 1, 120);
+    touch("pointerup", 1, 120);
+    expect(onHover).not.toHaveBeenCalled();
+  });
+
   it("reads the frequency under the pointer", () => {
     card({ hoverF: 14.05 });
-    expect(document.querySelector("#smithRead .at")?.textContent).toBe("14.050 MHz");
+    expect(atText()).toBe("14.050 MHz");
   });
 
   it("leaves out a line its pill hides", () => {

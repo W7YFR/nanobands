@@ -40,6 +40,7 @@ import { fitCanvas } from "./draw-photo";
 import type { Band } from "@/bands";
 import { bandView, dipIn, fitView, keptNumber, sameView, type ChartKind, type Curve, type FineSpan, type Kept, type ScaleTop, type Settings } from "./model";
 import { SmithView, type SmithData } from "./SmithView";
+import type { Zoom } from "./draw-smith";
 import { Switch } from "./Switch";
 import { useNoSwipe } from "./useNoSwipe";
 
@@ -151,7 +152,7 @@ export function ShowRow({ showing: k, curve, range, top, zoomed, path = true }: 
   );
 }
 
-export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], readings = null, onReadings, live = null, scaleTop = null, onScaleTop, showing = null, smith = null, chart = "swr", onChart }: {
+export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], readings = null, onReadings, live = null, scaleTop = null, onScaleTop, showing = null, smith = null, chart = "swr", onChart, smithZoom = null, onSmithZoom = () => undefined }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   an: Analysis | null;
   curve: Curve | null;
@@ -180,6 +181,9 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   smith?: SmithData | null;
   chart?: ChartKind;
   onChart?(v: ChartKind): void;
+  /** How far the Smith chart is zoomed in, or null zoomed out. */
+  smithZoom?: Zoom | null;
+  onSmithZoom?(z: Zoom | null): void;
 }): React.ReactElement {
   const geom = useRef<ChartGeom | null>(null);
   /** A press on the chart. `pan` holds the view it started from. */
@@ -313,7 +317,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         {smith && onChart && <Switch id="chartKind" label="Chart" value={chart} options={CHARTS} onChange={onChart} />}
         <span className="title">{isSmith ? "Smith chart" : "SWR vs. frequency"}</span> <Help align="start" text={isSmith
         ? (touch
-          ? "Drag along a line to read its impedance; tap to clear the reading. Tap a line to pin a marker; tap it again to remove it. The band chips pick the frequencies shown."
+          ? "Drag along a line to read its impedance; tap to clear the reading. Tap a line to pin a marker; tap it again to remove it. Pinch to zoom. The band chips pick the frequencies shown."
           : "Point at a line to read its impedance. Click to pin a marker, click a pin to remove it. Scroll to zoom, drag to pan, double-click to reset. The band chips pick the frequencies shown.")
         : touch
           ? "Drag along the chart to read the SWR; tap to clear the reading. Tap to pin your own marker; tap it again to remove it. Zoom, then drag across a range, to zoom in."
@@ -340,7 +344,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
       {showing && range && <ShowRow showing={showing} curve={curve} range={range} top={settings.top} zoomed={view !== null} path={!isSmith} />}
       {isSmith && smith && range && (
         <SmithView data={smith} settings={settings} range={range} curve={curve} showing={showing} manual={manual} probe={probe}
-          hoverF={hoverF} onHover={onHover} onTogglePin={onTogglePin} touch={touch} readings={readings} />
+          hoverF={hoverF} onHover={onHover} onTogglePin={onTogglePin} touch={touch} readings={readings} zoom={smithZoom} onZoom={onSmithZoom} />
       )}
       <canvas id="chart" ref={canvasRef} hidden={isSmith}
         style={panning ? { cursor: "grabbing" } : snap === "pin" || snap === "probe" || tip ? { cursor: "pointer" } : undefined}

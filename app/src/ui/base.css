@@ -304,6 +304,12 @@ button.quiet:hover{color:var(--text);border-color:var(--line)}
 .smithRead dt{color:var(--muted)}
 .smithRead dd{margin:0;font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
 .smithRead .hint{margin:0}
+.smithRead .at .help{margin-left:6px;vertical-align:1px}
+.help .tip:has(.readHelp){width:320px}
+.readHelp{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;margin:0}
+.readHelp dt{font-weight:600;white-space:nowrap}
+.smithRead .readHelp dd{margin:0;color:var(--muted);font:inherit}
+.smithRead .readHelp dt{color:var(--text)}
 #chartCard.full .smith{flex:1;min-height:0;flex-wrap:nowrap}
 #chartCard.full #smith{width:auto;height:100%;max-width:calc(100% - 280px)}
 @media (max-width:600px){
@@ -325,7 +331,7 @@ html.chart-full{overflow:hidden;overscroll-behavior:none}
 .keptChip{display:inline-flex;align-items:center;flex:none;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
 .keptChip button{display:inline-flex;align-items:center;gap:6px;border:none;background:none;font-size:12px;padding:3px 9px 3px 8px;border-radius:12px;white-space:nowrap}
 /* As the chart draws a kept dip's number. */
-.keptChip .n,.kp .n,.split-menu .n,.dipRow .n,.smithRead .n{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;border-radius:50%;border:1px solid var(--k);color:var(--k);font:600 10px/1 -apple-system,Segoe UI,sans-serif}
+.keptChip .n,.kp .n,.split-menu .n,.dipRow .n,.smithRead .n,.readHelp .n{display:inline-grid;place-items:center;flex:none;width:16px;height:16px;border-radius:50%;border:1px solid var(--k);color:var(--k);font:600 10px/1 -apple-system,Segoe UI,sans-serif}
 .keptChip .none{color:var(--muted)}
 /* The sweep's mark is its solid green line; Live's, the pulsing dot. The dip path's is dotted white. */
 .keptChip .sw{width:14px;height:0;border-top:2px solid var(--ok)}

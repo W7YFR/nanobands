@@ -30,7 +30,7 @@ import { Busy } from "./Busy";
 import { ChartCard, drawnKept, type Showing } from "./ChartCard";
 import { Confirm } from "./Confirm";
 import { drawChart } from "./draw-chart";
-import { drawSmith } from "./draw-smith";
+import { drawSmith, type Zoom } from "./draw-smith";
 import { Disclaimer } from "./Disclaimer";
 import { drawPhoto } from "./draw-photo";
 import { Flight } from "./Flight";
@@ -345,6 +345,8 @@ export function App(): React.ReactElement {
   const keptS11 = useMemo(() => doc.kept.map((k) => (k.s1p ? parseS11(k.s1p.text) : null)), [keptTexts]);
   const smith: SmithData | null = latestS11 && latestS11.f.length >= 2 ? { latest: latestS11, kept: keptS11 } : null;
   const isSmith = !!smith && prefs.chart === "smith" && !!an;
+  /** How far the Smith chart is zoomed in, here so Chart (.png) saves it as it shows. */
+  const [smithZoom, setSmithZoom] = useState<Zoom | null>(null);
   /** Add a Touchstone file as a kept sweep, unless its readings match the sweep or a kept one. */
   const addKept = (file: File): void => {
     void file.text().then((text) => {
@@ -563,7 +565,7 @@ export function App(): React.ReactElement {
       const S = 600, c = document.createElement("canvas");
       c.width = S * 2;
       c.height = S * 2;
-      drawSmith(c.getContext("2d")!, S, S, 2, smithScene(smith, showing, settings, doc.view ?? [an.fmin, an.fmax], doc.manual, null, null, doc.source === "image" ? null : prefs.readings));
+      drawSmith(c.getContext("2d")!, S, S, 2, smithScene(smith, showing, settings, doc.view ?? [an.fmin, an.fmax], doc.manual, null, null, doc.source === "image" ? null : prefs.readings, smithZoom));
       download("smith-chart.png", c.toDataURL("image/png"));
       return;
     }
@@ -723,7 +725,8 @@ export function App(): React.ReactElement {
                   live={vna.live ? (vna.focus && vna.focus !== "all" ? vna.focus.band : "") : null}
                   readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
                   scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
-                  fine={doc.fine} showing={showing} smith={smith} chart={prefs.chart} onChart={(v) => onPref("chart", v)} />
+                  fine={doc.fine} showing={showing} smith={smith} chart={prefs.chart} onChart={(v) => onPref("chart", v)}
+                  smithZoom={smithZoom} onSmithZoom={setSmithZoom} />
                 <div className="card" id="bandCard">
                   <h2>Band segments
                     <span style={{ flex: 1 }}></span>

@@ -11,7 +11,10 @@
  * finger lifts, and the next tap clears it.
  *
  * The wheel zooms about the pointer, a drag pans while zoomed in, and a
- * double-click zooms back out. A new range of frequencies zooms back out too.
+ * double-click zooms back out. On a touch screen two fingers pinch to zoom
+ * and pan, and a pinch all the way out zooms back out. A new range of
+ * frequencies zooms back out too. The zoom is App's, so Chart (.png) saves
+ * the chart as it shows.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -22,7 +25,8 @@ import type { S11 } from "@/touchstone";
 import { drawnKept, type Showing } from "./ChartCard";
 import { fitCanvas } from "./draw-photo";
 import type { Readings } from "./draw-chart";
-import { clampZoom, drawSmith, nearestF, smithFrame, type SmithGeom, type SmithScene, type Zoom } from "./draw-smith";
+import { drawSmith, nearestF, zoomAbout, type SmithGeom, type SmithScene, type Zoom } from "./draw-smith";
+import { Help } from "./Help";
 import { dipIn, keptNumber, swrOn, type Curve, type Kept, type Settings } from "./model";
 import { useNoSwipe } from "./useNoSwipe";
 
@@ -63,11 +67,25 @@ function fmtPart(x: number, f: number): string {
   return `${v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : Math.round(v)} ${u} (${kind === "L" ? "inductive" : "capacitive"})`;
 }
 
+/** What each thing in the readout means. */
+const READOUT_HELP = (
+  <dl className="readHelp">
+    <dt><span className="n latest">L</span> <span className="n k1">1</span></dt><dd>One row per sweep: L is the latest sweep, and the numbers are kept sweeps. Every row is read at the same frequency.</dd>
+    <dt>Impedance</dt><dd>Resistance ± reactance, in ohms. A perfect match is 50 + j0. A + sign means inductive, a − sign means capacitive, and j0 means resonant.</dd>
+    <dt>SWR</dt><dd>1.00 is a perfect match. A higher number means more power reflects back to the radio.</dd>
+    <dt>Reactance</dt><dd>The latest sweep's reactance as a part: a coil in nH or a capacitor in pF, at this frequency.</dd>
+    <dt>S11</dt><dd>For the latest sweep: how much of the signal reflects back, from 0 (none) to 1 (all), and the angle of the reflection.</dd>
+    <dt>Return loss</dt><dd>For the latest sweep: how much weaker the reflected signal is than the signal sent, in dB. Higher is better. 10 dB is SWR 1.92, and 20 dB is SWR 1.22.</dd>
+  </dl>
+);
+
 const fmtSwr = (w: number): string => (Number.isNaN(w) ? "—" : w >= 999 ? "≥999" : w.toFixed(2));
 
-export function SmithView({ data, settings, range, curve, showing, manual, probe, hoverF, onHover, onTogglePin, touch, readings }: {
+export function SmithView({ data, settings, range, curve, showing, manual, probe, hoverF, onHover, onTogglePin, touch, readings, zoom, onZoom }: {
   data: SmithData;
   readings: Readings | null;
+  zoom: Zoom | null;
+  onZoom(z: Zoom | null): void;
   settings: Settings;
   range: [number, number];
   curve: Curve | null;
@@ -81,11 +99,14 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
 }): React.ReactElement {
   const ref = useRef<HTMLCanvasElement>(null);
   const geom = useRef<SmithGeom | null>(null);
-  const press = useRef<{ x: number; y: number; t0: number; moved: boolean; finger: boolean; showing: boolean; c: [number, number] | null } | null>(null);
+  /** A press: where it began, and for a mouse while zoomed in, the zoom then, to pan from. */
+  const press = useRef<{ x: number; y: number; t0: number; moved: boolean; finger: boolean; showing: boolean; before: number | null; z: Zoom | null } | null>(null);
+  /** The fingers down, and a pinch: where its fingers began and the zoom then. */
+  const fingers = useRef(new Map<number, [number, number]>());
+  const pinch = useRef<{ d: number; mid: [number, number]; z: Zoom | null } | null>(null);
   const [onPin, setOnPin] = useState(false);
-  const [zoom, setZoom] = useState<Zoom | null>(null);
   const [panning, setPanning] = useState(false);
-  useEffect(() => setZoom(null), [range[0], range[1]]);
+  useEffect(() => onZoom(null), [range[0], range[1]]);
   const scene = smithScene(data, showing, settings, range, manual, probe, hoverF, readings, zoom);
 
   const draw = (): void => {
@@ -109,14 +130,9 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
     const c = ref.current;
     if (!c) return;
     e.preventDefault();
-    const r = c.getBoundingClientRect(), { cx, cy, R } = smithFrame(c.clientWidth, c.clientHeight);
-    const k = zoom?.k ?? 1, [c0, c1] = zoom?.c ?? [0, 0];
-    const dx = e.clientX - r.left - cx, dy = e.clientY - r.top - cy;
-    // The S11 under the pointer stays under it.
-    const at: [number, number] = [c0 + dx / (R * k), c1 - dy / (R * k)];
+    const r = c.getBoundingClientRect(), p: [number, number] = [e.clientX - r.left, e.clientY - r.top];
     const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-    const k2 = k * Math.exp(-e.deltaY * unit * 0.002);
-    setZoom(clampZoom({ k: k2, c: [at[0] - dx / (R * k2), at[1] + dy / (R * k2)] }));
+    onZoom(zoomAbout(zoom, p, p, (zoom?.k ?? 1) * Math.exp(-e.deltaY * unit * 0.002), c.clientWidth, c.clientHeight));
   };
   const wheelRef = useRef(onWheel);
   wheelRef.current = onWheel;
@@ -128,12 +144,18 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
     c.addEventListener("wheel", h, { passive: false });
     return () => c.removeEventListener("wheel", h);
   }, []);
-  /** Pan by (dx, dy) CSS pixels from where the drag began. */
-  const panTo = (from: [number, number], dx: number, dy: number): void => {
-    const c = ref.current;
-    if (!c || !zoom) return;
-    const { R } = smithFrame(c.clientWidth, c.clientHeight);
-    setZoom(clampZoom({ k: zoom.k, c: [from[0] - dx / (R * zoom.k), from[1] + dy / (R * zoom.k)] }));
+  const size = (): [number, number] => [ref.current?.clientWidth ?? 0, ref.current?.clientHeight ?? 0];
+  /** The two fingers' distance apart and their midpoint. */
+  const span = (): { d: number; mid: [number, number] } => {
+    const [a, b] = [...fingers.current.values()] as [[number, number], [number, number]];
+    return { d: Math.max(Math.hypot(a[0] - b[0], a[1] - b[1]), 1), mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] };
+  };
+  const lift = (e: React.PointerEvent): boolean => {
+    fingers.current.delete(e.pointerId);
+    if (!pinch.current) return false;
+    // A pinch ends with its first finger up, and the other finger does nothing more.
+    if (fingers.current.size < 2) pinch.current = null;
+    return true;
   };
 
   const at = (e: React.PointerEvent): [number, number] => {
@@ -172,31 +194,48 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
   return (
     <div className="smith">
       <canvas id="smith" ref={ref} style={panning ? { cursor: "grabbing" } : onPin ? { cursor: "pointer" } : undefined}
-        onDoubleClick={() => setZoom(null)}
+        onDoubleClick={() => onZoom(null)}
         onPointerDown={(e) => {
           const [x, y] = at(e), finger = e.pointerType !== "mouse";
-          press.current = { x, y, t0: e.timeStamp, moved: false, finger, showing: hoverF !== null, c: zoom && !finger ? zoom.c : null };
+          if (finger) fingers.current.set(e.pointerId, [x, y]);
           e.currentTarget.setPointerCapture(e.pointerId);
+          if (fingers.current.size === 2) {
+            // A second finger: a pinch, not a reading. The reading goes back to what it was.
+            pinch.current = { ...span(), z: zoom };
+            if (press.current) onHover(press.current.before);
+            press.current = null;
+            return;
+          }
+          if (pinch.current) return;
+          press.current = { x, y, t0: e.timeStamp, moved: false, finger, showing: hoverF !== null, before: hoverF, z: zoom && !finger ? zoom : null };
           if (finger) read(x, y, true);
         }}
         onPointerMove={(e) => {
-          const [x, y] = at(e), p = press.current;
+          const [x, y] = at(e), p = press.current, pi = pinch.current;
+          if (fingers.current.has(e.pointerId)) fingers.current.set(e.pointerId, [x, y]);
+          if (pi) {
+            const now = span();
+            onZoom(zoomAbout(pi.z, pi.mid, now.mid, (pi.z?.k ?? 1) * (now.d / pi.d), ...size()));
+            return;
+          }
+          // A finger only reads while it presses.
+          if (!p && e.pointerType !== "mouse") return;
           if (p && Math.hypot(x - p.x, y - p.y) > 6) p.moved = true;
           // A mouse drag pans while zoomed in.
-          if (p?.c && p.moved) { setPanning(true); panTo(p.c, x - p.x, y - p.y); return; }
+          if (p?.z && p.moved) { setPanning(true); onZoom(zoomAbout(p.z, [p.x, p.y], [x, y], p.z.k, ...size())); return; }
           if (!p || p.finger || !p.moved) read(x, y, e.pointerType !== "mouse");
         }}
         onPointerUp={(e) => {
           const p = press.current;
           press.current = null;
           setPanning(false);
-          if (!p) return;
+          if (lift(e) || !p) return;
           if (p.finger && (p.moved || e.timeStamp - p.t0 > 350)) return; // a reading: it stays
           if (p.finger && p.showing) { onHover(null); return; } // a tap clears the reading
           if (!p.moved) pinHere(p.x, p.y, p.finger);
           if (p.finger) onHover(null);
         }}
-        onPointerCancel={() => { press.current = null; setPanning(false); }}
+        onPointerCancel={(e) => { lift(e); press.current = null; setPanning(false); }}
         onPointerLeave={(e) => { if (e.pointerType === "mouse" && !press.current) { setOnPin(false); onHover(null); } }}
       />
       <div className="smithRead" id="smithRead">
@@ -204,7 +243,7 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
           <p className="hint">{touch ? "Touch a line to read it." : "Point at a line to read it."}</p>
         ) : (
           <>
-            <div className="at">{fmtF(f)} MHz{what && <span> · {what}</span>}</div>
+            <div className="at">{fmtF(f)} MHz{what && <span> · {what}</span>}<Help align="start" label="What the readout shows" text={READOUT_HELP} /></div>
             <table>
               <thead><tr><th></th><th>Impedance</th><th>SWR</th></tr></thead>
               <tbody>
