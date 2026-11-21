@@ -7,6 +7,24 @@ them.
 
 ## Unreleased
 
+## v1.22.0 — 2026-11-21
+
+### Added
+
+- **Band segments** has a **Median SWR** column while a kept sweep shows on the chart. An arrow marks a segment where the latest sweep is lower or higher than the newest kept sweep, and the tooltip gives each sweep's median.
+- Each column heading in **Band segments** has a **?** that says what the column shows.
+- On a touch screen, **⋯** beside a median or a dip opens its tooltip.
+
+### Changed
+
+- **Dip** shows the latest sweep's dip on the row of the segment it is in. Its tooltip lists the kept sweeps' dips.
+- **Usable at SWR ≤** is now **SWR ≤**.
+- Each tooltip in **Band segments** has a title that names its band, and its segment where it has one.
+
+### Fixed
+
+- The latest sweep's L sits in the middle of its circle.
+
 ## v1.21.0 — 2026-11-15
 
 ### Added

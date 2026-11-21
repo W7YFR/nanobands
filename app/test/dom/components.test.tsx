@@ -20,6 +20,12 @@ function vSweep(): { f: number[]; s: number[] } {
   const f = Array.from({ length: 541 }, (_, i) => 3 + (27 * i) / 540);
   return { f, s: f.map((x) => 1.1 + 0.6 * Math.abs(x - 14.2)) };
 }
+/** An element's text, without the "⋯" buttons and the tooltips they hold. */
+const own = (el: Element): string => {
+  const c = el.cloneNode(true) as Element;
+  c.querySelectorAll(".help").forEach((h) => h.remove());
+  return c.textContent ?? "";
+};
 /** General, whose HF segments these tests use. The page defaults to Technician. */
 const GENERAL = { ...DEFAULT_PREFS, cls: "G" as const };
 const settings = settingsOf({ ...DEFAULT_FIELDS, start: "3", stop: "30" }, GENERAL);
@@ -660,10 +666,12 @@ describe("the tables", () => {
     const wrap = document.querySelector('tbody[data-band="20m"] .barWrap')!;
     wrap.querySelector(".bar")!.getBoundingClientRect = () => ({ left: 0, width: 350, top: 0, height: 10, right: 350, bottom: 10, x: 0, y: 0, toJSON: () => ({}) });
     fireEvent.pointerMove(wrap, { pointerType: "mouse", clientX: 230, clientY: 5 });
-    expect(document.querySelector(".barTip")).toHaveTextContent(/^14\.225–14\.2\d\d · Usable$/);
+    expect(document.querySelector(".barTip")).toHaveTextContent(/^20m · Phone\/image14\.225–14\.2\d\d · Usable$/);
     fireEvent.pointerMove(wrap, { pointerType: "mouse", clientX: 340, clientY: 5 });
-    expect(document.querySelector(".barTip")).toHaveTextContent(/^14\.2\d\d–14\.350 · SWR too high$/);
+    expect(document.querySelector(".barTip")).toHaveTextContent(/^20m · Phone\/image14\.2\d\d–14\.350 · SWR too high$/);
     fireEvent.pointerMove(wrap, { pointerType: "mouse", clientX: 190, clientY: 5 });
+    // Where you may not transmit, the title names only the band.
+    expect(document.querySelector(".barTip .tipTitle")).toHaveTextContent(/^20m$/);
     expect(document.querySelector(".barTip")).toHaveTextContent("14.150–14.225 · You may not transmit here");
     fireEvent.pointerLeave(wrap, { pointerType: "mouse" });
     expect(document.querySelector(".barTip")).toBeNull();
@@ -682,9 +690,21 @@ describe("the tables", () => {
     };
     render(<BandTable an={an} settings={settings} lines={dipLines(curve, showing)} />);
     const band = document.querySelector('tbody[data-band="20m"]')!;
-    // The Dip column: the sweep first with its L, grayed off the band, then kept 1 with its number.
-    const rows = [...band.querySelectorAll("td.dips div")];
-    expect(rows.map((d) => [d.querySelector(".n")?.textContent, d.lastChild?.textContent, d.className])).toEqual([["L", "13.950 · 1.10", "dipRow off"], ["1", "14.100 · 1.10", "dipRow"]]);
+    // The Dip column: the sweep's dip with its L, grayed off the band, on the
+    // row nearest it. Its tooltip adds kept 1's.
+    const tip = (el: Element): string[] => {
+      fireEvent.pointerMove(el, { pointerType: "mouse", clientX: 5, clientY: 5 });
+      const rows = [...document.querySelectorAll(".chartTip.cellTip > .dipRow")].map((d) => `${d.querySelector(".n")?.textContent} ${d.lastChild?.textContent}`);
+      fireEvent.pointerLeave(el, { pointerType: "mouse" });
+      return rows;
+    };
+    const cells = [...band.querySelectorAll("td.dips")];
+    expect(cells.map((c) => [...c.querySelectorAll(":scope > div")].map((d) => [d.querySelector(".n")?.textContent, own(d), d.className]))).toEqual([[["L", "L13.950 · 1.10", "dipRow off"]], []]);
+    expect(tip(cells[0]!)).toEqual(["L 13.950 · 1.10", "1 14.100 · 1.10"]);
+    fireEvent.pointerMove(cells[0]!, { pointerType: "mouse", clientX: 5, clientY: 5 });
+    expect(document.querySelector(".chartTip.cellTip .tipTitle")).toHaveTextContent("20m · Dip");
+    fireEvent.pointerLeave(cells[0]!, { pointerType: "mouse" });
+    expect(document.querySelector(".chartTip.cellTip")).toBeNull();
     // The kept dip sits 100 kHz into the band. The sweep's points off the low end.
     const wrap = band.querySelector(".barWrap")!;
     expect(parseFloat((wrap.querySelector("i.dip.k1") as HTMLElement).style.left)).toBeCloseTo(28.57, 1);
@@ -697,6 +717,54 @@ describe("the tables", () => {
     fireEvent.pointerMove(wrap, { pointerType: "mouse", clientX: 200, clientY: 5 });
     expect(document.querySelector(".barTip")).not.toHaveTextContent("dip");
     expect(wrap.querySelector("i.dip.hot")).toBeNull();
+  });
+
+  it("put the sweep's dip on the row of the segment it is in, and say No dip across the band without one", () => {
+    // General's 20 m: CW/RTTY/data 14.025–14.15, phone 14.225–14.35. The V dips at 14.2, nearer phone.
+    const { f, s } = vSweep();
+    const curve = { N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) };
+    render(<BandTable an={an} settings={settings} lines={dipLines(curve, null)} />);
+    const cells = [...document.querySelectorAll('tbody[data-band="20m"] td.dips')];
+    expect(cells.map((c) => c.textContent)).toEqual(["", "14.200 · 1.10"]);
+    const none = document.querySelector('tbody[data-band="40m"] td.dips')!;
+    expect([none.textContent, none.getAttribute("rowspan")]).toEqual(["No dip", "2"]);
+  });
+
+  it("give the sweep's median SWR on each segment, with an arrow against the newest kept sweep, and every median in its tooltip", () => {
+    // The sweep is a flat 1.5 across 3–30 MHz. Kept 2 is 2.5 everywhere. Kept 1 is
+    // 1.5 in CW/RTTY/data and 1.2 in phone.
+    const f = Float64Array.from(vSweep().f), flat = (v: (x: number) => number): Float64Array => f.map(v);
+    const curve = { N: f.length, f, s: flat(() => 1.5) };
+    const showing: Showing = {
+      kept: [{ f, s: flat(() => 2.5), on: true }, { f, s: flat((x) => (x < 14.2 ? 1.5 : 1.2)), on: true }], same: -1, curveName: "Latest", curveOn: true, dipPath: false,
+      onCurve: () => undefined, onToggle: () => undefined, onDipPath: () => undefined,
+    };
+    const onPick = vi.fn();
+    render(<BandTable an={an} settings={{ ...settings, thr: 2 }} lines={dipLines(curve, showing)} onPick={onPick} />);
+    expect(screen.getByText("Median SWR")).toBeInTheDocument();
+    const cells = [...document.querySelectorAll('tbody[data-band="20m"] td.med')];
+    expect(cells.map((c) => [own(c), c.querySelector(".arr")?.getAttribute("aria-label")])).toEqual([["1.50", undefined], ["1.50↑", "higher than kept sweep 1"]]);
+    const medians = ["LLatest · 1.50", "1Kept 1 · 1.20Latest 0.30 higher than 1", "2Kept 2 · 2.50Latest 1.00 lower than 2"];
+    fireEvent.pointerMove(cells[1]!, { pointerType: "mouse", clientX: 5, clientY: 5 });
+    expect(document.querySelector(".chartTip.cellTip .tipTitle")).toHaveTextContent("20m · Phone/image · Median SWR");
+    expect([...document.querySelectorAll(".chartTip.cellTip > .dipRow")].map((d) => d.textContent)).toEqual(medians);
+    fireEvent.pointerLeave(cells[1]!, { pointerType: "mouse" });
+    expect(document.querySelector(".chartTip.cellTip")).toBeNull();
+    // Without a mouse, its "⋯" opens the same on a tap, and the band is not picked.
+    const more = cells[1]!.querySelector<HTMLButtonElement>("button.tap")!;
+    expect(more.getAttribute("aria-label")).toBe("Each sweep's median SWR");
+    fireEvent.click(more);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    expect([...more.querySelectorAll(".cellTip > .dipRow")].map((d) => d.textContent)).toEqual(medians);
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it("leave out Median SWR without a kept sweep on the chart", () => {
+    const { f, s } = vSweep();
+    const curve = { N: f.length, f: Float64Array.from(f), s: Float64Array.from(s) };
+    render(<BandTable an={an} settings={settings} lines={dipLines(curve, null)} />);
+    expect(screen.queryByText("Median SWR")).toBeNull();
+    expect(document.querySelector("td.med")).toBeNull();
   });
 
   it("give the sweep its L beside the number of the kept sweep it is", () => {
