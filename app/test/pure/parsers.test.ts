@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { cleanFreq, looksLikeScreen, parseSweepText } from "@/sweep-text";
-import { isTouchstone, parseTouchstone, swrFromGamma } from "@/touchstone";
+import { isTouchstone, parseS11, parseTouchstone, swrFromGamma } from "@/touchstone";
 
 describe("swrFromGamma", () => {
   it("turns a reflection coefficient into SWR", () => {
@@ -18,6 +18,27 @@ describe("swrFromGamma", () => {
     expect(swrFromGamma(0.9985)).toBe(999);
     expect(swrFromGamma(0.999)).toBe(999);
     expect(swrFromGamma(1.01)).toBe(999);
+  });
+});
+
+describe("parseS11", () => {
+  it("reads the same S11 written as RI, MA and DB", () => {
+    // 0.3 + j0.4: magnitude 0.5 at 53.13°, -6.0206 dB.
+    for (const text of ["# MHz S RI R 50\n14.2 0.3 0.4\n", "# MHz S MA R 50\n14.2 0.5 53.1301\n", "# MHz S DB R 50\n14.2 -6.0206 53.1301\n"]) {
+      const g = parseS11(text);
+      expect(g.f).toEqual([14.2]);
+      expect(g.re[0]).toBeCloseTo(0.3, 4);
+      expect(g.im[0]).toBeCloseTo(0.4, 4);
+    }
+  });
+
+  it("reads the reference impedance, 50 ohms when the file gives none", () => {
+    expect(parseS11("# MHz S RI R 75\n14.2 0 0\n").z0).toBe(75);
+    expect(parseS11("# MHz S RI\n14.2 0 0\n").z0).toBe(50);
+  });
+
+  it("holds no S11 for a file of Z parameters", () => {
+    expect(parseS11("# MHz Z RI R 50\n7.1 50 0\n").f).toEqual([]);
   });
 });
 

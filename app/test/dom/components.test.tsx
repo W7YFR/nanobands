@@ -1,10 +1,13 @@
 /* The components' markup and wiring, in jsdom. */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { analyze } from "@/analysis";
 import { Busy } from "@/ui/Busy";
-import { ShowRow, drawnKept, type Showing } from "@/ui/ChartCard";
+import { ChartCard, ShowRow, drawnKept, type Showing } from "@/ui/ChartCard";
+import type { SmithData } from "@/ui/SmithView";
+import type { S11 } from "@/touchstone";
+import { createRef } from "react";
 import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, type Keeper } from "@/ui/Cards";
 import { Landing } from "@/ui/Landing";
 import { BANDS } from "@/bands";
@@ -188,6 +191,70 @@ describe("ShowRow", () => {
     render(<ShowRow showing={showing()} curve={curve} range={[14, 14.2]} top={5} zoomed={false} />);
     fireEvent.pointerEnter(screen.getByRole("button", { name: "Dip path" }), { pointerType: "mouse" });
     expect(document.querySelector("#pillTip")?.textContent).toBe("Dip path · Pick a band to see the dip path");
+  });
+});
+
+describe("the Smith chart", () => {
+  const f = [14, 14.1, 14.2];
+  // The sweep matches at 14.1 MHz; kept sweep 1 is 100 ohms there.
+  const latest: S11 = { f, re: [0.3, 0, 0.3], im: [0.3, 0, -0.3], z0: 50 };
+  const kept1: S11 = { f, re: [0.4, 1 / 3, 0.4], im: [0.3, 0, -0.3], z0: 50 };
+  const curve = { N: 3, f: Float64Array.from(f), s: Float64Array.from([2.4, 1, 2.4]) };
+  const kept = [{ f: Float64Array.from(f), s: Float64Array.from([2.8, 2, 2.8]), on: true }];
+  const showing: Showing = { kept, same: -1, curveName: "Latest", curveOn: true, dipPath: true, onCurve: vi.fn(), onToggle: vi.fn(), onDipPath: vi.fn() };
+  const smith: SmithData = { latest, kept: [kept1] };
+  // jsdom has no canvas: with no context, the charts draw nothing, and jsdom says nothing about it.
+  beforeEach(() => { vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null); });
+  afterEach(() => vi.restoreAllMocks());
+  const card = (over: Partial<Parameters<typeof ChartCard>[0]> = {}): ReturnType<typeof render> => render(
+    <ChartCard canvasRef={createRef()} an={an} curve={curve} settings={settings} view={[14, 14.2]} onView={vi.fn()} manual={[]} probe={null}
+      onTogglePin={vi.fn()} hoverF={null} onHover={vi.fn()} resNote="" readings="both" onReadings={vi.fn()} scaleTop="5" onScaleTop={vi.fn()}
+      showing={showing} smith={smith} chart="smith" onChart={vi.fn()} {...over} />,
+  );
+
+  it("is a switch on the chart for a sweep, and none for a photo", () => {
+    const onChart = vi.fn();
+    card({ chart: "swr", onChart });
+    expect(document.querySelector("#chartCard .title")?.textContent).toBe("SWR vs. frequency");
+    fireEvent.click(screen.getByRole("button", { name: "Smith" }));
+    expect(onChart).toHaveBeenCalledWith("smith");
+    cleanup();
+    card({ chart: "swr", smith: null });
+    expect(document.querySelector("#chartKind")).toBeNull();
+  });
+
+  it("drops the SWR chart's controls and the dip path pill", () => {
+    card();
+    expect(document.querySelector("#chartCard .title")?.textContent).toBe("Smith chart");
+    expect(document.querySelector("#scaleTop")).toBeNull();
+    expect(document.querySelector("#readingsShown")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Dip path/ })).toBeNull();
+    expect(document.querySelector<HTMLCanvasElement>("#chart")!.hidden).toBe(true);
+  });
+
+  it("reads the sweep's dip, with a row for each line shown", () => {
+    card();
+    const read = document.querySelector("#smithRead")!;
+    expect(read.querySelector(".at")?.textContent).toBe("14.100 MHz · Dip");
+    expect([...read.querySelectorAll("tbody tr")].map((r) => r.textContent)).toEqual(["L50.0 + j0.0 Ω1.00", "1100.0 + j0.0 Ω2.00"]);
+  });
+
+  it("marks the sweep's row with the kept sweep it is, as its pill does", () => {
+    card({ showing: { ...showing, kept: [...kept, { ...kept[0]!, on: true }], same: 1 }, smith: { latest, kept: [kept1, latest] } });
+    expect([...document.querySelectorAll("#smithRead tbody tr")].map((r) => [...r.querySelectorAll(".n")].map((n) => n.textContent).join(" "))).toEqual(["L 1", "2"]);
+  });
+
+  it("reads the frequency under the pointer", () => {
+    card({ hoverF: 14.05 });
+    expect(document.querySelector("#smithRead .at")?.textContent).toBe("14.050 MHz");
+  });
+
+  it("leaves out a line its pill hides", () => {
+    card({ showing: { ...showing, curveOn: false } });
+    expect([...document.querySelectorAll("#smithRead tbody tr")].map((r) => r.querySelector(".n")?.textContent)).toEqual([]);
+    cleanup();
+    card({ showing: { ...showing, kept: [{ ...kept[0]!, on: false }] } });
+    expect([...document.querySelectorAll("#smithRead tbody tr")].map((r) => r.querySelector(".n")?.textContent)).toEqual(["L"]);
   });
 });
 

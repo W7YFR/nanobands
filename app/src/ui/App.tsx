@@ -19,7 +19,7 @@ import { openStore } from "@/store";
 import { APP_VERSION } from "@/build-info";
 import { agree, agreed } from "@/terms";
 import { looksLikeScreen } from "@/sweep-text";
-import { isTouchstone, parseTouchstone } from "@/touchstone";
+import { isTouchstone, parseS11, parseTouchstone } from "@/touchstone";
 import { sweepSet, type SweepSet } from "@/sweep-set";
 import { traceBest } from "@/trace";
 import { toTouchstone, type DeviceInfo, type Scan } from "@/vna";
@@ -30,6 +30,7 @@ import { Busy } from "./Busy";
 import { ChartCard, drawnKept, type Showing } from "./ChartCard";
 import { Confirm } from "./Confirm";
 import { drawChart } from "./draw-chart";
+import { drawSmith } from "./draw-smith";
 import { Disclaimer } from "./Disclaimer";
 import { drawPhoto } from "./draw-photo";
 import { Flight } from "./Flight";
@@ -41,6 +42,7 @@ import {
   type Curve, type Doc, type Fields, type FineSpan, type Kept, type Origin, type Photo, type Picked, type Prefs, type Trace,
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
+import { smithScene, type SmithData } from "./SmithView";
 import { applySnapshot, snapshotOf, type Snapshot } from "./session";
 import { Switch } from "./Switch";
 import { BandTable, PointsTable, dipLines } from "./Tables";
@@ -336,6 +338,13 @@ export function App(): React.ReactElement {
     onDipPath: (on) => setPrefs((p) => ({ ...p, dipPath: on })),
   } : null;
   useEffect(() => { if (!doc.kept.length) setCurveOn(true); }, [doc.kept.length]);
+  /** S11 of the sweep and the kept sweeps, for the Smith chart. A photo has none. */
+  const latestS11 = useMemo(() => (touchstone && doc.s1p ? parseS11(doc.s1p.text) : null), [touchstone, doc.s1p]);
+  const keptTexts = doc.kept.map((k) => k.s1p?.text ?? "").join("\0");
+  // Parsed again only when a kept sweep comes or goes, not when its pill shows or hides it.
+  const keptS11 = useMemo(() => doc.kept.map((k) => (k.s1p ? parseS11(k.s1p.text) : null)), [keptTexts]);
+  const smith: SmithData | null = latestS11 && latestS11.f.length >= 2 ? { latest: latestS11, kept: keptS11 } : null;
+  const isSmith = !!smith && prefs.chart === "smith" && !!an;
   /** Add a Touchstone file as a kept sweep, unless its readings match the sweep or a kept one. */
   const addKept = (file: File): void => {
     void file.text().then((text) => {
@@ -550,6 +559,14 @@ export function App(): React.ReactElement {
     download("swr-overlay.png", c.toDataURL("image/png"));
   };
   const exportChart = (): void => {
+    if (isSmith && smith && an) {
+      const S = 600, c = document.createElement("canvas");
+      c.width = S * 2;
+      c.height = S * 2;
+      drawSmith(c.getContext("2d")!, S, S, 2, smithScene(smith, showing, settings, doc.view ?? [an.fmin, an.fmax], doc.manual, null, null));
+      download("smith-chart.png", c.toDataURL("image/png"));
+      return;
+    }
     const cv = chartRef.current;
     if (!cv) return;
     const W = cv.clientWidth, H = cv.clientHeight, c = document.createElement("canvas");
@@ -706,7 +723,7 @@ export function App(): React.ReactElement {
                   live={vna.live ? (vna.focus && vna.focus !== "all" ? vna.focus.band : "") : null}
                   readings={doc.source === "image" ? null : prefs.readings} onReadings={(v) => onPref("readings", v)}
                   scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
-                  fine={doc.fine} showing={showing} />
+                  fine={doc.fine} showing={showing} smith={smith} chart={prefs.chart} onChart={(v) => onPref("chart", v)} />
                 <div className="card" id="bandCard">
                   <h2>Band segments
                     <span style={{ flex: 1 }}></span>

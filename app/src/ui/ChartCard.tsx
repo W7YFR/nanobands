@@ -22,6 +22,11 @@
  * Over a pill, or with it focused from the keyboard, a tooltip names its
  * line and gives the line's range. Keeping and dropping sweeps is the
  * NanoVNA panel's work, not the chart's.
+ *
+ * NanoVNA and file data have the phase of S11 too, so for them a switch
+ * turns the chart into a Smith chart. It shows the frequencies the chips
+ * pick, and the pills show and hide its lines. The SWR scale, the readings
+ * and the dip path are the SWR chart's, so their controls go while it shows.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
@@ -32,12 +37,14 @@ import { Help } from "./Help";
 import { bandTip, drawChart, freqAt, type ChartGeom, type KeyKind, type KeyPoint, type Readings } from "./draw-chart";
 import { fitCanvas } from "./draw-photo";
 import type { Band } from "@/bands";
-import { bandView, dipIn, fitView, keptNumber, sameView, type Curve, type FineSpan, type Kept, type ScaleTop, type Settings } from "./model";
+import { bandView, dipIn, fitView, keptNumber, sameView, type ChartKind, type Curve, type FineSpan, type Kept, type ScaleTop, type Settings } from "./model";
+import { SmithView, type SmithData } from "./SmithView";
 import { Switch } from "./Switch";
 import { useNoSwipe } from "./useNoSwipe";
 
 const READINGS: { value: Readings; label: string }[] = [{ value: "line", label: "Line" }, { value: "points", label: "Points" }, { value: "both", label: "Both" }];
 const SCALES: { value: ScaleTop; label: string }[] = [{ value: "3", label: "3" }, { value: "5", label: "5" }, { value: "10", label: "10" }];
+const CHARTS: { value: ChartKind; label: string }[] = [{ value: "swr", label: "SWR" }, { value: "smith", label: "Smith" }];
 
 function Chips({ an, view, onView, fine }: {
   an: Analysis; view: [number, number] | null; onView(v: [number, number] | null): void; fine: readonly FineSpan[];
@@ -100,9 +107,10 @@ function Pill({ cls, on, tip, onTip, onClick, children }: {
   );
 }
 
-/** `zoomed`: the chart shows less than the full sweep, so the dip path draws. */
-export function ShowRow({ showing: k, curve, range, top, zoomed }: {
-  showing: Showing; curve: Curve | null; range: [number, number]; top: number; zoomed: boolean;
+/** `zoomed`: the chart shows less than the full sweep, so the dip path draws.
+ *  `path`: the chart has a dip path, as the Smith chart has not. */
+export function ShowRow({ showing: k, curve, range, top, zoomed, path = true }: {
+  showing: Showing; curve: Curve | null; range: [number, number]; top: number; zoomed: boolean; path?: boolean;
 }): React.ReactElement {
   const dip = (f: Float64Array, s: Float64Array): React.ReactNode => {
     const d = dipIn(f, s, range[0], range[1]);
@@ -125,10 +133,10 @@ export function ShowRow({ showing: k, curve, range, top, zoomed }: {
             <span className="n">{n}</span>{dip(x.f, x.s)}
           </Pill>
         ))}
-        <Pill cls="path" on={k.dipPath} onTip={setTip} onClick={() => k.onDipPath(!k.dipPath)}
+        {path && <Pill cls="path" on={k.dipPath} onTip={setTip} onClick={() => k.onDipPath(!k.dipPath)}
           tip={{ name: "Dip path", text: zoomed ? "Joins the kept sweeps' dips to the sweep's dip" : "Pick a band to see the dip path" }}>
           <span className="sw" />Dip path
-        </Pill>
+        </Pill>}
       </span>
       {tip && (
         <div className="chartTip" id="pillTip" style={{
@@ -142,7 +150,7 @@ export function ShowRow({ showing: k, curve, range, top, zoomed }: {
   );
 }
 
-export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], readings = null, onReadings, live = null, scaleTop = null, onScaleTop, showing = null }: {
+export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual, probe, onTogglePin, hoverF, onHover, resNote, fine = [], readings = null, onReadings, live = null, scaleTop = null, onScaleTop, showing = null, smith = null, chart = "swr", onChart }: {
   canvasRef: RefObject<HTMLCanvasElement | null>;
   an: Analysis | null;
   curve: Curve | null;
@@ -167,6 +175,10 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   onReadings?(v: Readings): void;
   /** The pills, with sweeps kept. Null with none. */
   showing?: Showing | null;
+  /** S11 for the Smith chart, or null for a photo, which has none. */
+  smith?: SmithData | null;
+  chart?: ChartKind;
+  onChart?(v: ChartKind): void;
 }): React.ReactElement {
   const geom = useRef<ChartGeom | null>(null);
   /** A press on the chart. `pan` holds the view it started from. */
@@ -181,6 +193,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   const [zoomDrag, setZoomDrag] = useState(false);
   const touch = window.matchMedia?.("(pointer: coarse)").matches ?? false;
   const [full, setFull] = useState(false);
+  const isSmith = !!smith && chart === "smith" && !!range;
 
   // Full screen: the page behind does not scroll, and Back or Escape leave.
   // Back on a phone is an edge swipe a page cannot stop, so full screen keeps
@@ -205,7 +218,8 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
 
   const draw = (): void => {
     const c = canvasRef.current, ctx = c?.getContext("2d");
-    if (!c || !ctx) return;
+    // The Smith chart shows instead, and the SWR chart waits, hidden.
+    if (!c || !ctx || c.hidden) return;
     const dpr = window.devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
     fitCanvas(c, ctx, Math.round(W * dpr), Math.round(H * dpr));
     geom.current = drawChart(ctx, W, H, dpr, {
@@ -293,30 +307,41 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
   const tipBox = tip && an && curve ? bandTip(tip.band, settings, an, curve) : null;
   return (
     <div className={"card" + (full ? " full" : "")} id="chartCard">
-      <h2><span className="title">SWR vs. frequency</span> <Help align="start" text={touch
-        ? "Drag along the chart to read the SWR; tap to clear the reading. Tap to pin your own marker; tap it again to remove it. Zoom, then drag across a range, to zoom in."
-        : "Click to pin a marker, click a pin to remove it. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} />
+      <h2>
+        {/* First, so it holds still when the chart changes and the tools after the title come and go. */}
+        {smith && onChart && <Switch id="chartKind" label="Chart" value={chart} options={CHARTS} onChange={onChart} />}
+        <span className="title">{isSmith ? "Smith chart" : "SWR vs. frequency"}</span> <Help align="start" text={isSmith
+        ? (touch
+          ? "Drag along a line to read its impedance; tap to clear the reading. Tap a line to pin a marker; tap it again to remove it. The band chips pick the frequencies shown."
+          : "Point at a line to read its impedance. Click to pin a marker, click a pin to remove it. The band chips pick the frequencies shown.")
+        : touch
+          ? "Drag along the chart to read the SWR; tap to clear the reading. Tap to pin your own marker; tap it again to remove it. Zoom, then drag across a range, to zoom in."
+          : "Click to pin a marker, click a pin to remove it. Drag or scroll to zoom, Shift + scroll or middle-drag to pan, double-click to reset."} />
         {/* What Live sweeps, first: the rest of the chart holds still while it sweeps one band. */}
         {live !== null && <span id="liveNote"><i />{live ? `Live: ${live} only` : "Live"}</span>}
         {/* The ✦ before the count marks the fine-swept chips below too, so the note is their key. */}
         {resNote && <span id="resNote">{resNote}{fine.length > 0 && <> · <span className="star">✦</span> {fine.length} fine sweep{fine.length > 1 ? "s" : ""}</>}</span>}
         <span className="tools">
-          {scaleTop && onScaleTop && (
+          {!isSmith && scaleTop && onScaleTop && (
             <span className="labeled" title="The top of the SWR scale">
               <span className="lbl" aria-hidden="true">SWR</span>
               <Switch id="scaleTop" label="Top of the SWR scale" value={scaleTop} options={SCALES} onChange={onScaleTop} />
             </span>
           )}
-          {readings && onReadings && <Switch id="readingsShown" label="Readings shown" value={readings} options={READINGS} onChange={onReadings} />}
-          {touch && an && <button id="chartZoom" className={"small" + (zoomDrag ? " on" : "")} onClick={() => setZoomDrag(!zoomDrag)}>Zoom</button>}
+          {!isSmith && readings && onReadings && <Switch id="readingsShown" label="Readings shown" value={readings} options={READINGS} onChange={onReadings} />}
+          {!isSmith && touch && an && <button id="chartZoom" className={"small" + (zoomDrag ? " on" : "")} onClick={() => setZoomDrag(!zoomDrag)}>Zoom</button>}
           {full
             ? <button id="chartFull" className="small on" onClick={() => setFull(false)}>Done</button>
             : <button id="chartFull" className="small" onClick={() => setFull(true)}>⤢ Full screen</button>}
         </span>
       </h2>
       {an && <Chips an={an} view={view} onView={onView} fine={fine} />}
-      {showing && range && <ShowRow showing={showing} curve={curve} range={range} top={settings.top} zoomed={view !== null} />}
-      <canvas id="chart" ref={canvasRef}
+      {showing && range && <ShowRow showing={showing} curve={curve} range={range} top={settings.top} zoomed={view !== null} path={!isSmith} />}
+      {isSmith && smith && range && (
+        <SmithView data={smith} settings={settings} range={range} curve={curve} showing={showing} manual={manual} probe={probe}
+          hoverF={hoverF} onHover={onHover} onTogglePin={onTogglePin} touch={touch} />
+      )}
+      <canvas id="chart" ref={canvasRef} hidden={isSmith}
         style={panning ? { cursor: "grabbing" } : snap === "pin" || snap === "probe" || tip ? { cursor: "pointer" } : undefined}
         // Stops the middle button's autoscroll.
         onMouseDown={(e) => { if (e.button === 1) e.preventDefault(); }}
@@ -386,7 +411,18 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
           <div><span className={"pill " + (tipBox.ok === "all" ? "ok" : tipBox.ok === "part" ? "part" : "no")}>{tipBox.usable}</span></div>
         </div>
       )}
-      <div className="legend">
+      {isSmith ? (
+        <div className="legend">
+          <span><i style={{ background: "var(--ok)" }}></i>Usable</span>
+          <span><i style={{ background: "var(--match)" }}></i>Under Max SWR, outside your segments</span>
+          <span><i style={{ background: "#e3c84a" }}></i>Over Max SWR</span>
+          <span><i className="dash" style={{ "--k": "var(--bad)" } as React.CSSProperties}></i>Max SWR</span>
+          {drawn.some((k, i) => k.on && smith?.kept[i]) && (
+            <span id="keptKey">{drawn.map((x, i) => ({ x, i, n: keptNumber(drawn, i) })).reverse().filter(({ x, i }) => x.on && smith?.kept[i])
+              .map(({ n }) => <i key={n} className={`dash k${n}`}></i>)}Kept sweep</span>
+          )}
+        </div>
+      ) : <div className="legend">
         <span><i style={{ background: "var(--ok)" }}></i>Usable</span>
         <span><i style={{ background: "var(--match)" }}></i>Under Max SWR, outside your segments</span>
         <span><i style={{ background: "rgba(248,81,73,.7)" }}></i>SWR too high</span>
@@ -402,7 +438,7 @@ export function ChartCard({ canvasRef, an, curve, settings, view, onView, manual
         )}
         {showing?.dipPath && view && drawn.some((k) => k.on) && <span id="dipKey"><i className="path"></i>Dip path</span>}
         {fine.length > 0 && <span id="fineKey"><i style={{ background: "var(--accent)" }}></i>Fine sweep, calibration filled in</span>}
-      </div>
+      </div>}
     </div>
   );
 }
