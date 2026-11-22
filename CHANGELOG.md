@@ -7,6 +7,17 @@ them.
 
 ## Unreleased
 
+## v1.23.1 — 2026-11-22
+
+### Changed
+
+- The terms of use cover the Smith chart, so the terms banner asks you to agree again.
+
+### Development
+
+- The matching network's math, with its tests, is in place for a later release. Nothing on the page uses it yet.
+- The **?** tip has a form that holds controls, and a dialog's action button can start disabled.
+
 ## v1.23.0 — 2026-11-21
 
 ### Added

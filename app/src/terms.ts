@@ -9,7 +9,7 @@
  */
 
 /** The terms' version. Raise it with each change to `app/public/terms.html`. */
-export const TERMS_VERSION = 1;
+export const TERMS_VERSION = 2;
 
 const KEY = "nanobands-terms";
 
