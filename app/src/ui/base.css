@@ -596,6 +596,47 @@ html.shell-open{overflow:hidden}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .modal-field{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
 .modal-field input{flex:1;width:auto}
+/* The matching network card. */
+#matchCard .disclaimer{margin:0 0 12px}
+#matchCard h2 .sub{text-transform:none;letter-spacing:0;font-weight:400}
+.matchAt{margin:0 0 10px;font-size:13px}
+.matchAt span{color:var(--muted)}
+.matchMsg{margin:0;font-size:13px}
+.matchAns{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.matchOpt{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+.matchOpt .name{display:flex;align-items:center;gap:4px;font-size:12px;margin:0 0 4px}
+.matchOpt .name .kind{color:var(--muted)}
+.matchOpt .name .help-pop{margin-left:4px}
+.matchOpt ul{margin:0;padding:0;list-style:none;font-size:12px}
+.matchOpt li{margin:0 0 2px}
+.matchOpt li .w{color:var(--muted)}
+.matchOpt li .vi{display:block;color:var(--muted)}
+.matchOpt li .vi b{color:var(--warn);font-weight:600}
+.matchPow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin:8px 0}
+.matchNote.warn{color:var(--warn)}
+.matchDiagram{display:block;width:100%;max-width:320px;height:auto;margin:2px 0 6px}
+.matchDiagram .lbl{fill:var(--muted);font-size:10px}
+.matchDiagram .val{fill:var(--text);font-size:10px}
+.matchDiagram .wire{stroke:var(--muted);stroke-width:1.4;fill:none}
+.matchDiagram .gnd{stroke-dasharray:3 3}
+.matchDiagram .part{stroke:var(--text);stroke-width:1.6;fill:none}
+.matchNote{color:var(--muted);font-size:12px;margin:10px 0 0}
+.matchTip{display:block}
+.matchTip .h,.matchTip summary{display:block;margin:0 0 4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text)}
+.matchTip .p{display:block;margin:0 0 6px;color:var(--muted)}
+.matchTip details{margin:12px 0 0;padding:10px 0 0;border-top:1px solid var(--line)}
+.matchTip summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;margin:0}
+.matchTip summary::-webkit-details-marker{display:none}
+.matchTip summary::before{content:"▸";font-size:10px;color:var(--muted)}
+.matchTip details[open] summary{margin:0 0 6px}
+.matchTip details[open] summary::before{content:"▾"}
+.matchTip pre{margin:0 0 6px;font-family:var(--mono);font-size:11px;line-height:1.5;background:var(--panel);border-radius:4px;padding:6px 8px;color:var(--text);white-space:pre-wrap}
+.matchRisks{margin:0 0 10px;padding:0 0 0 18px;color:var(--muted);font-size:13px}
+.matchRisks li{margin:0 0 4px}
+.matchRisks b{color:var(--text);font-weight:600}
+.matchAgree{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:10px 0 0}
+.matchAgree input{margin-top:3px}
+.matchAgree a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 
 /* The veil while the page waits. It fades in late, so quick work does not flash it. */
 .busy-back{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:16px;cursor:progress;animation:busyIn .2s ease-out .25s backwards}

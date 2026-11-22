@@ -68,6 +68,8 @@ export interface Prefs {
   dipPath: boolean;
   /** The chart for NanoVNA and file data: SWR against frequency, or the Smith chart. A photo's is always SWR. */
   chart: ChartKind;
+  /** The power the matching network's voltages and currents are for, in watts. */
+  power: Power;
 }
 
 export type ChartKind = "swr" | "smith";
@@ -75,7 +77,9 @@ export type ChartKind = "swr" | "smith";
 /** The tops the SWR scale offers for NanoVNA and file data. */
 export type ScaleTop = "3" | "5" | "10";
 
-export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "T", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both", scaleTop: "5", dipPath: true, chart: "swr" };
+export type Power = "5" | "100" | "1500";
+
+export const DEFAULT_PREFS: Prefs = { thr: "3", cls: "T", mode: "any", prom: "0.2", freq: "", points: false, bands: "all", readings: "both", scaleTop: "5", dipPath: true, chart: "swr", power: "100" };
 
 /** A fine sweep's band in the data: its name, and its span in MHz. */
 export interface FineSpan { band: string; lo: number; hi: number }

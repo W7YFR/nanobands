@@ -777,6 +777,14 @@ describe("an opened .s1p file", () => {
     expect(has("#calCard")).toBe(false);
   });
 
+  it("shows the matching network card with the Smith chart only", async () => {
+    expect(has("#matchCard")).toBe(false);
+    [...document.querySelectorAll<HTMLButtonElement>("#chartKind button")].find((b) => b.textContent === "Smith")!.click();
+    await until(() => has("#matchCard"));
+    [...document.querySelectorAll<HTMLButtonElement>("#chartKind button")].find((b) => b.textContent === "SWR")!.click();
+    await until(() => !has("#matchCard"));
+  });
+
   it("saves the file back as it was, and its data as CSV", async () => {
     expect(has("#expPhoto")).toBe(false);
     const files = await downloads(() => { $("#expS1p").click(); $("#expCsv").click(); });

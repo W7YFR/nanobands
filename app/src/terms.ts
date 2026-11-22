@@ -9,7 +9,7 @@
  */
 
 /** The terms' version. Raise it with each change to `app/public/terms.html`. */
-export const TERMS_VERSION = 2;
+export const TERMS_VERSION = 3;
 
 const KEY = "nanobands-terms";
 
@@ -30,4 +30,23 @@ export function agreed(): boolean {
 export function agree(app: string): void {
   const a: Agreement = { terms: TERMS_VERSION, app };
   try { localStorage.setItem(KEY, JSON.stringify(a)); } catch { /* storage blocked: the banner comes back next time */ }
+}
+
+const MATCH_KEY = "nanobands-match";
+
+/** Whether this browser agreed, under the current terms, to the risks of a
+ *  matching network. An agreement under older terms is no agreement. */
+export function matchAgreed(): boolean {
+  try {
+    const a = JSON.parse(localStorage.getItem(MATCH_KEY) ?? "null") as Partial<Agreement> | null;
+    return typeof a?.terms === "number" && a.terms >= TERMS_VERSION;
+  } catch {
+    return false;
+  }
+}
+
+/** Record agreement to the risks of a matching network, given on app version `app`. */
+export function agreeMatch(app: string): void {
+  const a: Agreement = { terms: TERMS_VERSION, app };
+  try { localStorage.setItem(MATCH_KEY, JSON.stringify(a)); } catch { /* storage blocked: the dialog comes back next time */ }
 }

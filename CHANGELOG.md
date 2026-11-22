@@ -7,6 +7,16 @@ them.
 
 ## Unreleased
 
+### Added
+
+- **Matching network** gives the coil and capacitor that match the latest sweep at the Smith readout's frequency, with a drawing of where each part goes. It starts shut, and the first **Show** asks you to agree to the risks.
+- Each option's **?** says when to use it. **Calculations** in it shows the formulas with your numbers.
+- Each part gives its peak voltage and RMS current at 5 W, 100 W or 1500 W. A part over 500 V peak or 5 A is marked high voltage or high current.
+
+### Changed
+
+- The terms of use cover the matching network, so the terms banner asks you to agree again.
+
 ## v1.23.1 — 2026-11-22
 
 ### Changed

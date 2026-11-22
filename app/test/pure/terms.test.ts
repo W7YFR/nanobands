@@ -12,6 +12,7 @@ import { TERMS_VERSION } from "@/terms";
 const HASHES: Record<number, string> = {
   1: "79127d776798d26861a0a7e5cab3c5ab5140577c5f89956a23198ea3888b53ac",
   2: "3b270ecab31e34fe1ed7d7d1562b16f159b9d7400aa176e64c685e4967d8dbee",
+  3: "84cebcc25a27d537296e31fe1427b27935c941eef4dfa9080f68fbf802e07a05",
 };
 
 describe("the terms", () => {

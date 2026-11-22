@@ -64,7 +64,7 @@ main a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
   <p>NanoBands is a free tool for reading a NanoVNA SWR sweep against the US amateur band plan. By using it you agree to these terms. They are short. Please read them.</p>
 
   <h3>1. What NanoBands does</h3>
-  <p>NanoBands takes a photo of a NanoVNA's SWR screen, a Touchstone <code>.s1p</code> file, or a live sweep from a NanoVNA over USB. It shows the SWR curve, lays the US amateur band plan over it, and says which segments of which bands are at or under the maximum SWR you set, for the license class and mode you choose. For a sweep or a file, it can also show the readings on a Smith chart, with the impedance at each frequency.</p>
+  <p>NanoBands takes a photo of a NanoVNA's SWR screen, a Touchstone <code>.s1p</code> file, or a live sweep from a NanoVNA over USB. It shows the SWR curve, lays the US amateur band plan over it, and says which segments of which bands are at or under the maximum SWR you set, for the license class and mode you choose. For a sweep or a file, it can also show the readings on a Smith chart, with the impedance at each frequency. It also works out a matching network: a coil and a capacitor that would match the load at one frequency.</p>
 
   <h3>2. How it reads a sweep</h3>
   <p><b>A photo</b> is read by eye. NanoBands finds the plot grid, reads the sweep's start, stop and SWR scale off the screen's text, and traces the yellow curve. Every step is an estimate. A skewed shot, glare, a misread label, or text drawn over the curve can move the result. The page shows what it read, so you can check and correct it.</p>
@@ -76,20 +76,24 @@ main a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
   <h3>4. Your responsibility</h3>
   <p>You are responsible for every transmission you make. Confirm each result on the NanoVNA itself before you transmit. "You may transmit" means only that the SWR shown is at or under your maximum, inside a segment the band plan allows your license class in that mode. It is not advice, and it is not a promise that your equipment is safe to use. Check the current rules before you transmit.</p>
 
-  <h3>5. No warranty</h3>
+  <h3>5. Matching network values</h3>
+  <p>The matching network card works out a coil and a capacitor from the impedance the NanoVNA measured, with the standard L-network formulas, for ideal parts at one frequency. The values are a starting point, not a tested design. Real parts have tolerance, loss and stray capacitance and inductance, and the measurement has the limits in section 2. The values hold only at the point where the NanoVNA was connected.</p>
+  <p>A network can carry high RF voltage and current: enough to burn you, and to make parts not rated for your power arc over or overheat. The voltages and currents the card gives are for ideal parts in the finished network, matched at that frequency. While you tune the network, or at other frequencies, the parts can see more, so choose parts rated well above them. Measure the finished network with the NanoVNA before you transmit through it. You build and use it at your own risk.</p>
+
+  <h3>6. No warranty</h3>
   <p>NanoBands is provided as is and as available, with no warranty of any kind, express or implied, including any warranty of accuracy, fitness for a particular purpose, or that it will work without error.</p>
 
-  <h3>6. Limitation of liability</h3>
-  <p>To the fullest extent the law allows, the author of NanoBands is not liable for any loss or damage that comes from using it or relying on it. That includes damage to your transmitter, your antenna, anything connected to them, and any consequence of a transmission you make. You use it at your own risk.</p>
+  <h3>7. Limitation of liability</h3>
+  <p>To the fullest extent the law allows, the author of NanoBands is not liable for any loss or damage that comes from using it or relying on it. That includes damage to your transmitter, your antenna, anything connected to them, anything you build from the values NanoBands gives, any injury, and any consequence of a transmission you make. You use it at your own risk.</p>
 
-  <h3>7. Privacy</h3>
+  <h3>8. Privacy</h3>
   <p>Everything runs in your browser. There is no account, no upload and no server. A photo, a sweep and your settings never leave your machine. They stay in the browser's own storage until you clear them. A live sweep talks to the NanoVNA over Web Serial and to nothing else. There are no analytics and no cookies.</p>
   <p>The text-recognition library that reads a photo (Tesseract.js) comes from this site with the rest of the page. Nothing loads from a third party.</p>
 
-  <h3>8. Source and license</h3>
+  <h3>9. Source and license</h3>
   <p>The source is on <a href="https://github.com/W7YFR/nanobands">GitHub</a> under the MIT license, which carries its own no-warranty terms for the code. Bugs and ideas are welcome there.</p>
 
-  <h3>9. Changes</h3>
+  <h3>10. Changes</h3>
   <p>These terms may change. The date at the top says when they last did. Using NanoBands after a change means you accept the new terms.</p>
 </main>
 

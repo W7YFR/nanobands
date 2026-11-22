@@ -6,6 +6,8 @@ import { analyze } from "@/analysis";
 import { Busy } from "@/ui/Busy";
 import { ChartCard, ShowRow, drawnKept, type Showing } from "@/ui/ChartCard";
 import type { SmithData } from "@/ui/SmithView";
+import { MatchCard } from "@/ui/MatchCard";
+import { TERMS_VERSION } from "@/terms";
 import type { S11 } from "@/touchstone";
 import { createRef } from "react";
 import { AnalyzeCard, CalibrateCard, ExportCard, LoadCard, type Keeper } from "@/ui/Cards";
@@ -191,6 +193,171 @@ describe("ShowRow", () => {
     render(<ShowRow showing={showing()} curve={curve} range={[14, 14.2]} top={5} zoomed={false} />);
     fireEvent.pointerEnter(screen.getByRole("button", { name: "Dip path" }), { pointerType: "mouse" });
     expect(document.querySelector("#pillTip")?.textContent).toBe("Dip path · Pick a band to see the dip path");
+  });
+});
+
+describe("the matching network card", () => {
+  /** S11 for impedance R + jX on a 50 ohm line. */
+  const gamma = (r: number, x: number): [number, number] => {
+    const d = (r + 50) ** 2 + x * x;
+    return [(r * r - 2500 + x * x) / d, (100 * x) / d];
+  };
+  // 14.1 MHz reads 27.8 − j11.8 ohms, as the 20 m file does at 14.133 MHz, so the parts differ a little.
+  // 14.2 MHz is far round the chart from it.
+  const zs: [number, number][] = [[40, -30], [27.8, -11.8], [300, 400]];
+  const f = [14, 14.1, 14.2];
+  const latest: S11 = { f, re: zs.map(([r, x]) => gamma(r, x)[0]), im: zs.map(([r, x]) => gamma(r, x)[1]), z0: 50 };
+  const curve = { N: 3, f: Float64Array.from(f), s: Float64Array.from(zs.map(([r, x]) => { const [a, b] = gamma(r, x), g = Math.hypot(a, b); return (1 + g) / (1 - g); })) };
+  const card = (over: Partial<Parameters<typeof MatchCard>[0]> = {}): ReturnType<typeof render> => render(
+    <MatchCard data={{ latest, kept: [] }} curve={curve} range={[14, 14.2]} manual={[14.1]} hoverF={null} power="100" onPower={() => {}} {...over} />,
+  );
+  beforeEach(() => localStorage.clear());
+  const show = (): void => { fireEvent.click(screen.getByRole("button", { name: "Show" })); };
+
+  it("starts shut, with the frequency in its header", () => {
+    card();
+    expect(document.querySelector("#matchCard h2")?.textContent).toContain("· 14.100 MHz");
+    expect(document.querySelector("#matchBody")).toBeNull();
+  });
+
+  it("asks you to agree to the risks the first time, and only with the box ticked", () => {
+    card();
+    show();
+    const agree = screen.getByRole("button", { name: "Agree and show" });
+    expect(agree).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(document.querySelector("#matchBody")).toBeNull();
+    show();
+    fireEvent.click(document.querySelector("#matchAgree")!);
+    fireEvent.click(screen.getByRole("button", { name: "Agree and show" }));
+    expect(document.querySelector("#matchBody")).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem("nanobands-match")!).terms).toBe(TERMS_VERSION);
+    // Agreed: the next Show opens the card at once.
+    cleanup();
+    card();
+    show();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(document.querySelector("#matchBody")).not.toBeNull();
+  });
+
+  it("asks again after the terms change", () => {
+    localStorage.setItem("nanobands-match", JSON.stringify({ terms: TERMS_VERSION - 1, app: "1.0.0" }));
+    card();
+    show();
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+  });
+
+  describe("open", () => {
+    beforeEach(() => localStorage.setItem("nanobands-match", JSON.stringify({ terms: TERMS_VERSION, app: "1.0.0" })));
+
+    it("puts the warning first, then the latest sweep's network with each part on its side", () => {
+      card();
+      show();
+      const body = document.querySelector("#matchBody")!;
+      expect(body.firstElementChild?.className).toBe("disclaimer");
+      expect(body.querySelector(".matchAt")?.textContent).toBe("14.100 MHz · Pin · Latest sweep · 27.8 − j11.8 Ω · SWR 1.94 · to 50 Ω");
+      const opts = [...body.querySelectorAll(".matchOpt")];
+      expect(opts.map((o) => [...o.querySelectorAll("li")].map((l) => l.textContent))).toEqual([
+        ["414 nH coil in series, on the antenna side98.3 V peak, 1.90 A RMS at 100 W", "202 pF capacitor across the line, on the radio side100 V peak, 1.26 A RMS at 100 W"],
+        ["865 pF capacitor in series, on the antenna side35.0 V peak, 1.90 A RMS at 100 W", "632 nH coil across the line, on the radio side100 V peak, 1.26 A RMS at 100 W"],
+      ]);
+      // The drawing puts the part next to the load nearer the antenna, on the right.
+      for (const o of opts) {
+        const x = (s: string): number => +o.querySelector(`svg [data-part="${s}"]`)!.getAttribute("x")!;
+        expect(x("series")).toBeGreaterThan(x("across"));
+      }
+      expect(body.querySelector(".matchNote:last-child")?.textContent).toContain("The SWR elsewhere in the band will differ.");
+    });
+
+    it("draws the part across the line nearer the antenna when R is over Z0", () => {
+      const big: S11 = { ...latest, re: [gamma(40, -30)[0], gamma(150, 60)[0], latest.re[2]!], im: [gamma(40, -30)[1], gamma(150, 60)[1], latest.im[2]!] };
+      card({ data: { latest: big, kept: [] }, curve: { ...curve, s: Float64Array.from([2, 3.2, 20]) } });
+      show();
+      const o = document.querySelector(".matchOpt")!;
+      const x = (s: string): number => +o.querySelector(`svg [data-part="${s}"]`)!.getAttribute("x")!;
+      expect(x("across")).toBeGreaterThan(x("series"));
+      expect(o.querySelector('li[data-part="across"]')?.textContent).toContain("on the antenna side");
+    });
+
+    it("keeps an option's ? open while you open Calculations inside it", () => {
+      card();
+      show();
+      const q = screen.getByRole("button", { name: "About option 1" });
+      fireEvent.click(q);
+      const tip = q.parentElement!.querySelector(".tip")!;
+      expect(q.parentElement).toHaveClass("shown");
+      expect(tip.textContent).toContain("usually the one to pick for transmitting");
+      fireEvent.pointerDown(tip.querySelector("summary")!);
+      fireEvent.click(tip.querySelector("summary")!);
+      expect(q.parentElement).toHaveClass("shown");
+      expect(tip.querySelector("pre")?.textContent).toContain("L  = Xs ÷ 2πf = 414 nH");
+      fireEvent.pointerDown(document.body);
+      expect(q.parentElement).not.toHaveClass("shown");
+    });
+
+    it("says an option is not a filter beside one that is, and pick by parts only when neither is", () => {
+      // 10 − j40 ohms: Option 1 is low-pass, Option 2 puts two coils on the line.
+      const cap: S11 = { ...latest, re: [latest.re[0]!, gamma(10, -40)[0], latest.re[2]!], im: [latest.im[0]!, gamma(10, -40)[1], latest.im[2]!] };
+      card({ data: { latest: cap, kept: [] }, curve: { ...curve, s: Float64Array.from([2, 8, 20]) } });
+      show();
+      const tips = [...document.querySelectorAll(".matchOpt .matchTip > .p")].map((p) => p.textContent);
+      expect(tips[0]).toContain("usually the one to pick for transmitting");
+      expect(tips[1]).toBe("This option is not a filter, so it does not cut harmonics.");
+    });
+
+    it("shows no parts where the impedance is only an estimate", () => {
+      card({ manual: [14.15] });
+      show();
+      expect(document.querySelector(".matchAt")?.textContent).toContain("≈ ");
+      expect(document.querySelector(".matchOpt")).toBeNull();
+      expect(document.querySelector(".matchMsg")?.textContent).toContain("only an estimate");
+    });
+
+    it("gives each part's voltage and current at the power picked, and marks large ones", () => {
+      const onPower = vi.fn();
+      card({ power: "1500", onPower });
+      show();
+      expect(screen.getByRole("button", { name: "1500 W" })).toHaveAttribute("aria-pressed", "true");
+      const li = document.querySelector('.matchOpt li[data-part="series"]')!;
+      // √(1500 ÷ 100) = 3.87 times the 100 W numbers.
+      expect(li.querySelector(".vi")?.textContent).toBe("381 V peak, 7.35 A RMS at 1500 W · high current");
+      const across = document.querySelector('.matchOpt li[data-part="across"] .vi')?.textContent;
+      expect(across).toBe("387 V peak, 4.89 A RMS at 1500 W");
+      const notes = [...document.querySelectorAll(".matchNote.warn")].map((p) => p.textContent);
+      expect(notes).toEqual(["A part marked high current carries over 5 A. Thin wire and small toroids get hot."]);
+      expect(document.querySelector("#matchBody")?.textContent).toContain("While you tune the network, or at other frequencies, the parts can see more.");
+      fireEvent.click(screen.getByRole("button", { name: "5 W" }));
+      expect(onPower).toHaveBeenCalledWith("5");
+    });
+
+    it("marks a part over 500 V peak as high voltage", () => {
+      // 300 + j700 ohms at 100 W: the part across the line, on the antenna side, sees the load's √(100 × 580000 ÷ 300) × √2 = 622 V peak.
+      const hi: S11 = { ...latest, re: [latest.re[0]!, gamma(300, 700)[0], latest.re[2]!], im: [latest.im[0]!, gamma(300, 700)[1], latest.im[2]!] };
+      card({ data: { latest: hi, kept: [] }, curve: { ...curve, s: Float64Array.from([2, 9, 20]) } });
+      show();
+      expect(document.querySelector('.matchOpt li[data-part="across"] .vi')?.textContent).toBe("622 V peak, 1.93 A RMS at 100 W · high voltage");
+      expect(document.querySelector(".matchNote.warn")?.textContent).toBe("A part marked high voltage sees over 500 V peak. Most small mica and ceramic capacitors are rated 500 V or less.");
+    });
+
+    it("shows the voltage and current in Calculations, with your numbers", () => {
+      card();
+      show();
+      const pre = [...document.querySelectorAll(".matchOpt")][0]!.querySelectorAll(".matchTip pre")[1]!.textContent;
+      expect(pre).toBe([
+        "P  = 100 W",
+        "IL = √(P ÷ R) = √(100 ÷ 27.8) = 1.90 A",
+        "V  = IL × |Xs| = 1.90 × 36.6 = 69.5 V, × √2 = 98.3 V peak",
+        "V0 = √(P × Z0) = √(100 × 50) = 70.7 V, × √2 = 100 V peak",
+        "I  = V0 × |B| = 70.7 × 0.0179 = 1.26 A",
+      ].join("\n"));
+    });
+
+    it("says no network is needed under SWR 1.1", () => {
+      const ok: S11 = { ...latest, re: [0, 0.01, 0], im: [0, 0.01, 0] };
+      card({ data: { latest: ok, kept: [] }, curve: { ...curve, s: Float64Array.from([1, 1.03, 1]) } });
+      show();
+      expect(document.querySelector(".matchMsg")?.textContent).toBe("No network needed. The SWR here is already under 1.10.");
+    });
   });
 });
 

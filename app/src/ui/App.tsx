@@ -44,6 +44,7 @@ import {
 } from "./model";
 import { PhotoCard } from "./PhotoCard";
 import { smithScene, type SmithData } from "./SmithView";
+import { MatchCard } from "./MatchCard";
 import { applySnapshot, snapshotOf, type Snapshot } from "./session";
 import { Switch } from "./Switch";
 import { BandTable, PointsTable, dipLines } from "./Tables";
@@ -730,6 +731,8 @@ export function App(): React.ReactElement {
                   scaleTop={doc.source === "image" ? null : prefs.scaleTop} onScaleTop={(v) => onPref("scaleTop", v)}
                   fine={doc.fine} showing={showing} smith={smith} chart={prefs.chart} onChart={(v) => onPref("chart", v)}
                   smithZoom={smithZoom} onSmithZoom={setSmithZoom} />
+                {isSmith && smith && an && <MatchCard data={smith} curve={curve} range={doc.view ?? [an.fmin, an.fmax]} manual={doc.manual} hoverF={hoverF}
+                  power={prefs.power} onPower={(v) => onPref("power", v)} />}
                 <div className="card" id="bandCard">
                   <h2>Band segments
                     <span style={{ flex: 1 }}></span>
