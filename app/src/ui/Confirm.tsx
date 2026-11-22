@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
-export function Confirm({ title, children, action, onConfirm, onCancel, cancel = "Cancel", must = false }: {
+export function Confirm({ title, children, action, onConfirm, onCancel, cancel = "Cancel", must = false, disabled = false }: {
   title: string;
   children: React.ReactNode;
   action: string;
@@ -14,6 +14,8 @@ export function Confirm({ title, children, action, onConfirm, onCancel, cancel =
   cancel?: string;
   /** Only a button answers it: Escape and a click outside do nothing. */
   must?: boolean;
+  /** The action cannot be taken yet, as before a box is ticked. */
+  disabled?: boolean;
 }): React.ReactElement {
   const go = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -30,7 +32,7 @@ export function Confirm({ title, children, action, onConfirm, onCancel, cancel =
         <div id="modalText">{children}</div>
         <div className="modal-actions">
           <button type="button" onClick={onCancel}>{cancel}</button>
-          <button type="button" className="primary" ref={go} onClick={onConfirm}>{action}</button>
+          <button type="button" className="primary" ref={go} disabled={disabled} onClick={onConfirm}>{action}</button>
         </div>
       </div>
     </div>,

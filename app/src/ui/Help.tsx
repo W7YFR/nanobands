@@ -7,6 +7,11 @@
  * sits in would cut it off below. A click stays with the "?", so a row it
  * sits in does not take it too. Another glyph can stand in for the "?", as
  * the "⋯" that opens a cell's tooltip where there is no mouse to hover with.
+ *
+ * An interactive "?" holds text you can click in, such as a panel that
+ * opens. Its text sits beside the "?", not inside it, as a button cannot
+ * hold a control. The pointer can move from the "?" onto the text and it
+ * stays, and a click inside the text keeps it open.
  */
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -40,8 +45,10 @@ function sidesOf(el: HTMLElement): [number, number] {
   return [lo, hi];
 }
 
-export function Help({ text, align = "end", glyph = "?", label = "More information", className = "" }: {
+export function Help({ text, align = "end", glyph = "?", label = "More information", className = "", interactive = false }: {
   text: React.ReactNode;
+  /** The text holds controls, such as a panel that opens. */
+  interactive?: boolean;
   /** Which edge of the "?" the text lines up with: "end" opens leftward, for a "?" at a card's right edge. */
   align?: "start" | "end";
   glyph?: string;
@@ -51,12 +58,12 @@ export function Help({ text, align = "end", glyph = "?", label = "More informati
   const id = useId();
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
-  const ref = useRef<HTMLButtonElement>(null), tip = useRef<HTMLSpanElement>(null);
+  const ref = useRef<HTMLButtonElement>(null), tip = useRef<HTMLSpanElement>(null), box = useRef<HTMLSpanElement>(null);
   const shown = open || hover;
 
   useEffect(() => {
     if (!open) return;
-    const away = (e: PointerEvent): void => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const away = (e: PointerEvent): void => { if (!(box.current ?? ref.current)?.contains(e.target as Node)) setOpen(false); };
     const esc = (e: KeyboardEvent): void => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("pointerdown", away);
     document.addEventListener("keydown", esc);
@@ -74,6 +81,19 @@ export function Help({ text, align = "end", glyph = "?", label = "More informati
     if (r.bottom > floorOf(t) - EDGE) t.classList.add("up");
   }, [shown]);
 
+  if (interactive) {
+    const hoverOn = (e: React.PointerEvent): void => { if (e.pointerType === "mouse") setHover(true); };
+    const hoverOff = (e: React.PointerEvent): void => { if (e.pointerType === "mouse") setHover(false); };
+    return (
+      <span ref={box} className={["help-pop", align, shown && "shown"].filter(Boolean).join(" ")} onPointerEnter={hoverOn} onPointerLeave={hoverOff}>
+        <button type="button" ref={ref} className={["help", className, shown && "shown"].filter(Boolean).join(" ")}
+          aria-label={label} aria-expanded={open} aria-controls={id} onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
+          <span className="glyph">{glyph}</span>
+        </button>
+        <span className="tip" id={id} ref={tip} onClick={(e) => e.stopPropagation()}>{text}</span>
+      </span>
+    );
+  }
   return (
     <button type="button" ref={ref} className={["help", align, className, shown && "shown"].filter(Boolean).join(" ")}
       aria-label={label} aria-expanded={open} aria-describedby={id} onClick={(e) => { e.stopPropagation(); setOpen(!open); }}

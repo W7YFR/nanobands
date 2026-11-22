@@ -11,6 +11,7 @@ import { TERMS_VERSION } from "@/terms";
 /** The SHA-256 of `app/public/terms.html` at each terms version. */
 const HASHES: Record<number, string> = {
   1: "79127d776798d26861a0a7e5cab3c5ab5140577c5f89956a23198ea3888b53ac",
+  2: "4d7726e6ed00afc21a6bb537128dd96a97962bcac6b5800b735730b983296da9",
 };
 
 describe("the terms", () => {

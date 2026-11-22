@@ -59,16 +59,16 @@ main a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 
 <main>
   <h2>Terms of use</h2>
-  <p class="dated">Last updated November 9, 2026</p>
+  <p class="dated">Last updated November 21, 2026</p>
 
   <p>NanoBands is a free tool for reading a NanoVNA SWR sweep against the US amateur band plan. By using it you agree to these terms. They are short. Please read them.</p>
 
   <h3>1. What NanoBands does</h3>
-  <p>NanoBands takes a photo of a NanoVNA's SWR screen, a Touchstone <code>.s1p</code> file, or a live sweep from a NanoVNA over USB. It shows the SWR curve, lays the US amateur band plan over it, and says which segments of which bands are at or under the maximum SWR you set, for the license class and mode you choose.</p>
+  <p>NanoBands takes a photo of a NanoVNA's SWR screen, a Touchstone <code>.s1p</code> file, or a live sweep from a NanoVNA over USB. It shows the SWR curve, lays the US amateur band plan over it, and says which segments of which bands are at or under the maximum SWR you set, for the license class and mode you choose. For a sweep or a file, it can also show the readings on a Smith chart, with the impedance at each frequency.</p>
 
   <h3>2. How it reads a sweep</h3>
   <p><b>A photo</b> is read by eye. NanoBands finds the plot grid, reads the sweep's start, stop and SWR scale off the screen's text, and traces the yellow curve. Every step is an estimate. A skewed shot, glare, a misread label, or text drawn over the curve can move the result. The page shows what it read, so you can check and correct it.</p>
-  <p><b>A sweep or a file</b> gives the NanoVNA's own readings, with the calibration the device holds applied as it stands. NanoBands does not check that calibration. A stale one, one taken at the wrong point in the feed line, or none at all gives a wrong SWR. The page says when the device applies no calibration. Between readings the chart draws a straight line, so a narrow dip or peak between two readings does not show.</p>
+  <p><b>A sweep or a file</b> gives the NanoVNA's own readings, with the calibration the device holds applied as it stands. NanoBands does not check that calibration. A stale one, one taken at the wrong point in the feed line, or none at all gives a wrong SWR. The page says when the device applies no calibration. Between readings the chart draws a straight line, so a narrow dip or peak between two readings does not show. On the Smith chart, a value between two readings is an estimate, marked ≈.</p>
 
   <h3>3. What it does not check</h3>
   <p>The SWR is at the point where the NanoVNA is connected, not at the radio. A tuner, a different cable, or a change in the antenna's surroundings changes it. NanoBands knows nothing of your power, your equipment, or the rules in force on the day. The band plan follows 47 CFR §97.301 and §97.305 as published. Power limits are not modeled.</p>

@@ -48,6 +48,18 @@ function keptLines(data: SmithData, showing: Showing | null): { g: S11; n: numbe
   return drawn.flatMap((k, i) => (k.on && data.kept[i] ? [{ g: data.kept[i]!, n: keptNumber(drawn, i), k }] : [])).sort((a, b) => a.n - b.n);
 }
 
+/** The frequency the readout gives: the one under the pointer, or else the
+ *  pin added last, or else the sweep's dip in view. `what` names it: Pin,
+ *  Dip, or nothing. The matching network card gives the same one. */
+export function readoutF(latest: S11 | null, curve: Curve | null, range: [number, number], manual: readonly number[],
+  hoverF: number | null): { f: number | null; what: string; dip: number | null } {
+  const inView = (m: number): boolean => m >= range[0] && m <= range[1];
+  const dip = latest && curve ? dipIn(curve.f, curve.s, range[0], range[1]) : null;
+  const lastPin = latest ? [...manual].reverse().find((m) => inView(m) && s11At(latest, m)) : undefined;
+  const f = hoverF !== null && inView(hoverF) ? hoverF : lastPin ?? dip?.f ?? null;
+  return { f, what: f === null ? "" : manual.includes(f) ? "Pin" : f === dip?.f ? "Dip" : "", dip: dip?.f ?? null };
+}
+
 export function smithScene(data: SmithData, curve: Curve | null, showing: Showing | null, settings: Settings, range: [number, number],
   manual: readonly number[], probe: number | null, hoverF: number | null, readings: Readings | null, zoom: Zoom | null = null): SmithScene {
   return {
@@ -66,7 +78,7 @@ const ohms = (n: number): string => (Math.abs(n) >= 1000 ? Math.round(n).toStrin
 const jSign = (x: number): string => (x < 0 && ohms(x) !== "0.0" ? "−" : "+");
 
 /** R ± jX in ohms. */
-function fmtZ([r, x]: [number, number]): string {
+export function fmtZ([r, x]: [number, number]): string {
   if (!Number.isFinite(r)) return "open";
   return `${ohms(r)} ${jSign(x)} j${ohms(Math.abs(x))} Ω`;
 }
@@ -208,14 +220,8 @@ export function SmithView({ data, settings, range, curve, showing, manual, probe
     if (f !== null) onTogglePin(f, 0);
   };
 
-  // The readout's frequency: the one under the pointer, or the pin added
-  // last, or the sweep's dip in view.
   const latestOn = scene.latest !== null;
-  const inView = (m: number): boolean => m >= range[0] && m <= range[1];
-  const dip = latestOn && curve ? dipIn(curve.f, curve.s, range[0], range[1]) : null;
-  const lastPin = latestOn ? [...manual].reverse().find((m) => inView(m) && s11At(data.latest, m)) : undefined;
-  const f = hoverF !== null && inView(hoverF) ? hoverF : lastPin ?? dip?.f ?? null;
-  const what = f === null ? "" : manual.includes(f) ? "Pin" : f === dip?.f ? "Dip" : "";
+  const { f, what } = readoutF(scene.latest, curve, range, manual, hoverF);
   // Over a pin or the typed frequency, what a click does, as the SWR chart says it.
   const act = f !== hoverF ? "" : snap === "pin" ? (touch ? "tap to unpin" : "click to unpin") : snap === "probe" ? (touch ? "tap to pin" : "click to pin") : "";
   const kept = keptLines(data, showing);
