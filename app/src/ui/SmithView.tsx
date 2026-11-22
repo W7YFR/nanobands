@@ -50,7 +50,7 @@ function keptLines(data: SmithData, showing: Showing | null): { g: S11; n: numbe
 
 /** The frequency the readout gives: the one under the pointer, or else the
  *  pin added last, or else the sweep's dip in view. `what` names it: Pin,
- *  Dip, or nothing. The matching network card gives the same one. */
+ *  Dip, or nothing. */
 export function readoutF(latest: S11 | null, curve: Curve | null, range: [number, number], manual: readonly number[],
   hoverF: number | null): { f: number | null; what: string; dip: number | null } {
   const inView = (m: number): boolean => m >= range[0] && m <= range[1];
