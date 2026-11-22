@@ -7,6 +7,8 @@ them.
 
 ## Unreleased
 
+## v1.23.1 — 2026-11-22
+
 ### Changed
 
 - The terms of use cover the Smith chart, so the terms banner asks you to agree again.
